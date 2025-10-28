@@ -53,7 +53,7 @@ git pull origin develop
 Haz todos tus cambios en tu rama personal:
 
 ```bash
-# Verifica en qué rama estás
+# Verifica en qué ramma estás
 git branch
 
 # Haz tus cambios y guárdalos
