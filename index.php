@@ -6,7 +6,8 @@
     <title>Administrador del Teatro</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
-        /* Estilos generales */
+        /* Estilos generales holas */ 
+        
         :root {
             --sidebar-width-expanded: 230px;
             --sidebar-width-collapsed: 70px;
