@@ -46,7 +46,7 @@ Antes de empezar cualquier tarea, asegúrate de tener los últimos cambios:
 git checkout [tu-rama]
 
 # Actualiza desde main
-git pull origin main
+git p
 ```
 
 ### 2. Trabajar en tu rama

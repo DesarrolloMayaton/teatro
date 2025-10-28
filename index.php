@@ -200,7 +200,7 @@
         <iframe id="frame-venta" src="vnt_interfaz/index.php" name="frame-venta" class="content-frame"></iframe>
         <iframe id="frame-cartelera" src="crt_interfaz/index.php" name="frame-cartelera" class="content-frame"></iframe>
         <!-- NUEVO iframe para Administración -->
-        <iframe id="frame-admin" src="adm_interfaz/index.php" name="frame-admin" class="content-frame"></iframe>
+        <iframe id="frame-admin" src="admin_interfaz/index.php" name="frame-admin" class="content-frame"></iframe>
     </div>
 
     <script>
