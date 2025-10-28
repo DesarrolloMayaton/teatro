@@ -1,5 +1,27 @@
 # Guía de Trabajo en Equipo - Teatro
 
+## 🚀 Configuración Inicial
+
+### Primera vez - Clonar el proyecto
+
+```bash
+# Clona el repositorio
+git clone https://github.com/DesarrolloMayaton/teatro.git
+
+# Entra a la carpeta
+cd teatro
+
+# Cambia a tu rama personal
+git checkout [tu-rama]
+```
+
+### Asignación de ramas por persona:
+- **Moisés Ávila** → `git checkout moises-avila`
+- **Moisés Salvador** → `git checkout MOIXKAR`
+- **Hugo** → `git checkout hugo`
+- **Ulises** → `git checkout ulises`
+- **Philip** → `git checkout philip`
+
 ## 🌿 Estructura de Ramas
 
 El proyecto tiene las siguientes ramas:
@@ -99,7 +121,17 @@ git checkout -- .
 
 # Ver diferencias antes de commit
 git diff
+
+# Renombrar una rama
+git branch -m nombre-viejo nombre-nuevo
+git push origin nombre-nuevo
+git push origin --delete nombre-viejo
 ```
+
+## 🔗 Información del Repositorio
+
+- **URL del repositorio**: https://github.com/DesarrolloMayaton/teatro.git
+- **Organización**: DesarrolloMayaton
 
 ## 🚨 Resolver Conflictos
 
@@ -114,15 +146,7 @@ git add .
 git commit -m "Resuelve conflictos"
 ```
 
-## 👥 Asignación de Ramas
-
-- **Moisés Ávila** → `moises-avila`
-- **Moisés Salvador** → `MOIXKAR`
-- **Hugo** → `hugo`
-- **Ulises** → `ulises`
-- **Philip** → `philip`
-
-## 📞 Contacto
+## �  Contacto
 
 Si tienes dudas, pregunta al equipo antes de hacer cambios importantes en `develop` o `main`.
 
