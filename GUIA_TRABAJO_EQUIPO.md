@@ -148,7 +148,7 @@ git pull origin main
 
 # 3. Si hay conflictos, resuélvelos y haz commit
 git add .
-git commit -m "Actualiza rama con cambios del equipo"
+git commit -m "Agregar menú administracion con su index apas"
 
 # 4. Sube tu rama actualizada
 git push origin [tu-rama]
