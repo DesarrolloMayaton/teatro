@@ -44,7 +44,7 @@ $path_relativo = '../';
 
    
     <div class="content">
-        <h1><i class="bi bi-receipt-cutoff"></i> Gestión de Ventas</h1>
+        <h1><i class="bi bi-receipt-cutoff"></i> Gestión de Ventas pa</h1>
         <p>Aquí podrás ver los reportes de ventas, buscar transacciones, etc.</p>
         </div>
 
