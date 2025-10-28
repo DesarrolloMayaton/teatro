@@ -95,6 +95,89 @@ git merge [tu-rama]
 git push origin develop
 ```
 
+## 🚀 Subir Cambios a Main (Producción)
+
+### Proceso para llevar código a main:
+
+**Solo el líder del proyecto o persona designada debe hacer esto:**
+
+```bash
+# 1. Asegúrate de que develop esté actualizado y funcional
+git checkout develop
+git pull origin develop
+
+# 2. Cambia a main
+git checkout main
+git pull origin main
+
+# 3. Integra develop en main
+git merge develop
+
+# 4. Sube los cambios a main
+git push origin main
+```
+
+### ⚠️ Antes de subir a main, verificar:
+- ✅ Todo funciona correctamente en develop
+- ✅ No hay errores en el código
+- ✅ Se han probado todas las funcionalidades nuevas
+- ✅ El equipo está de acuerdo con los cambios
+
+## 🔄 Mantener Todo Actualizado
+
+### Para mantener tu rama local actualizada:
+
+**Rutina diaria recomendada:**
+
+```bash
+# 1. Ve a tu rama personal
+git checkout [tu-rama]
+
+# 2. Actualiza desde develop (donde están los cambios del equipo)
+git pull origin develop
+
+# 3. Si hay conflictos, resuélvelos y haz commit
+git add .
+git commit -m "Actualiza rama con cambios del equipo"
+
+# 4. Sube tu rama actualizada
+git push origin [tu-rama]
+```
+
+### Para que tus compañeros tengan todo actualizado:
+
+**Cada compañero debe hacer esto regularmente:**
+
+```bash
+# Opción 1: Actualizar solo tu rama
+git checkout [tu-rama]
+git pull origin develop
+
+# Opción 2: Actualizar todas las ramas locales
+git fetch --all
+git checkout [tu-rama]
+git pull origin develop
+```
+
+### 📅 Rutina recomendada para el equipo:
+
+**Al comenzar el día:**
+```bash
+git checkout [tu-rama]
+git pull origin develop
+```
+
+**Al terminar el día:**
+```bash
+git add .
+git commit -m "Trabajo del día: [descripción]"
+git push origin [tu-rama]
+```
+
+**Semanalmente (o cuando sea necesario):**
+- Una persona designada sube develop a main
+- Todo el equipo actualiza sus ramas desde develop
+
 ## ⚠️ Reglas Importantes
 
 1. **NUNCA trabajes directamente en `main`** - Solo se actualiza desde `develop`
@@ -102,6 +185,7 @@ git push origin develop
 3. **Actualiza frecuentemente** - Haz `git pull origin develop` antes de empezar
 4. **Commits descriptivos** - Usa mensajes claros: "Añade formulario de login"
 5. **Comunica** - Avisa al equipo cuando hagas cambios importantes
+6. **Solo una persona sube a main** - Evita conflictos en producción
 
 ## 🔄 Comandos Útiles
 
