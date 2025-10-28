@@ -27,8 +27,7 @@ git checkout [tu-rama]
 
 El proyecto tiene las siguientes ramas:
 
-- **main**: Rama principal con código en producción (protegida)
-- **develop**: Rama de desarrollo donde se integran todas las características
+- **main**: Rama principal con el código más actualizado del proyecto
 - **moises-avila**: Rama personal de Moisés Ávila
 - **MOIXKAR**: Rama personal de Moisés Salvador
 - **hugo**: Rama personal de Hugo
@@ -46,8 +45,8 @@ Antes de empezar cualquier tarea, asegúrate de tener los últimos cambios:
 # Cambia a tu rama personal
 git checkout [tu-rama]
 
-# Actualiza desde develop
-git pull origin develop
+# Actualiza desde main
+git pull origin main
 ```
 
 ### 2. Trabajar en tu rama
@@ -70,58 +69,69 @@ git commit -m "Descripción clara de los cambios"
 git push origin [tu-rama]
 ```
 
-### 4. Integrar tus cambios a develop
+### 4. Integrar tus cambios a main
 
 Cuando termines una funcionalidad y esté lista para compartir:
 
 **Opción A: Pull Request (Recomendado)**
 1. Ve a GitHub
-2. Crea un Pull Request desde tu rama hacia `develop`
+2. Crea un Pull Request desde tu rama hacia `main`
 3. Espera la revisión del equipo
 4. Una vez aprobado, haz merge
 
 **Opción B: Merge directo**
 ```bash
-# Cambia a develop
-git checkout develop
+# Cambia a main
+git checkout main
 
 # Trae los últimos cambios
-git pull origin develop
+git pull origin main
 
 # Integra tu rama
 git merge [tu-rama]
 
 # Sube los cambios
-git push origin develop
-```
-
-## 🚀 Subir Cambios a Main (Producción)
-
-### Proceso para llevar código a main:
-
-**Solo el líder del proyecto o persona designada debe hacer esto:**
-
-```bash
-# 1. Asegúrate de que develop esté actualizado y funcional
-git checkout develop
-git pull origin develop
-
-# 2. Cambia a main
-git checkout main
-git pull origin main
-
-# 3. Integra develop en main
-git merge develop
-
-# 4. Sube los cambios a main
 git push origin main
 ```
 
+## 🚀 Subir Cambios a Main
+
+### Proceso para llevar tu código a main:
+
+**Cualquier miembro del equipo puede hacer esto cuando termine su trabajo:**
+
+```bash
+# 1. Asegúrate de estar en tu rama y tener todo guardado
+git checkout [tu-rama]
+git add .
+git commit -m "Descripción de los cambios"
+
+# 2. Actualiza tu rama con los últimos cambios de main
+git pull origin main
+
+# 3. Resuelve conflictos si los hay, luego:
+git add .
+git commit -m "Resuelve conflictos con main"
+
+# 4. Cambia a main
+git checkout main
+git pull origin main
+
+# 5. Integra tu rama en main
+git merge [tu-rama]
+
+# 6. Sube los cambios a main
+git push origin main
+
+# 7. Regresa a tu rama para seguir trabajando
+git checkout [tu-rama]
+```
+
 ### ⚠️ Antes de subir a main, verificar:
-- ✅ Todo funciona correctamente en develop
+- ✅ Tu código funciona correctamente
 - ✅ No hay errores en el código
-- ✅ Se han probado todas las funcionalidades nuevas
-- ✅ El equipo está de acuerdo con los cambios
+- ✅ Has probado tus cambios
+- ✅ Has actualizado desde main antes del merge
 
 ## 🔄 Mantener Todo Actualizado
 
@@ -133,8 +143,8 @@ git push origin main
 # 1. Ve a tu rama personal
 git checkout [tu-rama]
 
-# 2. Actualiza desde develop (donde están los cambios del equipo)
-git pull origin develop
+# 2. Actualiza desde main (donde están los cambios del equipo)
+git pull origin main
 
 # 3. Si hay conflictos, resuélvelos y haz commit
 git add .
@@ -151,12 +161,12 @@ git push origin [tu-rama]
 ```bash
 # Opción 1: Actualizar solo tu rama
 git checkout [tu-rama]
-git pull origin develop
+git pull origin main
 
 # Opción 2: Actualizar todas las ramas locales
 git fetch --all
 git checkout [tu-rama]
-git pull origin develop
+git pull origin main
 ```
 
 ### 📅 Rutina recomendada para el equipo:
@@ -164,7 +174,7 @@ git pull origin develop
 **Al comenzar el día:**
 ```bash
 git checkout [tu-rama]
-git pull origin develop
+git pull origin main
 ```
 
 **Al terminar el día:**
@@ -174,18 +184,18 @@ git commit -m "Trabajo del día: [descripción]"
 git push origin [tu-rama]
 ```
 
-**Semanalmente (o cuando sea necesario):**
-- Una persona designada sube develop a main
-- Todo el equipo actualiza sus ramas desde develop
+**Cuando termines una funcionalidad:**
+- Sigue el proceso de "Subir Cambios a Main"
+- Avisa al equipo para que actualicen sus ramas desde main
 
 ## ⚠️ Reglas Importantes
 
-1. **NUNCA trabajes directamente en `main`** - Solo se actualiza desde `develop`
+1. **NUNCA trabajes directamente en `main`** - Solo haz merge desde tu rama personal
 2. **Siempre trabaja en tu rama personal** - Evita conflictos con el equipo
-3. **Actualiza frecuentemente** - Haz `git pull origin develop` antes de empezar
+3. **Actualiza frecuentemente** - Haz `git pull origin main` antes de empezar
 4. **Commits descriptivos** - Usa mensajes claros: "Añade formulario de login"
-5. **Comunica** - Avisa al equipo cuando hagas cambios importantes
-6. **Solo una persona sube a main** - Evita conflictos en producción
+5. **Comunica** - Avisa al equipo cuando subas cambios importantes a main
+6. **Actualiza antes de hacer merge** - Siempre trae los últimos cambios de main antes de integrar
 
 ## 🔄 Comandos Útiles
 
@@ -234,7 +244,7 @@ git commit -m "Resuelve conflictos"
 
 ## �  Contacto
 
-Si tienes dudas, pregunta al equipo antes de hacer cambios importantes en `develop` o `main`.
+Si tienes dudas, pregunta al equipo antes de hacer cambios importantes en `main`.
 
 ---
 
