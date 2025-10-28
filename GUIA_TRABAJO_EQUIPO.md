@@ -7,7 +7,7 @@ El proyecto tiene las siguientes ramas:
 - **main**: Rama principal con código en producción (protegida)
 - **develop**: Rama de desarrollo donde se integran todas las características
 - **moises-avila**: Rama personal de Moisés Ávila
-- **moises-salvador**: Rama personal de Moisés Salvador
+- **MOIXKAR**: Rama personal de Moisés Salvador
 - **hugo**: Rama personal de Hugo
 - **ulises**: Rama personal de Ulises
 - **philip**: Rama personal de Philip
@@ -117,7 +117,7 @@ git commit -m "Resuelve conflictos"
 ## 👥 Asignación de Ramas
 
 - **Moisés Ávila** → `moises-avila`
-- **Moisés Salvador** → `moises-salvador`
+- **Moisés Salvador** → `MOIXKAR`
 - **Hugo** → `hugo`
 - **Ulises** → `ulises`
 - **Philip** → `philip`
