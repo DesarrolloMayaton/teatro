@@ -21,6 +21,7 @@ git checkout [tu-rama]
 - **Hugo** → `git checkout hugo`
 - **Ulises** → `git checkout ulises`
 - **Philip** → `git checkout philip`
+- **Posyo** → `git checkout posyo`
 
 ## 🌿 Estructura de Ramas
 
@@ -33,6 +34,7 @@ El proyecto tiene las siguientes ramas:
 - **hugo**: Rama personal de Hugo
 - **ulises**: Rama personal de Ulises
 - **philip**: Rama personal de Philip
+- **posyo**: Rama personal de Posyo
 
 ## 📋 Flujo de Trabajo
 
