@@ -149,7 +149,7 @@ git pull origin main
 # 3. Si hay conflictos, resuélvelos y haz commit
 git add .
 git commit -m "Agregar menú administracion con su index apas"
-
+git pull origin main
 # 4. Sube tu rama actualizada
 git push origin [tu-rama]
 ```
