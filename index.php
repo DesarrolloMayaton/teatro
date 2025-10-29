@@ -188,7 +188,6 @@
             <a class="menu-item" data-target="frame-inicio"><i class="bi bi-house-door-fill"></i> <span>Inicio</span></a>
             <a class="menu-item" data-target="frame-evento"><i class="bi bi-calendar-event-fill"></i> <span>Evento</span></a>
             <a class="menu-item" data-target="frame-venta"><i class="bi bi-ticket-perforated-fill"></i> <span>Venta</span></a>
-            <a class="menu-item" data-target="frame-cartelera"><i class="bi bi-film"></i> <span>Cartelera</span></a>
             <!-- NUEVO apartado Administración -->
             <a class="menu-item" data-target="frame-admin"><i class="bi bi-gear-fill"></i> <span>Administración</span></a>
         </div>
