@@ -132,6 +132,7 @@ git checkout [tu-rama]
 - ✅ No hay errores en el código
 - ✅ Has probado tus cambios
 - ✅ Has actualizado desde main antes del merge
+- ✅ Tenga validaciones robustas
 
 ## 🔄 Mantener Todo Actualizado
 
