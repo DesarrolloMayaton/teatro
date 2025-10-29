@@ -277,6 +277,7 @@ $EVENTOS_JSON = json_encode(['items'=>$EVENTOS,'imgCol'=>$imgCol, 'error'=>$EVEN
 <!-- Puedes ajustar esta base pública si tu URL es otra -->
 <script>window.APP_BASE = '/TEATRO/teatro/';</script>
 
+<script>window.APP_BASE = '/TEATRO/teatro/';</script>
 <script>
   // ------- Datos de PHP (eventos reales) -------
   const PHP_EVENTOS = <?php echo $EVENTOS_JSON ?: '{"items":[], "imgCol": null, "error":"sin_datos"}'; ?>;
@@ -284,27 +285,15 @@ $EVENTOS_JSON = json_encode(['items'=>$EVENTOS,'imgCol'=>$imgCol, 'error'=>$EVEN
   // ------- Utilidades -------
   const $ = s => document.querySelector(s);
   const $$ = s => document.querySelectorAll(s);
-  const LS = { section:'admin_section_simple', promos:'admin_promos_simple' };
   const fmtMoney = n => Number(n||0).toLocaleString('es-MX',{style:'currency',currency:'MXN'});
   const todayISO = () => new Date().toISOString().slice(0,10);
 
-  // ------- Estado -------
-  const state = { eventos: [], promos: [] };
+  // Estado
+  const state = { eventos: [], promos: [], editingId: null };
 
-  // ------- Navegación -------
-  function go(section){
-    $$('#menu .link').forEach(l=>l.classList.toggle('active', l.dataset.section===section));
-    $$('section').forEach(s=>s.classList.toggle('active', s.id===section));
-    $('#title').textContent = section.charAt(0).toUpperCase()+section.slice(1);
-    localStorage.setItem(LS.section, section);
-    if(section==='descuentos') renderPromosTable();
-    if(section==='eventos'){ renderEventosCards(); renderEventosTable(); }
-    if(section==='reportes') renderReportes();
-  }
-
-  // ===== Helpers para resolver miniaturas =====
-  function unique(arr){ return [...new Set(arr.filter(Boolean))]; }
-  function testImage(url, timeout=2500){
+  // ===== Helpers imágenes (miniatura) =====
+  function unique(a){ return [...new Set(a.filter(Boolean))]; }
+  function testImage(url, timeout=2000){
     return new Promise(resolve=>{
       const img = new Image();
       const t = setTimeout(()=>{ img.src=''; resolve(false); }, timeout);
@@ -315,87 +304,117 @@ $EVENTOS_JSON = json_encode(['items'=>$EVENTOS,'imgCol'=>$imgCol, 'error'=>$EVEN
   }
   function buildImageCandidates(src){
     if(!src) return [];
-    if(/^https?:\/\//i.test(src) || src.startsWith('data:')) return [src]; // absoluta
+    if(/^https?:\/\//i.test(src) || src.startsWith('data:')) return [src];
     const APP_BASE = (window.APP_BASE || '/').replace(/\/+$/,'') + '/';
     const asAbsolute = src.startsWith('/') ? [src] : [];
-    const likelyDirs = [
-      '', 'imagenes/', 'img/', 'uploads/',
-      'evt_interfaz/', 'evt_interfaz/imagenes/', 'evt_interfaz/uploads/'
-    ];
-    const relativeFromHere = likelyDirs.map(d => d + src);
-    const fromBase = likelyDirs.map(d => APP_BASE + d + src);
-    const fromParent = likelyDirs.map(d => '../' + d + src);
-    const fromGrand  = likelyDirs.map(d => '../../' + d + src);
-    return unique([...asAbsolute, ...relativeFromHere, ...fromParent, ...fromGrand, ...fromBase]);
+    const dirs = ['', 'imagenes/', 'img/', 'uploads/','evt_interfaz/','evt_interfaz/imagenes/','evt_interfaz/uploads/'];
+    const rel = dirs.map(d=> d+src);
+    const fromBase = dirs.map(d => APP_BASE + d + src);
+    const parent = dirs.map(d => '../' + d + src);
+    const grand = dirs.map(d => '../../' + d + src);
+    return unique([...asAbsolute, ...rel, ...parent, ...grand, ...fromBase]);
   }
-  async function resolveThumbURL(src){
-    const cands = buildImageCandidates(src);
-    for(const url of cands){
-      if(await testImage(url)) return url;
-    }
-    return '';
+  async function resolveThumbURL(src){ for(const u of buildImageCandidates(src)){ if(await testImage(u)) return u; } return ''; }
+
+  // ===== API Promos =====
+  const API = 'promos_api.php';
+  async function apiListPromos(){
+    const r = await fetch(API);
+    const j = await r.json();
+    if(!j.ok) throw new Error(j.error||'Error API');
+    return j.items||[];
+  }
+  async function apiCreatePromo(p){
+    const r = await fetch(API, {
+      method:'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(p)
+    });
+    const j = await r.json();
+    if(!j.ok) throw new Error(j.error||'No se pudo crear');
+    return j.id_promocion;
+  }
+  async function apiUpdatePromo(id, p){
+    const r = await fetch(API + '?id='+encodeURIComponent(id), {
+      method:'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(p)
+    });
+    const j = await r.json();
+    if(!j.ok) throw new Error(j.error||'No se pudo actualizar');
+  }
+  async function apiDeletePromo(id){
+    const r = await fetch(API + '?id='+encodeURIComponent(id), { method:'DELETE' });
+    const j = await r.json();
+    if(!j.ok) throw new Error(j.error||'No se pudo eliminar');
+  }
+  function exportCSV(){ window.open(API+'?export=1','_blank'); }
+
+  // ===== Navegación =====
+  function go(section){
+    $$('#menu .link').forEach(l=>l.classList.toggle('active', l.dataset.section===section));
+    $$('section').forEach(s=>s.classList.toggle('active', s.id===section));
+    $('#title').textContent = section.charAt(0).toUpperCase()+section.slice(1);
+    if(section==='eventos'){ renderEventosCards(); renderEventosTable(); }
+    if(section==='descuentos'){ renderPromosTable(); }
+    if(section==='reportes'){ renderReportes(); }
   }
 
-  // ------- Inicialización -------
+  // ===== Inicial =====
   (async function init(){
-    // menú
-    $$('#menu .link').forEach(l=>l.addEventListener('click', ()=> go(l.dataset.section)));
-
-    // eventos desde PHP -> mapeo a objeto del front
+    // Eventos desde PHP
     try {
       const imgCol = PHP_EVENTOS.imgCol;
       state.eventos = (PHP_EVENTOS.items || []).map(e => {
         const tipoNum = Number(e.tipo ?? 0);
-        const aforo = (tipoNum === 1) ? 420 : (tipoNum === 2 ? 540 : 0); // según tu nota
+        const aforo = (tipoNum === 1) ? 420 : (tipoNum === 2 ? 540 : 0);
         const inicio = (e.inicio_venta || '').toString();
         const cierre = (e.cierre_venta || '').toString();
-        const fechaCorta = inicio.slice(0,10);
         return {
           id: e.id_evento ?? null,
           nombre: e.titulo || 'Evento',
-          inicio: inicio,
-          cierre: cierre,
-          fecha: fechaCorta,       // para combo de Descuentos
+          inicio, cierre,
+          fecha: inicio.slice(0,10),
           tipo: tipoNum,
-          aforo: aforo,
+          aforo,
           finalizado: Number(e.finalizado) === 1,
           imagen: imgCol ? (e[imgCol] || '') : (e.imagen || e.foto || e.ruta_imagen || e.img || e.thumbnail || '')
         };
       });
-    } catch (err) {
-      console.warn('No se pudieron parsear eventos PHP:', err);
-      state.eventos = [];
-    }
+    } catch { state.eventos = []; }
 
-    // combo de eventos (Descuentos)
+    // Llenar select de eventos
     const sel = $('#ev'); sel.innerHTML = '';
     state.eventos.forEach(e=>{
       const opt = document.createElement('option');
-      opt.value = e.id ?? ''; opt.textContent = `${e.nombre} — ${e.fecha || 's/f'}`;
+      opt.value = e.id ?? '';
+      opt.textContent = `${e.nombre} — ${e.fecha||'s/f'}`;
       sel.appendChild(opt);
     });
 
-    // promociones desde LS
-    try{ state.promos = JSON.parse(localStorage.getItem(LS.promos)||'[]'); }catch{ state.promos=[]; }
+    // Cargar promociones desde BD
+    await loadPromos();
 
-    // listeners descuentos
+    // Listeners
+    $$('#menu .link').forEach(l=>l.addEventListener('click', ()=> go(l.dataset.section)));
     $('#btn-preview').addEventListener('click', previewPromo);
     $('#form-descuento').addEventListener('submit', savePromo);
-    $('#btn-clear').addEventListener('click', ()=> $('#preview').textContent='Completa el formulario y haz clic en “Vista previa”.');
+    $('#btn-clear').addEventListener('click', ()=> {
+      $('#preview').textContent='Completa el formulario y haz clic en “Vista previa”.';
+      state.editingId = null;
+    });
     $('#btn-export').addEventListener('click', exportCSV);
+    $('#btn-refresh').addEventListener('click', async ()=>{ await loadPromos(); renderReportes(); alert('Reportes recalculados'); });
 
-    // botón refrescar
-    $('#btn-refresh').addEventListener('click', ()=> { renderReportes(); alert('Reportes recalculados'); });
-
-    // render inicial
-    await renderEventosCards(); // async por resolución de imágenes
+    // Primer render
+    await renderEventosCards();
     renderEventosTable();
     renderPromosTable();
     renderReportes();
-    go(localStorage.getItem(LS.section)||'descuentos');
+    go('descuentos');
   })();
 
-  // ------- Descuentos -------
+  // ===== Descuentos (UI) =====
   function calcularFinal(precio, modo, valor){
     precio = parseFloat(precio||0); valor = parseFloat(valor||0);
     return Math.max(0, modo==='porcentaje' ? precio*(1-valor/100) : precio-valor);
@@ -422,35 +441,67 @@ $EVENTOS_JSON = json_encode(['items'=>$EVENTOS,'imgCol'=>$imgCol, 'error'=>$EVEN
       <div class="muted">Vigencia: ${desde} a ${hasta} · Mín. ${minq}${cond? ' · '+cond:''}</div>
     `;
   }
-  function savePromo(e){
+
+  async function loadPromos(){
+    const list = await apiListPromos();
+    // Normalizar hacia el front
+    state.promos = list.map(p => ({
+      id_promocion: p.id_promocion,
+      evId: p.id_evento,
+      evNombre: p.evento || (state.eventos.find(e=>e.id==p.id_evento)?.nombre || 'Evento'),
+      evFecha: (state.eventos.find(e=>e.id==p.id_evento)?.fecha || ''),
+      tipo: p.tipo_boleto,
+      precio: Number(p.precio_base),
+      modo: p.modo,
+      valor: Number(p.valor),
+      desde: p.desde,
+      hasta: p.hasta,
+      minq: Number(p.min_cantidad),
+      cond: p.condiciones || ''
+    }));
+  }
+
+  async function savePromo(e){
     e.preventDefault();
     const ev = state.eventos.find(e=> (e.id ?? '') == ($('#ev').value ?? ''));
-    const promo = {
-      id: Date.now(),
-      evId: ev?.id, evNombre: ev?.nombre||'Evento', evFecha: ev?.fecha||'',
-      tipo: $('#tipo').value,
-      precio: +($('#precio').value||0),
-      modo: $('#modo').value,
+    if(!ev){ alert('Selecciona un evento válido.'); return; }
+
+    const payload = {
+      id_evento: ev.id,
+      tipo_boleto: $('#tipo').value,
+      precio_base: +($('#precio').value||0),
+      modo: $('#modo').value, // 'porcentaje' | 'fijo'
       valor: +($('#valor').value||0),
       desde: $('#desde').value || todayISO(),
       hasta: $('#hasta').value || todayISO(),
-      minq: +($('#minq').value||1),
-      cond: $('#cond').value.trim()
+      min_cantidad: +($('#minq').value||1),
+      condiciones: $('#cond').value.trim()
     };
-    if(!promo.evId || !promo.precio || !promo.valor){ alert('Faltan datos.'); return; }
-    state.promos.push(promo);
-    localStorage.setItem(LS.promos, JSON.stringify(state.promos));
-    renderPromosTable();
-    $('#form-descuento').reset();
-    $('#preview').textContent = 'Descuento guardado.';
-    renderReportes();
+    if(!payload.precio_base || !payload.valor){ alert('Precio base y valor de descuento son obligatorios.'); return; }
+
+    try{
+      if(state.editingId){ // UPDATE
+        await apiUpdatePromo(state.editingId, payload);
+      } else {            // CREATE
+        await apiCreatePromo(payload);
+      }
+      state.editingId = null;
+      $('#form-descuento').reset();
+      $('#preview').textContent = 'Descuento guardado.';
+      await loadPromos();
+      renderPromosTable(); renderReportes();
+    }catch(err){
+      alert('Error al guardar: '+err.message);
+    }
   }
+
   function vigente(p){
     const hoy = todayISO();
     return (p.desde<=hoy && p.hasta>=hoy);
   }
+
   function renderPromosTable(){
-    const tb = $('#tabla-promos tbody');
+    const tb = document.querySelector('#tabla-promos tbody');
     tb.innerHTML = '';
     if(state.promos.length===0){
       tb.innerHTML = `<tr><td colspan="9" class="muted">Sin promociones registradas.</td></tr>`;
@@ -469,50 +520,50 @@ $EVENTOS_JSON = json_encode(['items'=>$EVENTOS,'imgCol'=>$imgCol, 'error'=>$EVEN
         <td>${p.minq}</td>
         <td>${vigente(p)?'<span class="pill ok">Vigente</span>':'—'}</td>
         <td>
-          <button class="btn muted" data-act="edit" data-id="${p.id}"><i class="bi bi-pencil-square"></i></button>
-          <button class="btn danger" data-act="del" data-id="${p.id}"><i class="bi bi-trash3"></i></button>
+          <button class="btn muted" data-act="edit" data-id="${p.id_promocion}"><i class="bi bi-pencil-square"></i></button>
+          <button class="btn danger" data-act="del" data-id="${p.id_promocion}"><i class="bi bi-trash3"></i></button>
         </td>
       `;
       tb.appendChild(tr);
     });
     tb.querySelectorAll('button[data-act]').forEach(btn=>{
-      btn.onclick = ()=>{
-        const id = +btn.dataset.id, act = btn.dataset.act;
+      btn.onclick = async ()=>{
+        const id = +btn.dataset.id;
+        const act = btn.dataset.act;
+        const p = state.promos.find(x=>x.id_promocion===id);
+        if(!p) return;
         if(act==='del'){
           if(confirm('¿Eliminar esta promoción?')){
-            state.promos = state.promos.filter(x=>x.id!==id);
-            localStorage.setItem(LS.promos, JSON.stringify(state.promos));
-            renderPromosTable(); renderReportes();
+            try{
+              await apiDeletePromo(id);
+              await loadPromos(); renderPromosTable(); renderReportes();
+            }catch(err){ alert('No se pudo eliminar: '+err.message); }
           }
         }else if(act==='edit'){
-          const p = state.promos.find(x=>x.id===id); if(!p) return;
+          // Cargar datos al formulario para editar
           $('#ev').value = p.evId ?? '';
-          $('#tipo').value = p.tipo; $('#precio').value = p.precio;
-          $('#modo').value = p.modo; $('#valor').value = p.valor; $('#desde').value = p.desde; $('#hasta').value = p.hasta;
-          $('#minq').value = p.minq; $('#cond').value = p.cond||'';
-          go('descuentos'); previewPromo();
+          $('#tipo').value = p.tipo;
+          $('#precio').value = p.precio;
+          $('#modo').value = p.modo;
+          $('#valor').value = p.valor;
+          $('#desde').value = p.desde;
+          $('#hasta').value = p.hasta;
+          $('#minq').value = p.minq;
+          $('#cond').value = p.cond;
+          state.editingId = id;
+          go('descuentos');
+          previewPromo();
         }
       };
     });
   }
-  // Descargar historial (CSV)
-  function exportCSV(){
-    if(!state.promos.length){ alert('No hay promociones para descargar.'); return; }
-    const headers = ['id','evId','evNombre','evFecha','tipo','precio','modo','valor','desde','hasta','minq','cond'];
-    const rows = state.promos.map(p=> headers.map(h=>{
-      const v = (p[h] ?? '').toString().replace(/"/g,'""');
-      return `"${v}"`;
-    }).join(','));
-    const csv = [headers.join(','), ...rows].join('\n');
-    const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-    a.download = 'historial_promociones.csv';
-    a.click();
-  }
 
-  // ------- Eventos (cards + table) -------
+  // ===== Export CSV desde servidor =====
+  document.querySelector('#btn-export')?.addEventListener('click', exportCSV);
+
+  // ===== Eventos (cards + tabla) =====
   async function renderEventosCards(){
-    const grid = $('#evt-grid'); grid.innerHTML = '';
+    const grid = document.querySelector('#evt-grid'); grid.innerHTML = '';
     if(!state.eventos.length){
       grid.innerHTML = `<div class="muted">No se encontraron eventos.</div>`;
       return;
@@ -520,30 +571,28 @@ $EVENTOS_JSON = json_encode(['items'=>$EVENTOS,'imgCol'=>$imgCol, 'error'=>$EVEN
     for(const e of state.eventos){
       const div = document.createElement('div');
       div.className = 'evt-card';
-      // placeholder
       div.innerHTML = `
         <div class="evt-thumb" style="display:flex;align-items:center;justify-content:center;font-size:11px;color:#98a2b3">Cargando</div>
         <h4 class="evt-title">${e.nombre}</h4>
         <p class="evt-meta">${(e.inicio || '').slice(0,16)} ${e.cierre ? '→ '+(e.cierre.slice(0,16)) : ''}</p>
         <p class="evt-meta">Tipo: ${e.tipo || '—'} · Aforo: ${e.aforo} ${e.finalizado ? '<span class="pill" style="background:#ffe8e6;color:#a23b2a; margin-left:6px">Finalizado</span>' : '<span class="pill ok" style="margin-left:6px">Activo</span>'}</p>
       `;
-      // cargar imagen real
       const url = await resolveThumbURL(e.imagen || '');
-      const thumb = div.querySelector('.evt-thumb');
+      const ph = div.querySelector('.evt-thumb');
       if(url){
         const img = document.createElement('img');
         img.className = 'evt-thumb';
         img.alt = 'thumb';
         img.src = url;
-        thumb.replaceWith(img);
+        ph.replaceWith(img);
       }else{
-        thumb.textContent = 'Sin\nfoto';
+        ph.textContent = 'Sin\nfoto';
       }
       grid.appendChild(div);
     }
   }
   function renderEventosTable(){
-    const tb = $('#tabla-eventos tbody'); tb.innerHTML='';
+    const tb = document.querySelector('#tabla-eventos tbody'); tb.innerHTML='';
     state.eventos.forEach(e=>{
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -558,53 +607,16 @@ $EVENTOS_JSON = json_encode(['items'=>$EVENTOS,'imgCol'=>$imgCol, 'error'=>$EVEN
     });
   }
 
-  // Resuelve la primera URL válida para la miniatura
-  function resolveImg(src){ return src; } // no se usa ya
-  async function resolveThumbURL(src){
-    const cands = buildImageCandidates(src);
-    for(const url of cands){
-      if(await testImage(url)) return url;
-    }
-    return '';
-  }
-  function buildImageCandidates(src){
-    if(!src) return [];
-    if(/^https?:\/\//i.test(src) || src.startsWith('data:')) return [src];
-    const APP_BASE = (window.APP_BASE || '/').replace(/\/+$/,'') + '/';
-    const asAbsolute = src.startsWith('/') ? [src] : [];
-    const likelyDirs = [
-      '', 'imagenes/', 'img/', 'uploads/',
-      'evt_interfaz/', 'evt_interfaz/imagenes/', 'evt_interfaz/uploads/'
-    ];
-    const relativeFromHere = likelyDirs.map(d => d + src);
-    const fromBase = likelyDirs.map(d => APP_BASE + d + src);
-    const fromParent = likelyDirs.map(d => '../' + d + src);
-    const fromGrand  = likelyDirs.map(d => '../../' + d + src);
-    return [...new Set([...asAbsolute, ...relativeFromHere, ...fromParent, ...fromGrand, ...fromBase])];
-  }
-  function testImage(url, timeout=2500){
-    return new Promise(resolve=>{
-      const img = new Image();
-      const t = setTimeout(()=>{ img.src=''; resolve(false); }, timeout);
-      img.onload = ()=>{ clearTimeout(t); resolve(true); };
-      img.onerror = ()=>{ clearTimeout(t); resolve(false); };
-      img.src = url;
-    });
-  }
-
-  // ------- Reportes (simple) -------
+  // ===== Reportes =====
   function renderReportes(){
-    const tot = state.promos.length;
-    const vig = state.promos.filter(p=> (p.desde<=todayISO() && p.hasta>=todayISO())).length;
-    const finals = state.promos.map(p=> {
-      const precio = parseFloat(p.precio||0), val = parseFloat(p.valor||0);
-      return Math.max(0, p.modo==='porcentaje'? precio*(1-val/100) : precio-val);
-    });
+    const finals = state.promos.map(p => calcularFinal(p.precio, p.modo, p.valor));
     const avg = finals.length ? finals.reduce((a,b)=>a+b,0)/finals.length : 0;
-    $('#rep-tot').textContent = tot;
+    const vig = state.promos.filter(p=> (p.desde<=todayISO() && p.hasta>=todayISO())).length;
+    $('#rep-tot').textContent = state.promos.length;
     $('#rep-vig').textContent = vig;
     $('#rep-avg').textContent = fmtMoney(avg);
   }
 </script>
+
 </body>
 </html>
