@@ -1,231 +1,217 @@
 <?php
-// promos_api.php
-header('X-Content-Type-Options: nosniff');
-header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+// promos_api.php — CRUD real sobre tabla `promocion` (BD trt_25)
+header('Content-Type: application/json; charset=utf-8');
 
-$DOCROOT = $_SERVER['DOCUMENT_ROOT'] ?? '';
-// Ajusta esta ruta si es necesario:
-require_once __DIR__ . '/../evt_interfaz/conexion.php'; // <- usa tu conexion.php
+// (Dev) muestra errores de mysqli como excepciones
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-// Detectar conexión (mysqli o PDO)
-function db_mysqli() {
-  foreach (['conn','conexion','mysqli'] as $m) {
-    if (isset($GLOBALS[$m]) && $GLOBALS[$m] instanceof mysqli) return $GLOBALS[$m];
-  }
-  return null;
+// ---- Conexión ----
+// Ajusta la ruta si tu conexion.php está en otro directorio:
+require_once __DIR__ . '/../evt_interfaz/conexion.php';
+
+// Detecta mysqli o PDO expuestos por conexion.php
+$mysqli = null; $pdo = null;
+foreach (['conn','conexion','mysqli'] as $m) {
+  if (isset($GLOBALS[$m]) && $GLOBALS[$m] instanceof mysqli) { $mysqli = $GLOBALS[$m]; }
 }
-function db_pdo() { return (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) ? $GLOBALS['pdo'] : null; }
+if (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) { $pdo = $GLOBALS['pdo']; }
 
-function json_out($data, $code=200){
-  http_response_code($code);
-  header('Content-Type: application/json; charset=utf-8');
-  echo json_encode($data, JSON_UNESCAPED_UNICODE);
+function respond($ok, $data = []) {
+  echo json_encode($ok ? array_merge(['ok'=>true], $data) : array_merge(['ok'=>false], $data), JSON_UNESCAPED_UNICODE);
   exit;
 }
-function bad($msg, $code=400){ json_out(['ok'=>false,'error'=>$msg], $code); }
 
-$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-$q = $_GET;
+function fetch_all_assoc_mysqli($res) {
+  $rows = [];
+  while ($row = $res->fetch_assoc()) $rows[] = $row;
+  return $rows;
+}
 
-// Export CSV (GET ?export=1)
-if ($method === 'GET' && isset($q['export'])) {
-  // Descargar CSV de todas las promociones (join con evento)
-  $mysqli = db_mysqli();
-  $pdo = db_pdo();
-  $sql = "SELECT p.id_promocion, p.id_evento, e.titulo AS evento,
-                 p.tipo_boleto, p.precio_base, p.modo, p.valor,
-                 p.desde, p.hasta, p.min_cantidad, p.condiciones,
-                 p.created_at, p.updated_at
-          FROM promocion p
-          LEFT JOIN evento e ON e.id_evento = p.id_evento
-          ORDER BY p.created_at DESC, p.id_promocion DESC";
-  if ($mysqli) {
-    $res = $mysqli->query($sql);
-    if ($res === false) bad('Error SQL: '.$mysqli->error, 500);
-    $rows = [];
-    while ($row = $res->fetch_assoc()) $rows[] = $row;
-  } else if ($pdo) {
-    $st = $pdo->query($sql);
-    if (!$st) bad('Error SQL PDO', 500);
-    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
-  } else {
-    bad('Sin conexión a BD', 500);
-  }
+// JSON body
+$raw  = file_get_contents('php://input');
+$body = json_decode($raw, true);
+if (!is_array($body)) $body = [];
 
+// Acción
+$action = $_GET['action'] ?? 'list';
+
+// ---------- EXPORT CSV ----------
+if ($action === 'export') {
   header('Content-Type: text/csv; charset=utf-8');
   header('Content-Disposition: attachment; filename=historial_promociones.csv');
-  $out = fopen('php://output', 'w');
-  $headers = ['id_promocion','id_evento','evento','tipo_boleto','precio_base','modo','valor','desde','hasta','min_cantidad','condiciones','created_at','updated_at'];
-  fputcsv($out, $headers);
-  foreach ($rows as $r) {
-    $line = [];
-    foreach ($headers as $h) $line[] = $r[$h] ?? '';
-    fputcsv($out, $line);
-  }
-  fclose($out);
-  exit;
-}
 
-// Listar (GET)
-if ($method === 'GET') {
-  $mysqli = db_mysqli();
-  $pdo = db_pdo();
   $sql = "SELECT p.*, e.titulo AS evento
           FROM promocion p
           LEFT JOIN evento e ON e.id_evento = p.id_evento
-          ORDER BY p.desde DESC, p.id_promocion DESC";
+          ORDER BY p.desde ASC, p.id_promocion ASC";
+
   if ($mysqli) {
     $res = $mysqli->query($sql);
-    if ($res === false) bad('Error SQL: '.$mysqli->error, 500);
-    $rows = [];
-    while ($row = $res->fetch_assoc()) $rows[] = $row;
-    json_out(['ok'=>true,'items'=>$rows]);
-  } else if ($pdo) {
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['id_promocion','id_evento','evento','tipo_boleto','precio_base','modo','valor','desde','hasta','min_cantidad','condiciones','created_at','updated_at']);
+    while ($row = $res->fetch_assoc()) {
+      fputcsv($out, [
+        $row['id_promocion'], $row['id_evento'], $row['evento'], $row['tipo_boleto'],
+        $row['precio_base'], $row['modo'], $row['valor'], $row['desde'], $row['hasta'],
+        $row['min_cantidad'], $row['condiciones'], $row['created_at'], $row['updated_at']
+      ]);
+    }
+    fclose($out); exit;
+  } elseif ($pdo) {
     $st = $pdo->query($sql);
-    if (!$st) bad('Error SQL PDO', 500);
-    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
-    json_out(['ok'=>true,'items'=>$rows]);
+    $rows = $st ? $st->fetchAll(PDO::FETCH_ASSOC) : [];
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['id_promocion','id_evento','evento','tipo_boleto','precio_base','modo','valor','desde','hasta','min_cantidad','condiciones','created_at','updated_at']);
+    foreach ($rows as $row) {
+      fputcsv($out, [
+        $row['id_promocion'], $row['id_evento'], $row['evento'], $row['tipo_boleto'],
+        $row['precio_base'], $row['modo'], $row['valor'], $row['desde'], $row['hasta'],
+        $row['min_cantidad'], $row['condiciones'], $row['created_at'], $row['updated_at']
+      ]);
+    }
+    fclose($out); exit;
   } else {
-    bad('Sin conexión a BD', 500);
+    echo "No DB connection"; exit;
   }
 }
 
-// Leer cuerpo (POST/PUT/DELETE)
-$raw = file_get_contents('php://input');
-$ctype = $_SERVER['CONTENT_TYPE'] ?? '';
-$data = [];
-if (stripos($ctype,'application/json') !== false) {
-  $tmp = json_decode($raw, true);
-  if (is_array($tmp)) $data = $tmp;
-} else {
-  // x-www-form-urlencoded o multipart
-  $data = $_POST;
+// ---------- LIST ----------
+if ($action === 'list') {
+  $sql = "SELECT p.*, e.titulo AS evento
+          FROM promocion p
+          LEFT JOIN evento e ON e.id_evento = p.id_evento
+          ORDER BY p.desde ASC, p.id_promocion ASC";
+
+  if ($mysqli) {
+    $res = $mysqli->query($sql);
+    respond(true, ['items'=>fetch_all_assoc_mysqli($res)]);
+  } elseif ($pdo) {
+    $st = $pdo->query($sql);
+    respond(true, ['items'=>$st ? $st->fetchAll(PDO::FETCH_ASSOC) : []]);
+  } else {
+    respond(false, ['error'=>'No DB connection']);
+  }
 }
 
-// Validación y normalización común
-function normalize($d) {
+// Campos esperados
+function expect_fields($src){
   return [
-    'id_evento'   => isset($d['id_evento']) ? (int)$d['id_evento'] : null,
-    'tipo_boleto' => trim($d['tipo_boleto'] ?? ''),
-    'precio_base' => (float)($d['precio_base'] ?? 0),
-    'modo'        => ($d['modo'] ?? ''),
-    'valor'       => (float)($d['valor'] ?? 0),
-    'desde'       => substr(($d['desde'] ?? ''),0,10),
-    'hasta'       => substr(($d['hasta'] ?? ''),0,10),
-    'min_cantidad'=> (int)($d['min_cantidad'] ?? 1),
-    'condiciones' => trim($d['condiciones'] ?? ''),
+    'id_evento'    => (int)($src['id_evento']    ?? 0),
+    'tipo_boleto'  => trim((string)($src['tipo_boleto'] ?? '')),
+    'precio_base'  => (float)($src['precio_base'] ?? 0),
+    'modo'         => in_array(($src['modo'] ?? ''), ['porcentaje','fijo'], true) ? $src['modo'] : 'porcentaje',
+    'valor'        => (float)($src['valor'] ?? 0),
+    'desde'        => (string)($src['desde'] ?? date('Y-m-d')),
+    'hasta'        => (string)($src['hasta'] ?? date('Y-m-d')),
+    'min_cantidad' => (int)($src['min_cantidad'] ?? 1),
+    'condiciones'  => trim((string)($src['condiciones'] ?? ''))
   ];
 }
-function validate($n, $for_update=false) {
-  if (!$for_update) {
-    if (!$n['id_evento']) bad('id_evento requerido');
+
+// ---------- CREATE ----------
+if ($action === 'create') {
+  $f = expect_fields($body);
+  if ($f['id_evento']<=0 || $f['tipo_boleto']==='' || $f['precio_base']<=0) {
+    respond(false, ['error'=>'Datos incompletos']);
   }
-  if ($n['tipo_boleto']==='') bad('tipo_boleto requerido');
-  if (!in_array($n['modo'], ['porcentaje','fijo'], true)) bad('modo inválido (porcentaje|fijo)');
-  if ($n['valor'] < 0) bad('valor inválido');
-  if ($n['precio_base'] < 0) bad('precio_base inválido');
-  if (!$n['desde'] || !$n['hasta']) bad('desde/hasta requeridos (YYYY-MM-DD)');
-  if ($n['min_cantidad'] < 1) bad('min_cantidad debe ser >= 1');
-}
 
-// Crear (POST)
-if ($method === 'POST') {
-  $n = normalize($data);
-  validate($n, false);
-
-  $mysqli = db_mysqli();
-  $pdo = db_pdo();
   if ($mysqli) {
-    $stmt = $mysqli->prepare("INSERT INTO promocion (id_evento,tipo_boleto,precio_base,modo,valor,desde,hasta,min_cantidad,condiciones) VALUES (?,?,?,?,?,?,?,?,?)");
-    if (!$stmt) bad('Prepare error: '.$mysqli->error, 500);
-    $stmt->bind_param('isdsdssis',
-      $n['id_evento'], $n['tipo_boleto'], $n['precio_base'], $n['modo'], $n['valor'],
-      $n['desde'], $n['hasta'], $n['min_cantidad'], $n['condiciones']
+    $stmt = $mysqli->prepare(
+      "INSERT INTO promocion
+       (id_evento,tipo_boleto,precio_base,modo,valor,desde,hasta,min_cantidad,condiciones)
+       VALUES (?,?,?,?,?,?,?,?,?)"
     );
-    if (!$stmt->execute()) bad('Execute error: '.$stmt->error, 500);
-    $id = $stmt->insert_id;
-    $stmt->close();
-    json_out(['ok'=>true, 'id_promocion'=>$id]);
-  } else if ($pdo) {
-    $sql = "INSERT INTO promocion (id_evento,tipo_boleto,precio_base,modo,valor,desde,hasta,min_cantidad,condiciones)
-            VALUES (:id_evento,:tipo_boleto,:precio_base,:modo,:valor,:desde,:hasta,:min_cantidad,:condiciones)";
-    $st = $pdo->prepare($sql);
-    $ok = $st->execute([
-      ':id_evento'=>$n['id_evento'], ':tipo_boleto'=>$n['tipo_boleto'], ':precio_base'=>$n['precio_base'],
-      ':modo'=>$n['modo'], ':valor'=>$n['valor'], ':desde'=>$n['desde'], ':hasta'=>$n['hasta'],
-      ':min_cantidad'=>$n['min_cantidad'], ':condiciones'=>$n['condiciones']
-    ]);
-    if (!$ok) bad('Execute PDO error', 500);
-    $id = $pdo->lastInsertId();
-    json_out(['ok'=>true, 'id_promocion'=>(int)$id]);
+    // Tipos: i s d s d s s i s
+    $stmt->bind_param(
+      "isdsdssis",
+      $f['id_evento'],
+      $f['tipo_boleto'],
+      $f['precio_base'],
+      $f['modo'],
+      $f['valor'],
+      $f['desde'],
+      $f['hasta'],
+      $f['min_cantidad'],
+      $f['condiciones']
+    );
+    $stmt->execute();
+    respond(true, ['id_promocion'=>$stmt->insert_id]);
+
+  } elseif ($pdo) {
+    $st = $pdo->prepare(
+      "INSERT INTO promocion
+       (id_evento,tipo_boleto,precio_base,modo,valor,desde,hasta,min_cantidad,condiciones)
+       VALUES (?,?,?,?,?,?,?,?,?)"
+    );
+    $st->execute([$f['id_evento'],$f['tipo_boleto'],$f['precio_base'],$f['modo'],$f['valor'],$f['desde'],$f['hasta'],$f['min_cantidad'],$f['condiciones']]);
+    respond(true, ['id_promocion'=>$pdo->lastInsertId()]);
   } else {
-    bad('Sin conexión a BD', 500);
+    respond(false, ['error'=>'No DB connection']);
   }
 }
 
-// Actualizar (PUT)
-if ($method === 'PUT') {
-  parse_str($_SERVER['QUERY_STRING'] ?? '', $qs);
-  $id = isset($qs['id']) ? (int)$qs['id'] : (int)($data['id_promocion'] ?? 0);
-  if ($id<=0) bad('id_promocion requerido para actualizar');
+// ---------- UPDATE ----------
+if ($action === 'update') {
+  $id = (int)($_GET['id'] ?? 0);
+  if ($id<=0) respond(false, ['error'=>'Id inválido']);
+  $f = expect_fields($body);
 
-  $n = normalize($data);
-  validate($n, true);
-
-  $mysqli = db_mysqli();
-  $pdo = db_pdo();
   if ($mysqli) {
-    $stmt = $mysqli->prepare("UPDATE promocion
-      SET id_evento=?, tipo_boleto=?, precio_base=?, modo=?, valor=?, desde=?, hasta=?, min_cantidad=?, condiciones=?
-      WHERE id_promocion=?");
-    if (!$stmt) bad('Prepare error: '.$mysqli->error, 500);
-    $stmt->bind_param('isdsdssisi',
-      $n['id_evento'], $n['tipo_boleto'], $n['precio_base'], $n['modo'], $n['valor'],
-      $n['desde'], $n['hasta'], $n['min_cantidad'], $n['condiciones'], $id
+    $stmt = $mysqli->prepare(
+      "UPDATE promocion
+       SET id_evento=?, tipo_boleto=?, precio_base=?, modo=?, valor=?, desde=?, hasta=?, min_cantidad=?, condiciones=?
+       WHERE id_promocion=?"
     );
-    if (!$stmt->execute()) bad('Execute error: '.$stmt->error, 500);
-    $stmt->close();
-    json_out(['ok'=>true]);
-  } else if ($pdo) {
-    $sql = "UPDATE promocion SET id_evento=:id_evento, tipo_boleto=:tipo_boleto, precio_base=:precio_base,
-            modo=:modo, valor=:valor, desde=:desde, hasta=:hasta, min_cantidad=:min_cantidad, condiciones=:condiciones
-            WHERE id_promocion=:id";
-    $st = $pdo->prepare($sql);
-    $ok = $st->execute([
-      ':id'=>$id, ':id_evento'=>$n['id_evento'], ':tipo_boleto'=>$n['tipo_boleto'], ':precio_base'=>$n['precio_base'],
-      ':modo'=>$n['modo'], ':valor'=>$n['valor'], ':desde'=>$n['desde'], ':hasta'=>$n['hasta'],
-      ':min_cantidad'=>$n['min_cantidad'], ':condiciones'=>$n['condiciones']
-    ]);
-    if (!$ok) bad('Execute PDO error', 500);
-    json_out(['ok'=>true]);
+    // Tipos: i s d s d s s i s | i
+    $stmt->bind_param(
+      "isdsdssisi",
+      $f['id_evento'],
+      $f['tipo_boleto'],
+      $f['precio_base'],
+      $f['modo'],
+      $f['valor'],
+      $f['desde'],
+      $f['hasta'],
+      $f['min_cantidad'],
+      $f['condiciones'],
+      $id
+    );
+    $stmt->execute();
+    respond(true);
+
+  } elseif ($pdo) {
+    $st = $pdo->prepare(
+      "UPDATE promocion
+       SET id_evento=?, tipo_boleto=?, precio_base=?, modo=?, valor=?, desde=?, hasta=?, min_cantidad=?, condiciones=?
+       WHERE id_promocion=?"
+    );
+    $st->execute([$f['id_evento'],$f['tipo_boleto'],$f['precio_base'],$f['modo'],$f['valor'],$f['desde'],$f['hasta'],$f['min_cantidad'],$f['condiciones'],$id]);
+    respond(true);
   } else {
-    bad('Sin conexión a BD', 500);
+    respond(false, ['error'=>'No DB connection']);
   }
 }
 
-// Eliminar (DELETE)
-if ($method === 'DELETE') {
-  parse_str($_SERVER['QUERY_STRING'] ?? '', $qs);
-  $id = isset($qs['id']) ? (int)$qs['id'] : 0;
-  if ($id<=0) bad('id_promocion requerido para eliminar');
+// ---------- DELETE ----------
+if ($action === 'delete') {
+  $id = (int)($_GET['id'] ?? 0);
+  if ($id<=0) respond(false, ['error'=>'Id inválido']);
 
-  $mysqli = db_mysqli();
-  $pdo = db_pdo();
   if ($mysqli) {
     $stmt = $mysqli->prepare("DELETE FROM promocion WHERE id_promocion=?");
-    if (!$stmt) bad('Prepare error: '.$mysqli->error, 500);
-    $stmt->bind_param('i', $id);
-    if (!$stmt->execute()) bad('Execute error: '.$stmt->error, 500);
-    $stmt->close();
-    json_out(['ok'=>true]);
-  } else if ($pdo) {
-    $st = $pdo->prepare("DELETE FROM promocion WHERE id_promocion=:id");
-    $ok = $st->execute([':id'=>$id]);
-    if (!$ok) bad('Execute PDO error', 500);
-    json_out(['ok'=>true]);
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    respond(true);
+
+  } elseif ($pdo) {
+    $st = $pdo->prepare("DELETE FROM promocion WHERE id_promocion=?");
+    $st->execute([$id]);
+    respond(true);
+
   } else {
-    bad('Sin conexión a BD', 500);
+    respond(false, ['error'=>'No DB connection']);
   }
 }
 
-bad('Método no soportado', 405);
+// Acción desconocida
+respond(false, ['error'=>'Acción no soportada']);
