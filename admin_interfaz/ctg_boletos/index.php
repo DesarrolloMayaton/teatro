@@ -65,13 +65,17 @@ $conn->close();
             margin-bottom: 25px; 
         }
 
-        /* --- CAMBIO CSS: El formulario ahora es más simple --- */
         .event-selector-form {
-            /* (Ya no necesita flex ni gap) */
             margin-bottom: 20px;
         }
-        /* --- FIN CAMBIO CSS --- */
-
+        
+        .precio-rapido-help {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-top: -15px;
+            margin-bottom: 15px;
+        }
+        
         .form-card {
             background-color: #f8f9fa;
         }
@@ -120,6 +124,16 @@ $conn->close();
             margin-right: 10px; 
         }
         
+        /* --- ESTILO PARA LA ALERTA DE CONFIRMACIÓN --- */
+        #alert-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+            transition: opacity 0.5s ease-out;
+        }
+        /* ------------------------------------------- */
+        
         @media (max-width: 768px) {
             .form-grid { grid-template-columns: 1fr; }
             .actions { grid-template-columns: 1fr; }
@@ -128,6 +142,8 @@ $conn->close();
 </head>
 <body>
 
+    <div id="alert-container">
+        </div>
     <div class="container-fluid">
         
         <div class="card p-3">
@@ -148,6 +164,41 @@ $conn->close();
                 </form>
             </div>
 
+        <div class="card p-4">
+            <h3 class="mb-3">Actualización Rápida de Precios</h3>
+            <p class="precio-rapido-help">
+                Usa este formulario para establecer rápidamente el precio de 'General' y 'Discapacitado' en uno o todos los eventos.
+            </p>
+
+            <form action="action.php" method="POST">
+                
+                <div class="form-grid">
+                    <div>
+                        <label for="precio_general" class="form-label">Precio General (MXN)</label>
+                        <input type="number" name="precio_general" id="precio_general" class="form-control" step="0.01" min="0" placeholder="Ej: 100.00">
+                    </div>
+                    <div>
+                        <label for="precio_discapacitado" class="form-label">Precio Discapacitado (MXN)</label>
+                        <input type="number" name="precio_discapacitado" id="precio_discapacitado" class="form-control" step="0.01" min="0" placeholder="Ej: 80.00">
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button type="submit" name="accion" value="actualizar_todos" class="btn btn-primary" 
+                            onclick="return confirm('¿Estás seguro de actualizar estos precios para TODOS los eventos?')">
+                        <i class="bi bi-globe"></i> Actualizar TODOS
+                    </button>
+                    
+                    <?php if ($id_evento_seleccionado): ?>
+                        <input type="hidden" name="id_evento" value="<?php echo $id_evento_seleccionado; ?>">
+                        <button type="submit" name="accion" value="actualizar_seleccionado" class="btn btn-info">
+                            <i class="bi bi-check-square"></i> Actualizar SÓLO "<?php echo htmlspecialchars($nombre_evento); ?>"
+                        </button>
+                    <?php endif; ?>
+                </div>
+
+            </form>
+        </div>
         <?php if ($id_evento_seleccionado): ?>
             <div class="card p-4 form-card">
                 <h3 id="form-title" class="mb-3">Crear Nueva Categoría</h3>
@@ -156,7 +207,7 @@ $conn->close();
                     
                     <input type="hidden" name="id_categoria" id="id_categoria" value="">
                     <input type="hidden" name="id_evento" value="<?php echo $id_evento_seleccionado; ?>">
-                    <input type="hidden" name="accion" id="accion" value="crear">
+                    <input type="hidden" name="accion" id="accion" value="crear"> 
                     
                     <div class="form-grid">
                         
@@ -248,8 +299,11 @@ $conn->close();
             </div>
         <?php endif; ?>
 
-    </div> <script>
-    // (Tu JavaScript no necesita cambios, está perfecto)
+    </div> 
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // --- LÓGICA CRUD JS (Igual) ---
     function editCat(jsonString) {
         const cat = JSON.parse(jsonString);
         
@@ -285,6 +339,64 @@ $conn->close();
         document.getElementById('accion').value = "crear";
         document.getElementById('btn-submit-text').innerText = "Guardar Categoría";
     }
+
+    // --- NUEVO: Lógica de la Alerta de Confirmación ---
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const status = urlParams.get('status');
+        const msg = urlParams.get('msg');
+        const alertContainer = document.getElementById('alert-container');
+        
+        if (status === 'success') {
+            const alertHTML = `
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="bi bi-check-circle-fill me-2"></i>
+                    ¡Operación completada con éxito!
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+            alertContainer.innerHTML = alertHTML;
+
+            // Ocultar después de 4 segundos
+            setTimeout(() => {
+                const alertElement = alertContainer.querySelector('.alert');
+                if (alertElement) {
+                    alertElement.classList.remove('show');
+                    alertElement.classList.add('fade');
+                    // Después de que la transición termine, eliminar de la URL y el DOM
+                    setTimeout(() => {
+                        // Limpiar el parámetro 'status' de la URL sin recargar la página
+                        urlParams.delete('status');
+                        urlParams.delete('msg'); // Borrar también el mensaje de error si existe
+                        const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+                        window.history.replaceState({}, document.title, newUrl);
+                        
+                        alertContainer.innerHTML = '';
+                    }, 500); // Esperar a la transición CSS
+                }
+            }, 4000); 
+
+        } else if (status === 'error' && msg) {
+            const decodedMsg = decodeURIComponent(msg);
+            const errorHTML = `
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="bi bi-x-octagon-fill me-2"></i>
+                    Error: ${decodedMsg}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+            alertContainer.innerHTML = errorHTML;
+            
+            // Limpiar la URL inmediatamente si hay un error
+            setTimeout(() => {
+                urlParams.delete('status');
+                urlParams.delete('msg');
+                const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+                window.history.replaceState({}, document.title, newUrl);
+            }, 10);
+        }
+    });
+    // ----------------------------------------------------
 </script>
 
 </body>
