@@ -1,0 +1,21 @@
+# Dependencias de Composer
+/vendor/
+composer.lock
+
+# Códigos QR generados
+vnt_interfaz/qr_codes/*.png
+!vnt_interfaz/qr_codes/.gitkeep
+
+# Archivos de configuración local
+*.local.php
+
+# Logs
+*.log
+
+# Archivos temporales
+*.tmp
+*.temp
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
