@@ -33,6 +33,14 @@ if (!isset($_POST['funciones']) || !is_array($_POST['funciones']) || empty($_POS
     $errores[] = "Debe añadir al menos una función para el evento.";
 }
 
+// *** NUEVA VALIDACIÓN: Checar si los precios por defecto llegaron ***
+if (!isset($_POST['precios']) || !is_array($_POST['precios']) || empty($_POST['precios'])) {
+    // Esto no debería pasar si el HTML es correcto, pero es buena idea validarlo.
+    $errores[] = "Error: No se recibieron los precios por defecto (General, Discapacitado).";
+}
+// ******************************************************************
+
+
 // Si hay errores, detenerse aquí
 if (!empty($errores)) {
     foreach ($errores as $e) echo "<p style='color:red;'>❌ $e</p>";
@@ -66,8 +74,57 @@ if ($stmt_evento->execute()) {
     
     $stmt_funcion->close();
 
-    // Mensaje de éxito
-    echo "<div style='padding:20px; background:#d4edda; color:#155724; border-radius:8px; margin:20px;'>✅ Evento y funciones creados con éxito. ID: " . $id_evento_nuevo . "</div>";
+    // --- 7. (NUEVO) Procesar y guardar las CATEGORÍAS POR DEFECTO ---
+    // -----------------------------------------------------------------
+    
+    // Recuperar el array de precios que enviamos desde el HTML
+    $precios_base = $_POST['precios']; // Esto es ['General' => '80', 'Discapacitado' => '80']
+
+    // Definir los colores para tus categorías (Gris y Azul)
+    $colores_default = [
+        "General"       => "#808080", 
+        "Discapacitado" => "#007BFF"
+    ];
+
+    // Preparar la consulta para insertar en 'categorias'
+    // (id_evento, nombre_categoria, precio, color)
+    $sql_categoria = "INSERT INTO categorias (id_evento, nombre_categoria, precio, color) VALUES (?, ?, ?, ?)";
+    $stmt_categoria = $conn->prepare($sql_categoria);
+
+    $categorias_exito = true; // Bandera para saber si todo salió bien
+
+    if (!$stmt_categoria) {
+        echo "<p style='color:red;'>❌ Error al preparar la consulta de categorías: " . $conn->error . "</p>";
+        $categorias_exito = false;
+    } else {
+        // Recorremos el array de precios e insertamos cada categoría
+        foreach ($precios_base as $nombre => $precio) {
+            
+            // Obtenemos el color correspondiente
+            $color = isset($colores_default[$nombre]) ? $colores_default[$nombre] : '#000000';
+            
+            // Asignamos las variables a la consulta preparada (i: int, s: string, d: double/decimal, s: string)
+            $stmt_categoria->bind_param("isds", $id_evento_nuevo, $nombre, $precio, $color);
+            
+            // Ejecutar la inserción
+            if (!$stmt_categoria->execute()) {
+                echo "<p style='color:red;'>❌ Error al insertar categoría '" . htmlspecialchars($nombre) . "': " . $stmt_categoria->error . "</p>";
+                $categorias_exito = false;
+            }
+        }
+        // Cerrar la sentencia preparada
+        $stmt_categoria->close();
+    }
+    // --- FIN DE LA SECCIÓN DE CATEGORÍAS ---
+
+
+    // 8. Mensaje de éxito (modificado para incluir categorías)
+    if ($categorias_exito) {
+        echo "<div style='padding:20px; background:#d4edda; color:#155724; border-radius:8px; margin:20px;'>✅ Evento, funciones y categorías (General, Discapacitado) creados con éxito. ID: " . $id_evento_nuevo . "</div>";
+    } else {
+         echo "<div style='padding:20px; background:#f8d7da; color:#721c24; border-radius:8px; margin:20px;'>⚠️ Evento y funciones creados (ID: $id_evento_nuevo), PERO hubo un error al guardar las categorías por defecto. Revise la base de datos.</div>";
+    }
+    
     echo "<a href='index.php'>Volver al listado de eventos</a>";
 
 } else {
@@ -78,7 +135,7 @@ if ($stmt_evento->execute()) {
 $stmt_evento->close();
 $conn->close();
 
-// 7. Redirigir al listado (Opcional, puedes quitar esto si quieres ver el mensaje de éxito)
+// 9. Redirigir al listado (Opcional, puedes quitar esto si quieres ver el mensaje de éxito)
 // header("Location: index.php");
 // exit;
 

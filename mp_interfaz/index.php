@@ -7,9 +7,11 @@ $evento_info = null;
 $eventos_lista = [];
 $categorias_palette = [];
 $mapa_guardado = []; // <-- Se llenará con el JSON
-$colores_por_id = [0 => '#BDBDBD']; 
 
-// 2. Cargar todos los eventos (MODIFICADO: Se añade 'mapa_json')
+// --- MODIFICADO: Empezar vacío; se llenará dinámicamente ---
+$colores_por_id = []; 
+
+// 2. Cargar todos los eventos
 $res_eventos = $conn->query("SELECT id_evento, titulo, tipo, mapa_json FROM evento WHERE finalizado = 0 ORDER BY titulo ASC");
 if ($res_eventos) {
     $eventos_lista = $res_eventos->fetch_all(MYSQLI_ASSOC);
@@ -32,20 +34,38 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
         $stmt_cat->bind_param("i", $id_evento_seleccionado);
         $stmt_cat->execute();
         $res_categorias = $stmt_cat->get_result();
+        
+        // --- INICIO: MODIFICADO ---
+        // Buscar el ID y color de "General" para usarlo como defecto
+        $id_categoria_general = null; 
+        $color_categoria_general = '#BDBDBD'; // Color fallback (gris)
+
         if ($res_categorias) {
             $categorias_palette = $res_categorias->fetch_all(MYSQLI_ASSOC);
             foreach ($categorias_palette as $c) {
+                // Llenar la paleta de colores
                 $colores_por_id[$c['id_categoria']] = $c['color'];
+                
+                // Buscar "General" (ignorando mayúsculas/minúsculas)
+                if (is_null($id_categoria_general) && strtolower($c['nombre_categoria']) === 'general') {
+                    $id_categoria_general = (int)$c['id_categoria'];
+                    $color_categoria_general = $c['color'];
+                }
             }
         }
-        $stmt_cat->close();
+        
+        // Si por alguna razón "General" no existe en la BD, se usará 0 como ID
+        if (is_null($id_categoria_general)) {
+             $id_categoria_general = 0; 
+             $colores_por_id[0] = $color_categoria_general; // Asignar el color fallback al ID 0
+        }
+        // --- FIN: MODIFICADO ---
+
 
         // --- 5. MODIFICADO: Cargar el mapa desde JSON ---
         if (!empty($evento_info['mapa_json'])) {
-            // Decodifica el string JSON a un array de PHP (true)
             $mapa_guardado = json_decode($evento_info['mapa_json'], true);
         }
-        // Si está vacío o es nulo, $mapa_guardado seguirá siendo un array vacío []
     }
 }
 $conn->close();
@@ -246,9 +266,10 @@ body {
         <div class="row-label"><?= $nombre_fila ?></div>
         <div class="seats-block">
           <?php for ($i=1; $i<=6; $i++): 
-                $nombre_asiento = $nombre_fila . '-' . $numero_en_fila_pb++;
-                $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
-                $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+                  $nombre_asiento = $nombre_fila . '-' . $numero_en_fila_pb++;
+                  // --- MODIFICADO: Default a $id_categoria_general ---
+                  $id_cat = $mapa_guardado[$nombre_asiento] ?? $id_categoria_general;
+                  $color_asiento = $colores_por_id[$id_cat] ?? $color_categoria_general;
           ?>
             <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
                 <?= $nombre_asiento ?>
@@ -258,9 +279,10 @@ body {
             <?php if ($fila==5) echo '<span class="pasarela-text">PASARELA</span>'; ?>
           </div>
           <?php for ($i=1; $i<=6; $i++): 
-                $nombre_asiento = $nombre_fila . '-' . $numero_en_fila_pb++;
-                $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
-                $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+                  $nombre_asiento = $nombre_fila . '-' . $numero_en_fila_pb++;
+                  // --- MODIFICADO: Default a $id_categoria_general ---
+                  $id_cat = $mapa_guardado[$nombre_asiento] ?? $id_categoria_general;
+                  $color_asiento = $colores_por_id[$id_cat] ?? $color_categoria_general;
           ?>
             <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
                 <?= $nombre_asiento ?>
@@ -281,9 +303,10 @@ body {
             <div class="row-label"><?= $fila ?></div>
             <div class="seats-block">
               <?php for ($i=0;$i<6;$i++): 
-                    $nombre_asiento = $fila . $numero_en_fila++;
-                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
-                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+                      $nombre_asiento = $fila . $numero_en_fila++;
+                      // --- MODIFICADO: Default a $id_categoria_general ---
+                      $id_cat = $mapa_guardado[$nombre_asiento] ?? $id_categoria_general;
+                      $color_asiento = $colores_por_id[$id_cat] ?? $color_categoria_general;
               ?>
                 <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
                     <?= $nombre_asiento ?>
@@ -291,9 +314,10 @@ body {
               <?php endfor; ?>
               <div class="pasillo"></div>
               <?php for ($i=0;$i<14;$i++): 
-                    $nombre_asiento = $fila . $numero_en_fila++;
-                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
-                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+                      $nombre_asiento = $fila . $numero_en_fila++;
+                      // --- MODIFICADO: Default a $id_categoria_general ---
+                      $id_cat = $mapa_guardado[$nombre_asiento] ?? $id_categoria_general;
+                      $color_asiento = $colores_por_id[$id_cat] ?? $color_categoria_general;
               ?>
                 <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
                     <?= $nombre_asiento ?>
@@ -301,9 +325,10 @@ body {
               <?php endfor; ?>
               <div class="pasillo"></div>
               <?php for ($i=0;$i<6;$i++): 
-                    $nombre_asiento = $fila . $numero_en_fila++;
-                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
-                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+                      $nombre_asiento = $fila . $numero_en_fila++;
+                      // --- MODIFICADO: Default a $id_categoria_general ---
+                      $id_cat = $mapa_guardado[$nombre_asiento] ?? $id_categoria_general;
+                      $color_asiento = $colores_por_id[$id_cat] ?? $color_categoria_general;
               ?>
                 <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
                     <?= $nombre_asiento ?>
@@ -319,9 +344,10 @@ body {
             <div class="seats-block">
               <?php $numero_en_fila_p = 1; ?>
               <?php for ($i=0;$i<30;$i++): 
-                    $nombre_asiento = 'P' . $numero_en_fila_p++;
-                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
-                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+                      $nombre_asiento = 'P' . $numero_en_fila_p++;
+                      // --- MODIFICADO: Default a $id_categoria_general ---
+                      $id_cat = $mapa_guardado[$nombre_asiento] ?? $id_categoria_general;
+                      $color_asiento = $colores_por_id[$id_cat] ?? $color_categoria_general;
               ?>
                 <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
                     <?= $nombre_asiento ?>
@@ -341,9 +367,10 @@ body {
             <div class="row-label"><?= $fila ?></div>
             <div class="seats-block">
               <?php for ($i=0;$i<6;$i++): 
-                    $nombre_asiento = $fila . $numero_en_fila++;
-                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
-                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+                      $nombre_asiento = $fila . $numero_en_fila++;
+                      // --- MODIFICADO: Default a $id_categoria_general ---
+                      $id_cat = $mapa_guardado[$nombre_asiento] ?? $id_categoria_general;
+                      $color_asiento = $colores_por_id[$id_cat] ?? $color_categoria_general;
               ?>
                 <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
                     <?= $nombre_asiento ?>
@@ -351,9 +378,10 @@ body {
               <?php endfor; ?>
               <div class="pasillo"></div>
               <?php for ($i=0;$i<14;$i++): 
-                    $nombre_asiento = $fila . $numero_en_fila++;
-                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
-                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+                      $nombre_asiento = $fila . $numero_en_fila++;
+                      // --- MODIFICADO: Default a $id_categoria_general ---
+                      $id_cat = $mapa_guardado[$nombre_asiento] ?? $id_categoria_general;
+                      $color_asiento = $colores_por_id[$id_cat] ?? $color_categoria_general;
               ?>
                 <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
                     <?= $nombre_asiento ?>
@@ -361,9 +389,10 @@ body {
               <?php endfor; ?>
               <div class="pasillo"></div>
               <?php for ($i=0;$i<6;$i++): 
-                    $nombre_asiento = $fila . $numero_en_fila++;
-                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
-                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+                      $nombre_asiento = $fila . $numero_en_fila++;
+                      // --- MODIFICADO: Default a $id_categoria_general ---
+                      $id_cat = $mapa_guardado[$nombre_asiento] ?? $id_categoria_general;
+                      $color_asiento = $colores_por_id[$id_cat] ?? $color_categoria_general;
               ?>
                 <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
                     <?= $nombre_asiento ?>
@@ -379,9 +408,10 @@ body {
             <div class="seats-block">
               <?php $numero_en_fila_p = 1; ?>
               <?php for ($i=0;$i<30;$i++): 
-                    $nombre_asiento = 'P' . $numero_en_fila_p++;
-                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
-                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+                      $nombre_asiento = 'P' . $numero_en_fila_p++;
+                      // --- MODIFICADO: Default a $id_categoria_general ---
+                      $id_cat = $mapa_guardado[$nombre_asiento] ?? $id_categoria_general;
+                      $color_asiento = $colores_por_id[$id_cat] ?? $color_categoria_general;
               ?>
                 <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
                     <?= $nombre_asiento ?>
@@ -410,14 +440,14 @@ body {
             <option value="<?= $e['id_evento'] ?>" <?= ($id_evento_seleccionado==$e['id_evento'])?'selected':'' ?>>
               <?= htmlspecialchars($e['titulo']) ?> 
               (<?php 
-                    if ($e['tipo'] == 1) {
-                        echo 'Teatro 420';
-                    } elseif ($e['tipo'] == 2) {
-                        echo 'Pasarela 540';
-                    } else {
-                        echo 'Otro';
-                    }
-                ?>)
+                      if ($e['tipo'] == 1) {
+                          echo 'Teatro 420';
+                      } elseif ($e['tipo'] == 2) {
+                          echo 'Pasarela 540';
+                      } else {
+                          echo 'Otro';
+                      }
+                  ?>)
             </option>
             <?php endforeach; ?>
           </select>
@@ -427,12 +457,18 @@ body {
         <hr>
         <h5><i class="bi bi-paint-bucket"></i> Paleta</h5><hr>
         
-        <div class="palette-item selected" data-color="#BDBDBD" data-id-categoria="0">
-          <span class="palette-color" style="background-color:#BDBDBD"></span>
-          <div>Borrador (General)</div>
+        <div class="palette-item selected" data-color="<?= $color_categoria_general ?>" data-id-categoria="<?= $id_categoria_general ?>">
+          <span class="palette-color" style="background-color:<?= $color_categoria_general ?>"></span>
+          <div>General (Default)</div>
         </div>
         
-        <?php foreach ($categorias_palette as $c): ?>
+        <?php 
+        foreach ($categorias_palette as $c): 
+            // --- MODIFICADO: Omitir "General" porque ya la pusimos arriba ---
+            if (strtolower($c['nombre_categoria']) === 'general') {
+                continue;
+            }
+        ?>
         <div class="palette-item" data-color="<?= htmlspecialchars($c['color']) ?>" data-id-categoria="<?= $c['id_categoria'] ?>">
           <span class="palette-color" style="background-color:<?= htmlspecialchars($c['color']) ?>"></span>
           <div><?= htmlspecialchars($c['nombre_categoria']) ?> - $<?= number_format($c['precio'],2) ?></div>
@@ -499,8 +535,9 @@ body {
 <script>
 document.addEventListener('DOMContentLoaded',()=>{
   
-  let activeColor = '#BDBDBD';
-  let activeCategoryId = 0; // 0 = General/Borrador
+  // --- MODIFICADO: Usar los valores de "General" encontrados por PHP ---
+  let activeColor = '<?= $color_categoria_general ?>';
+  let activeCategoryId = <?= $id_categoria_general ?>; 
   
   // Lógica de selección de color
   document.querySelectorAll('.palette-item').forEach(el=>{

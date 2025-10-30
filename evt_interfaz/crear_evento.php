@@ -124,12 +124,18 @@
         <div class="help-text">Seleccione el tipo de escenario.</div>
     </div>
 
+    <div id="hidden-precios-container">
+        <input type="hidden" name="precios[General]" value="80">
+        <input type="hidden" name="precios[Discapacitado]" value="80">
+    </div>
+
     <button type="submit" id="btn-submit" class="btn btn-primary w-100 btn-lg" disabled>Crear Evento</button>
 </form>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
+// (Tu JavaScript existente va aquí... no necesita cambios)
 document.addEventListener('DOMContentLoaded', function() {
     
     const ahora = new Date();
@@ -352,21 +358,21 @@ document.addEventListener('DOMContentLoaded', function() {
              const startSale = fpInicioVenta.selectedDates[0];
              const primeraFuncion = listaDeFunciones.length > 0 ? listaDeFunciones[0] : null;
              if (primeraFuncion && startSale >= primeraFuncion) {
-                  tooltipInicioVenta.textContent = 'Debe ser ANTES de la primera función.';
-                  tooltipInicioVenta.style.display = 'block';
-                  inicioVentaInput.classList.add('input-error');
-                  esValido = false;
-                  if(!primerError) primerError = inicioVentaInput;
+                 tooltipInicioVenta.textContent = 'Debe ser ANTES de la primera función.';
+                 tooltipInicioVenta.style.display = 'block';
+                 inicioVentaInput.classList.add('input-error');
+                 esValido = false;
+                 if(!primerError) primerError = inicioVentaInput;
              } else if (startSale < ahora) { // Doble chequeo por si minDate falla
-                  tooltipInicioVenta.textContent = 'No puede ser en el pasado.';
-                  tooltipInicioVenta.style.display = 'block';
-                  inicioVentaInput.classList.add('input-error');
-                  esValido = false;
-                  if(!primerError) primerError = inicioVentaInput;
+                 tooltipInicioVenta.textContent = 'No puede ser en el pasado.';
+                 tooltipInicioVenta.style.display = 'block';
+                 inicioVentaInput.classList.add('input-error');
+                 esValido = false;
+                 if(!primerError) primerError = inicioVentaInput;
              }
-              else {
-                  tooltipInicioVenta.style.display = 'none';
-                  inicioVentaInput.classList.remove('input-error');
+             else {
+                 tooltipInicioVenta.style.display = 'none';
+                 inicioVentaInput.classList.remove('input-error');
              }
         }
 
@@ -379,27 +385,27 @@ document.addEventListener('DOMContentLoaded', function() {
              esValido = false;
               if(!primerError) primerError = cierreVentaInput;
         } else {
-            const endSale = fpCierreVenta.selectedDates[0];
-            const ultimaFuncion = listaDeFunciones.length > 0 ? listaDeFunciones[listaDeFunciones.length - 1] : null;
-            const startSale = fpInicioVenta.selectedDates[0]; // Ya validado arriba
-             const minCierreReq = ultimaFuncion ? new Date(ultimaFuncion.getTime() + 2 * 60 * 60 * 1000 - 1000) : ahora; // -1 seg margen
+             const endSale = fpCierreVenta.selectedDates[0];
+             const ultimaFuncion = listaDeFunciones.length > 0 ? listaDeFunciones[listaDeFunciones.length - 1] : null;
+             const startSale = fpInicioVenta.selectedDates[0]; // Ya validado arriba
+              const minCierreReq = ultimaFuncion ? new Date(ultimaFuncion.getTime() + 2 * 60 * 60 * 1000 - 1000) : ahora; // -1 seg margen
 
-            if (ultimaFuncion && endSale < minCierreReq) {
+             if (ultimaFuncion && endSale < minCierreReq) {
                  tooltipCierreVenta.textContent = 'Debe ser al menos 2h después de la última función.';
                  tooltipCierreVenta.style.display = 'block';
                  cierreVentaInput.classList.add('input-error');
                  esValido = false;
                  if(!primerError) primerError = cierreVentaInput;
-            } else if (startSale && endSale <= startSale) {
+             } else if (startSale && endSale <= startSale) {
                  tooltipCierreVenta.textContent = 'Debe ser POSTERIOR al inicio de venta.';
                  tooltipCierreVenta.style.display = 'block';
                  cierreVentaInput.classList.add('input-error');
                  esValido = false;
                   if(!primerError) primerError = cierreVentaInput;
-            } else {
-                tooltipCierreVenta.style.display = 'none';
-                cierreVentaInput.classList.remove('input-error');
-            }
+             } else {
+                 tooltipCierreVenta.style.display = 'none';
+                 cierreVentaInput.classList.remove('input-error');
+             }
         }
 
         // Validar Descripción
@@ -449,12 +455,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Enfocar el primer campo con error
             const primerErrorCampo = document.querySelector('.input-error, #lista-funciones-container .tooltip-error[style*="display: block"]');
              if(primerErrorCampo){
-                  // Si el error es de funciones, enfocar el input de fecha
-                  if(primerErrorCampo.id === 'tooltip_funciones'){
-                       document.getElementById('funcion_fecha').focus();
-                  } else {
-                       primerErrorCampo.focus();
-                  }
+                 // Si el error es de funciones, enfocar el input de fecha
+                 if(primerErrorCampo.id === 'tooltip_funciones'){
+                     document.getElementById('funcion_fecha').focus();
+                 } else {
+                     primerErrorCampo.focus();
+                 }
              }
         }
         // Si es válido, el formulario se envía normalmente
