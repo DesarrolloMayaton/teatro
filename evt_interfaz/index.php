@@ -331,11 +331,13 @@ function prepararFinalizar(id, nombre) {
         .then(data => {
             if (data.status === 'success') {
                 modalFinalizar.hide();
-                // Opcional: Recargar la página para ver el cambio
-                 window.location.reload(); 
-                // O mover la tarjeta al historial manualmente con JS (más complejo)
-                // const card = document.getElementById(`evento-card-${id}`);
-                // if(card) card.remove(); 
+                
+                // --- MODIFICADO ---
+                // 1. Avisa a las otras pestañas que algo cambió
+                localStorage.setItem('evento_actualizado', 'finalizar_' + id + '_' + Date.now());
+                // 2. Recarga la pestaña actual
+                window.location.reload(); 
+                
             } else { alert('Error al finalizar: ' + (data.message || 'Error desconocido')); }
         })
         .catch(error => {
@@ -359,8 +361,13 @@ function prepararBorrado(id, nombre) {
         .then(data => {
             if (data.status === 'success') {
                 modalBorrar.hide();
-                const card = document.getElementById(`evento-card-${id}`);
-                if(card) card.remove();
+                
+                // --- MODIFICADO ---
+                // 1. Avisa a las otras pestañas que algo cambió
+                localStorage.setItem('evento_actualizado', 'borrar_' + id + '_' + Date.now());
+                // 2. Recarga la pestaña actual (en lugar de solo quitar la tarjeta)
+                window.location.reload();
+
             } else { alert('Error al borrar: ' + (data.message || 'Error desconocido')); }
         })
          .catch(error => {
@@ -370,6 +377,17 @@ function prepararBorrado(id, nombre) {
     }
     modalBorrar.show();
 }
+
+// --- NUEVO: Listener para Sincronización entre Pestañas ---
+// Esto escucha los cambios hechos por OTRAS pestañas.
+window.addEventListener('storage', function(e) {
+    // Si la clave 'evento_actualizado' cambia...
+    if (e.key === 'evento_actualizado') {
+        // Recarga esta pestaña para reflejar los cambios (borrado o finalizado)
+        console.log('Cambio detectado en otra pestaña, actualizando...');
+        window.location.reload();
+    }
+});
 </script>
 
 </body>

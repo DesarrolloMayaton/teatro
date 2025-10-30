@@ -188,8 +188,11 @@
             <a class="menu-item" data-target="frame-inicio"><i class="bi bi-house-door-fill"></i> <span>Inicio</span></a>
             <a class="menu-item" data-target="frame-evento"><i class="bi bi-calendar-event-fill"></i> <span>Evento</span></a>
             <a class="menu-item" data-target="frame-venta"><i class="bi bi-ticket-perforated-fill"></i> <span>Venta</span></a>
-            <!-- NUEVO apartado Administración -->
+            
+            <a class="menu-item" data-target="frame-mapa"><i class="bi bi-map-fill"></i> <span>Ajuste escenario</span></a> 
+            
             <a class="menu-item" data-target="frame-admin"><i class="bi bi-gear-fill"></i> <span>Administración</span></a>
+        </div>
         </div>
     </nav>
 
@@ -198,7 +201,8 @@
         <iframe id="frame-evento" src="evt_interfaz/index.php" name="frame-evento" class="content-frame"></iframe>
         <iframe id="frame-venta" src="vnt_interfaz/index.php" name="frame-venta" class="content-frame"></iframe>
         <iframe id="frame-cartelera" src="crt_interfaz/index.php" name="frame-cartelera" class="content-frame"></iframe>
-        <!-- NUEVO iframe para Administración -->
+        
+        <iframe id="frame-mapa" src="mp_interfaz/index.php" name="frame-mapa" class="content-frame"></iframe>
         <iframe id="frame-admin" src="admin_interfaz/index.php" name="frame-admin" class="content-frame"></iframe>
     </div>
 

@@ -11,7 +11,7 @@ $COLS_REQUIRED  = ['id_evento','titulo','descripcion','imagen','tipo','inicio_ve
 // ---------- CONEXIÓN ----------
 // AJUSTA ESTA RUTA si tu conexion.php vive en otro lado:
 // include_once $_SERVER['DOCUMENT_ROOT'] . '/TEATRO/teatro/evt_interfaz/conexion.php';
-include_once __DIR__ . '/../evt_interfaz/conexion.php';
+include "../../evt_interfaz/conexion.php"; 
 
 /** Ejecuta SELECT y regresa array assoc (mysqli o PDO) */
 function exec_query($sql) {
