@@ -51,7 +51,7 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
         if (!isset($mapa_asientos[$fila])) {
             $mapa_asientos[$fila] = [];
         }
-        // Todos los asientos están 'disponibles' porque no estamos revisando la tabla 'boletos'
+        // Todos los asientos están 'disponibles'
         $asiento['status'] = 'disponible';
         $mapa_asientos[$fila][] = $asiento;
     }
@@ -61,6 +61,7 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
     // ===================================
     // === MODO: MOSTRAR MENÚ DE EVENTOS ===
     // ===================================
+    // (Buscamos también el campo 'imagen' de la tabla 'evento')
     $query_menu = "
         SELECT e.*, 
                (SELECT MIN(f.fecha_hora) 
@@ -77,7 +78,7 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
     }
 }
 
-// Cerramos la conexión DESPUÉS de todas las posibles consultas
+// Cerramos la conexión
 $conn->close();
 ?>
 
@@ -91,7 +92,11 @@ $conn->close();
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     
     <style>
-        /* (Estilos del Menú) */
+        /* Estilos para AMBOS modos */
+        body { background-color: #f4f4f4; }
+        .content { overflow-y: auto; height: 100vh; padding: 30px; }
+
+        /* Estilos solo para MODO MENÚ (Cartelera) */
         .hero { background-color: #fff; border-bottom: 1px solid #dee2e6; padding: 3rem 0; margin-bottom: 2rem; }
         .card-link { text-decoration: none; color: inherit; }
         .card { transition: transform 0.2s ease, box-shadow 0.2s ease; height: 100%; }
@@ -99,9 +104,7 @@ $conn->close();
         .card-img-top { width: 100%; height: 350px; object-fit: cover; }
         .card-body { display: flex; flex-direction: column; justify-content: space-between; }
         
-        /* (Estilos de Asientos) */
-        .sidebar { background-color: #2c3e50; min-height: 100vh; padding: 20px; }
-        .content { overflow-y: auto; height: 100vh; padding: 30px; }
+        /* Estilos solo para MODO ASIENTOS */
         .seat-map-container { max-width: 1600px; margin: 20px auto; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); overflow-x: auto; }
         .screen { background-color: #333; color: white; padding: 10px 0; text-align: center; font-size: 1.5em; margin-bottom: 30px; }
         .seat-row { display: flex; justify-content: center; margin-bottom: 8px; min-width: 1100px; }
@@ -111,7 +114,6 @@ $conn->close();
         .seat { width: 30px; height: 30px; margin: 3px; border-radius: 5px; font-size: 10px; display: flex; justify-content: center; align-items: center; font-weight: bold; color: #fff; cursor: pointer; transition: all 0.2s ease; flex-shrink: 0; }
         .seat.disponible { background-color: #28a745; }
         .seat.disponible:hover { background-color: #218838; }
-        /* El estado 'vendido' no se usará en esta simulación */
         .seat.vendido { background-color: #dc3545; cursor: not-allowed; opacity: 0.7; }
         .seat.seleccionado { background-color: #007bff; }
         .legend { display: flex; justify-content: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; }
@@ -125,13 +127,12 @@ $conn->close();
 
         <?php if ($id_evento_actual !== null): ?>
             
-            <div class="col-md-2 sidebar">
-                 <h4 class="text-white">Mi Teatro</h4>
-                 <hr class="text-white">
-                 <a href="vnt_interfaz/index.php" class="nav-link text-white-50"><i class="bi bi-arrow-left"></i> Volver a Eventos</a>
-            </div>
+            <div class="col-12 content">
+                
+                <a href="vnt_interfaz/index.php" class="btn btn-outline-secondary mb-3">
+                    <i class="bi bi-arrow-left"></i> Volver a Eventos
+                </a>
 
-            <div class="col-md-10 content">
                 <h2>Simular Compra: <span class="text-success"><?php echo htmlspecialchars($evento['titulo']); ?></span></h2>
                 <h5 class="text-muted">
                     Diseño: <?php echo ($evento['tipo'] == 1) ? "Teatro (420 asientos)" : "Teatro + Pasarela (540 asientos)"; ?>
@@ -197,7 +198,17 @@ $conn->close();
                             <?php foreach ($eventos_activos as $evt_menu): ?>
                                 <?php
                                 $fechaFormateada = date('D, M d, Y - h:i A', strtotime($evt_menu['proxima_funcion_fecha']));
-                                $rutaImagen = $evt_menu['imagen'] ? $evt_menu['imagen'] : 'evt_interfaz/imagen/placeholder.png';
+                                
+                                // ==========================================
+                                // --- LÓGICA DE IMAGEN COPIADA DE evt_interfaz ---
+                                // ==========================================
+                                $rutaImagen = 'evt_interfaz/imagenes/placeholder.png'; // Placeholder por defecto
+                                if (!empty($evt_menu['imagen'])) {
+                                    // Construye la ruta: carpeta + nombre de archivo
+                                    $rutaImagen = 'evt_interfaz/imagenes/' . $evt_menu['imagen'];
+                                }
+                                // ==========================================
+                                
                                 // Enlace a esta MISMA página
                                 $enlaceVenta = "vnt_interfaz/index.php?id_evento=" . $evt_menu['id_evento'];
                                 $tipo_layout = ($evt_menu['tipo'] == 1) ? "Teatro (420)" : "Pasarela (540)";
@@ -254,12 +265,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const conteoEl = document.getElementById('conteo-asientos');
     const totalEl = document.getElementById('total-precio');
     const listaAsientosEl = document.getElementById('lista-asientos-seleccionados');
-    // El input hidden ya no es necesario, pero lo dejamos para el resumen
     let asientosSeleccionados = new Set(); 
 
     mapa.addEventListener('click', function(e) {
-        // Solo reaccionar si es un 'seat' y NO está 'vendido'
-        // (Aunque en este modo, ninguno estará 'vendido')
         if (!e.target.classList.contains('seat') || e.target.classList.contains('vendido')) {
             return;
         }
@@ -292,7 +300,6 @@ document.addEventListener('DOMContentLoaded', function() {
             listaAsientosEl.appendChild(li);
         });
 
-        // Habilitar/deshabilitar el botón
         const btnComprar = document.getElementById('btn-comprar-simulado');
         btnComprar.disabled = (conteo === 0);
     }
@@ -309,7 +316,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 asientosCodigos.push(seatElement.dataset.codigoAsiento);
             });
 
-            // Mensaje de éxito
             alert(
                 "¡SIMULACIÓN EXITOSA!\n\n" +
                 "Compraste " + asientosSeleccionados.size + " boletos.\n" +
@@ -322,7 +328,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Inicializar el resumen al cargar
     actualizarResumen();
 });
 </script>
