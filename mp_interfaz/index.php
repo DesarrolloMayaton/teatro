@@ -6,9 +6,11 @@ $id_evento_seleccionado = null;
 $evento_info = null;
 $eventos_lista = [];
 $categorias_palette = [];
+$mapa_guardado = []; // <-- Se llenará con el JSON
+$colores_por_id = [0 => '#BDBDBD']; 
 
-// 2. Cargar todos los eventos
-$res_eventos = $conn->query("SELECT id_evento, titulo, tipo FROM evento WHERE finalizado = 0 ORDER BY titulo ASC");
+// 2. Cargar todos los eventos (MODIFICADO: Se añade 'mapa_json')
+$res_eventos = $conn->query("SELECT id_evento, titulo, tipo, mapa_json FROM evento WHERE finalizado = 0 ORDER BY titulo ASC");
 if ($res_eventos) {
     $eventos_lista = $res_eventos->fetch_all(MYSQLI_ASSOC);
 }
@@ -32,8 +34,18 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
         $res_categorias = $stmt_cat->get_result();
         if ($res_categorias) {
             $categorias_palette = $res_categorias->fetch_all(MYSQLI_ASSOC);
+            foreach ($categorias_palette as $c) {
+                $colores_por_id[$c['id_categoria']] = $c['color'];
+            }
         }
         $stmt_cat->close();
+
+        // --- 5. MODIFICADO: Cargar el mapa desde JSON ---
+        if (!empty($evento_info['mapa_json'])) {
+            // Decodifica el string JSON a un array de PHP (true)
+            $mapa_guardado = json_decode($evento_info['mapa_json'], true);
+        }
+        // Si está vacío o es nulo, $mapa_guardado seguirá siendo un array vacío []
     }
 }
 $conn->close();
@@ -47,7 +59,7 @@ $conn->close();
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
-/* --- MODIFICADO: Ajuste de layout para 100vh --- */
+/* --- Todos los estilos (CSS) son EXACTAMENTE IGUALES que antes --- */
 html, body {
   height: 100vh;
   overflow: hidden; 
@@ -64,18 +76,16 @@ body {
   flex-direction: column;
   height: 100%;
   padding: 20px;
-  box-sizing: border-box; /* Asegura que el padding no desborde */
+  box-sizing: border-box; 
 }
 .card {
   border-radius: 14px;
   box-shadow: 0 8px 20px rgba(0,0,0,0.1);
 }
-
-/* --- MODIFICADO: Layout principal (Mapa y Menú) --- */
 .mapper-container { 
   display: flex; 
   gap: 20px; 
-  height: 100%; /* Ocupa toda la altura disponible */
+  height: 100%; 
   overflow: hidden; 
 }
 .seat-map-wrapper {
@@ -83,8 +93,8 @@ body {
   background: #fff; 
   border-radius: 14px;
   padding: 20px; 
-  overflow: auto; /* Scroll SÓLO para el mapa */
-  height: 100%; /* Asegura que ocupe la altura */
+  overflow: auto; 
+  height: 100%; 
 }
 .screen {
   background-color: #333; color: white; padding: 10px;
@@ -95,8 +105,6 @@ body {
   top: -20px;
   z-index: 10;
 }
-
-/* --- ESTILOS DE ASIENTOS (Grandes para zoom 80%) --- */
 .seat {
   width: 50px; 
   height: 50px; 
@@ -125,12 +133,11 @@ body {
   text-align: center; 
   font-weight: 600;
   font-size: 1.25em; 
-  border-radius: 8px; /* --- NUEVO: Estilo --- */
+  border-radius: 8px; 
   padding: 5px 0;
   transition: background-color 0.2s ease;
-  cursor: pointer; /* --- NUEVO: Indica que es clicable --- */
+  cursor: pointer; 
 }
-/* --- NUEVO: Hover para filas --- */
 .row-label:hover {
   background-color: #e0eafc;
   color: #0d6efd;
@@ -158,14 +165,12 @@ body {
   margin-bottom: 12px; 
 }
 .pasillo { width: 40px; } 
-
-/* --- MODIFICADO: Paleta lateral (Siempre visible) --- */
 .category-palette {
-  width: 320px; /* Un poco más ancho para el selector */
+  width: 320px; 
   background: #fff; 
   border-radius: 14px;
   padding: 15px; 
-  overflow-y: auto; /* Scroll SÓLO para la paleta */
+  overflow-y: auto; 
   height: 100%;
   flex-shrink: 0;
   position: relative;
@@ -178,7 +183,6 @@ body {
 .palette-item:hover { background: #f0f0f0; }
 .palette-item.selected { background: #e0eafc; border: 2px solid #0d6efd; }
 .palette-color { width: 24px; height: 24px; border-radius: 50%; margin-right: 10px; }
-
 #togglePaletteBtn {
   position: absolute;
   top: 10px;
@@ -213,6 +217,11 @@ body {
   height: 0;
   overflow: hidden;
 }
+#btnGuardarMapa {
+    position: sticky;
+    bottom: 0;
+    font-size: 1.1em;
+}
 </style>
 </head>
 <body>
@@ -236,14 +245,26 @@ body {
       <div class="seat-row-wrapper">
         <div class="row-label"><?= $nombre_fila ?></div>
         <div class="seats-block">
-          <?php for ($i=1; $i<=6; $i++): ?>
-            <div class="seat"><?= $nombre_fila ?>-<?= $numero_en_fila_pb++; ?></div>
+          <?php for ($i=1; $i<=6; $i++): 
+                $nombre_asiento = $nombre_fila . '-' . $numero_en_fila_pb++;
+                $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
+                $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+          ?>
+            <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
+                <?= $nombre_asiento ?>
+            </div>
           <?php endfor; ?>
           <div class="pasarela">
             <?php if ($fila==5) echo '<span class="pasarela-text">PASARELA</span>'; ?>
           </div>
-          <?php for ($i=1; $i<=6; $i++): ?>
-            <div class="seat"><?= $nombre_fila ?>-<?= $numero_en_fila_pb++; ?></div>
+          <?php for ($i=1; $i<=6; $i++): 
+                $nombre_asiento = $nombre_fila . '-' . $numero_en_fila_pb++;
+                $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
+                $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+          ?>
+            <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
+                <?= $nombre_asiento ?>
+            </div>
           <?php endfor; ?>
         </div>
         <div class="row-label"><?= $nombre_fila ?></div>
@@ -259,16 +280,34 @@ body {
           <div class="seat-row-wrapper">
             <div class="row-label"><?= $fila ?></div>
             <div class="seats-block">
-              <?php for ($i=0;$i<6;$i++): ?>
-                <div class="seat"><?= $fila ?><?= $numero_en_fila++; ?></div>
+              <?php for ($i=0;$i<6;$i++): 
+                    $nombre_asiento = $fila . $numero_en_fila++;
+                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
+                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+              ?>
+                <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
+                    <?= $nombre_asiento ?>
+                </div>
               <?php endfor; ?>
               <div class="pasillo"></div>
-              <?php for ($i=0;$i<14;$i++): ?>
-                <div class="seat"><?= $fila ?><?= $numero_en_fila++; ?></div>
+              <?php for ($i=0;$i<14;$i++): 
+                    $nombre_asiento = $fila . $numero_en_fila++;
+                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
+                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+              ?>
+                <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
+                    <?= $nombre_asiento ?>
+                </div>
               <?php endfor; ?>
               <div class="pasillo"></div>
-              <?php for ($i=0;$i<6;$i++): ?>
-                <div class="seat"><?= $fila ?><?= $numero_en_fila++; ?></div>
+              <?php for ($i=0;$i<6;$i++): 
+                    $nombre_asiento = $fila . $numero_en_fila++;
+                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
+                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+              ?>
+                <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
+                    <?= $nombre_asiento ?>
+                </div>
               <?php endfor; ?>
             </div>
             <div class="row-label"><?= $fila ?></div>
@@ -279,13 +318,20 @@ body {
             <div class="row-label">P</div>
             <div class="seats-block">
               <?php $numero_en_fila_p = 1; ?>
-              <?php for ($i=0;$i<30;$i++): ?>
-                <div class="seat"><?= 'P' ?><?= $numero_en_fila_p++; ?></div>
+              <?php for ($i=0;$i<30;$i++): 
+                    $nombre_asiento = 'P' . $numero_en_fila_p++;
+                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
+                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+              ?>
+                <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
+                    <?= $nombre_asiento ?>
+                </div>
               <?php endfor; ?>
             </div>
             <div class="row-label">P</div>
           </div>
       <?php 
+      // ========== TEATRO 420 (Solo) ==========
       elseif ($evento_info['tipo'] == 1):
           $letras = range('A','O'); 
           foreach ($letras as $fila): 
@@ -294,16 +340,34 @@ body {
           <div class="seat-row-wrapper">
             <div class="row-label"><?= $fila ?></div>
             <div class="seats-block">
-              <?php for ($i=0;$i<6;$i++): ?>
-                <div class="seat"><?= $fila ?><?= $numero_en_fila++; ?></div>
+              <?php for ($i=0;$i<6;$i++): 
+                    $nombre_asiento = $fila . $numero_en_fila++;
+                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
+                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+              ?>
+                <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
+                    <?= $nombre_asiento ?>
+                </div>
               <?php endfor; ?>
               <div class="pasillo"></div>
-              <?php for ($i=0;$i<14;$i++): ?>
-                <div class="seat"><?= $fila ?><?= $numero_en_fila++; ?></div>
+              <?php for ($i=0;$i<14;$i++): 
+                    $nombre_asiento = $fila . $numero_en_fila++;
+                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
+                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+              ?>
+                <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
+                    <?= $nombre_asiento ?>
+                </div>
               <?php endfor; ?>
               <div class="pasillo"></div>
-              <?php for ($i=0;$i<6;$i++): ?>
-                <div class="seat"><?= $fila ?><?= $numero_en_fila++; ?></div>
+              <?php for ($i=0;$i<6;$i++): 
+                    $nombre_asiento = $fila . $numero_en_fila++;
+                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
+                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+              ?>
+                <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
+                    <?= $nombre_asiento ?>
+                </div>
               <?php endfor; ?>
             </div>
             <div class="row-label"><?= $fila ?></div>
@@ -314,8 +378,14 @@ body {
             <div class="row-label">P</div>
             <div class="seats-block">
               <?php $numero_en_fila_p = 1; ?>
-              <?php for ($i=0;$i<30;$i++): ?>
-                <div class="seat"><?= 'P' ?><?= $numero_en_fila_p++; ?></div>
+              <?php for ($i=0;$i<30;$i++): 
+                    $nombre_asiento = 'P' . $numero_en_fila_p++;
+                    $id_cat = $mapa_guardado[$nombre_asiento] ?? 0;
+                    $color_asiento = $colores_por_id[$id_cat] ?? '#BDBDBD';
+              ?>
+                <div class="seat" style="background-color: <?= $color_asiento ?>" data-asiento-id="<?= $nombre_asiento ?>" data-categoria-id="<?= $id_cat ?>">
+                    <?= $nombre_asiento ?>
+                </div>
               <?php endfor; ?>
             </div>
             <div class="row-label">P</div>
@@ -356,12 +426,14 @@ body {
         <?php if ($evento_info): ?>
         <hr>
         <h5><i class="bi bi-paint-bucket"></i> Paleta</h5><hr>
-        <div class="palette-item selected" data-color="#BDBDBD">
+        
+        <div class="palette-item selected" data-color="#BDBDBD" data-id-categoria="0">
           <span class="palette-color" style="background-color:#BDBDBD"></span>
-          <div>Borrador</div>
+          <div>Borrador (General)</div>
         </div>
+        
         <?php foreach ($categorias_palette as $c): ?>
-        <div class="palette-item" data-color="<?= htmlspecialchars($c['color']) ?>">
+        <div class="palette-item" data-color="<?= htmlspecialchars($c['color']) ?>" data-id-categoria="<?= $c['id_categoria'] ?>">
           <span class="palette-color" style="background-color:<?= htmlspecialchars($c['color']) ?>"></span>
           <div><?= htmlspecialchars($c['nombre_categoria']) ?> - $<?= number_format($c['precio'],2) ?></div>
         </div>
@@ -371,10 +443,20 @@ body {
         <button type="button" class="btn btn-success w-100" data-bs-toggle="modal" data-bs-target="#modalNuevaCategoria">
           <i class="bi bi-plus-circle-fill"></i> Nueva Categoría
         </button>
-        <?php endif; ?>
+
+        <button type="button" id="btnGuardarMapa" class="btn btn-primary w-100 mt-2">
+            <i class="bi bi-save"></i> Guardar Mapa
+        </button>
+        <div id="guardar-spinner" class="d-none text-center mt-2">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Guardando...</span>
+            </div>
         </div>
+        
+        <?php endif; ?>
+      </div>
     </div>
-    </div>
+  </div>
 </div>
 
 
@@ -387,9 +469,7 @@ body {
       </div>
       <div class="modal-body">
         <form id="formNuevaCategoria">
-          
           <input type="hidden" name="id_evento" value="<?= $id_evento_seleccionado ?>">
-
           <div class="mb-3">
             <label for="cat_nombre" class="form-label">Nombre Categoría</label>
             <input type="text" class="form-control" id="cat_nombre" name="nombre" required>
@@ -411,25 +491,35 @@ body {
     </div>
   </div>
 </div>
+<input type="hidden" id="hidden_id_evento" value="<?= $id_evento_seleccionado ?>">
+
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded',()=>{
   
   let activeColor = '#BDBDBD';
+  let activeCategoryId = 0; // 0 = General/Borrador
   
   // Lógica de selección de color
   document.querySelectorAll('.palette-item').forEach(el=>{
     el.addEventListener('click',()=>{
       document.querySelectorAll('.palette-item').forEach(i=>i.classList.remove('selected'));
       el.classList.add('selected');
+      
+      // Almacenar ID y Color
       activeColor = el.dataset.color;
+      activeCategoryId = el.dataset.idCategoria;
     });
   });
   
   // APLICAR EVENTO A ASIENTOS INDIVIDUALES
   document.querySelectorAll('.seat').forEach(s=>{
-    s.addEventListener('click',()=>{ s.style.backgroundColor=activeColor; });
+    s.addEventListener('click',()=>{ 
+        s.style.backgroundColor = activeColor; 
+        s.dataset.categoriaId = activeCategoryId; // Guardar estado en el elemento
+    });
   });
 
   // APLICAR EVENTO A FILAS (ROW-LABEL)
@@ -440,6 +530,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         const seatsInRow = rowWrapper.querySelectorAll('.seat');
         seatsInRow.forEach(seat => {
           seat.style.backgroundColor = activeColor;
+          seat.dataset.categoriaId = activeCategoryId; // Guardar estado
         });
       }
     });
@@ -467,18 +558,14 @@ document.addEventListener('DOMContentLoaded',()=>{
   }
 
 
-  // --- NUEVO: LÓGICA PARA GUARDAR CATEGORÍA (MODAL) ---
+  // LÓGICA PARA GUARDAR CATEGORÍA (MODAL)
   const formNuevaCategoria = document.getElementById('formNuevaCategoria');
   const modalNuevaCategoria = new bootstrap.Modal(document.getElementById('modalNuevaCategoria'));
 
   if(formNuevaCategoria) {
     formNuevaCategoria.addEventListener('submit', function(e) {
-      e.preventDefault(); // Evita que la página se recargue
-
-      // 1. Recolectar datos del formulario
+      e.preventDefault(); 
       const formData = new FormData(formNuevaCategoria);
-
-      // 2. Enviar datos con Fetch (AJAX) al nuevo archivo PHP
       fetch('ajax_guardar_categoria.php', {
         method: 'POST',
         body: formData
@@ -486,12 +573,10 @@ document.addEventListener('DOMContentLoaded',()=>{
       .then(response => response.json())
       .then(data => {
         if (data.status === 'success') {
-          // 3. Si tiene éxito: avisar, cerrar modal y recargar la página
           alert(data.message);
           modalNuevaCategoria.hide();
-          location.reload(); // Recarga la página para mostrar la nueva categoría en la paleta
+          location.reload(); 
         } else {
-          // 4. Si falla: mostrar el error
           alert('Error: ' + data.message);
         }
       })
@@ -499,6 +584,64 @@ document.addEventListener('DOMContentLoaded',()=>{
         console.error('Error en fetch:', error);
         alert('Error de conexión al intentar guardar.');
       });
+    });
+  }
+
+
+  // --- LÓGICA PARA GUARDAR MAPA ---
+  const btnGuardarMapa = document.getElementById('btnGuardarMapa');
+  const spinner = document.getElementById('guardar-spinner');
+  
+  if (btnGuardarMapa) {
+    btnGuardarMapa.addEventListener('click', () => {
+        
+        btnGuardarMapa.disabled = true;
+        spinner.classList.remove('d-none');
+
+        const idEvento = document.getElementById('hidden_id_evento').value;
+        const seats = document.querySelectorAll('.seat');
+        const seatData = [];
+
+        // 1. Recolectar datos de TODOS los asientos
+        seats.forEach(seat => {
+            seatData.push({
+                asiento: seat.dataset.asientoId, // "A1", "PB1-1", etc.
+                cat_id: seat.dataset.categoriaId ?? 0 // "5", "0", etc.
+            });
+        });
+
+        // 2. Preparar el paquete de datos
+        const payload = {
+            id_evento: idEvento,
+            mapa: seatData // Este es el array completo
+        };
+
+        // 3. Enviar datos a 'ajax_guardar_mapa.php'
+        fetch('ajax_guardar_mapa.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload) // Convertir a JSON
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(data.message);
+            } else {
+                alert('Error al guardar: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error en fetch (Guardar Mapa):', error);
+            alert('Error de conexión al intentar guardar el mapa.');
+        })
+        .finally(() => {
+            // 4. Reactivar el botón
+            btnGuardarMapa.disabled = false;
+            spinner.classList.add('d-none');
+        });
     });
   }
 
