@@ -1,5 +1,5 @@
 <?php
-include "conexion.php";
+include "../conexion.php";
 
 // ==================================================================
 // == INICIO: PROCESADOR DE ACCIONES (AJAX / POST) ==
@@ -22,7 +22,10 @@ if (isset($_POST['accion']) && $_POST['accion'] == 'finalizar') {
 // --- ACCIÓN 2: BORRAR UN EVENTO ---
 if (isset($_POST['accion']) && $_POST['accion'] == 'borrar') {
     $id = $_POST['id_evento'];
-    // Borrar imagen si existe
+    
+    // --- INICIO DE MODIFICACIÓN (Borrado en Cascada) ---
+
+    // 1. Borrar imagen (esto es sistema de archivos, va primero)
     if ($stmt_img = $conn->prepare("SELECT imagen FROM evento WHERE id_evento = ?")) {
         $stmt_img->bind_param("i", $id);
         $stmt_img->execute();
@@ -34,15 +37,47 @@ if (isset($_POST['accion']) && $_POST['accion'] == 'borrar') {
         }
         $stmt_img->close();
     }
-    // Borrar evento (y funciones asociadas por ON DELETE CASCADE)
-    if ($stmt = $conn->prepare("DELETE FROM evento WHERE id_evento = ?")) {
-        $stmt->bind_param("i", $id);
-        $stmt->execute();
-        $stmt->close();
+    
+    // 2. Iniciar una transacción para asegurar que todo se borre
+    $conn->begin_transaction();
+    
+    try {
+        // Borrar Boletos
+        $stmt_boletos = $conn->prepare("DELETE FROM boletos WHERE id_evento = ?");
+        $stmt_boletos->bind_param("i", $id);
+        $stmt_boletos->execute();
+        $stmt_boletos->close();
+
+        // Borrar Categorias
+        $stmt_cat = $conn->prepare("DELETE FROM categorias WHERE id_evento = ?");
+        $stmt_cat->bind_param("i", $id);
+        $stmt_cat->execute();
+        $stmt_cat->close();
+
+        // Borrar Promociones
+        $stmt_promo = $conn->prepare("DELETE FROM promociones WHERE id_evento = ?");
+        $stmt_promo->bind_param("i", $id);
+        $stmt_promo->execute();
+        $stmt_promo->close();
+        
+        // Borrar el Evento principal
+        // (La tabla 'funciones' se borra en cascada, como mencionaste)
+        $stmt_evento = $conn->prepare("DELETE FROM evento WHERE id_evento = ?");
+        $stmt_evento->bind_param("i", $id);
+        $stmt_evento->execute();
+        $stmt_evento->close();
+
+        // Si todo salió bien, confirma los cambios
+        $conn->commit();
         echo json_encode(['status' => 'success', 'accion' => 'borrado']);
-    } else {
-        echo json_encode(['status' => 'error', 'message' => 'Error al preparar la consulta de borrado.']);
+
+    } catch (mysqli_sql_exception $exception) {
+        // Si algo falló, revierte todo
+        $conn->rollback();
+        echo json_encode(['status' => 'error', 'message' => 'Error en la transacción: ' . $exception->getMessage()]);
     }
+    // --- FIN DE MODIFICACIÓN ---
+    
     exit;
 }
 
@@ -331,11 +366,8 @@ function prepararFinalizar(id, nombre) {
         .then(data => {
             if (data.status === 'success') {
                 modalFinalizar.hide();
-                // Opcional: Recargar la página para ver el cambio
-                 window.location.reload(); 
-                // O mover la tarjeta al historial manualmente con JS (más complejo)
-                // const card = document.getElementById(`evento-card-${id}`);
-                // if(card) card.remove(); 
+                localStorage.setItem('evento_actualizado', 'finalizar_' + id + '_' + Date.now());
+                window.location.reload(); 
             } else { alert('Error al finalizar: ' + (data.message || 'Error desconocido')); }
         })
         .catch(error => {
@@ -359,8 +391,8 @@ function prepararBorrado(id, nombre) {
         .then(data => {
             if (data.status === 'success') {
                 modalBorrar.hide();
-                const card = document.getElementById(`evento-card-${id}`);
-                if(card) card.remove();
+                localStorage.setItem('evento_actualizado', 'borrar_' + id + '_' + Date.now());
+                window.location.reload();
             } else { alert('Error al borrar: ' + (data.message || 'Error desconocido')); }
         })
          .catch(error => {
@@ -370,6 +402,14 @@ function prepararBorrado(id, nombre) {
     }
     modalBorrar.show();
 }
+
+// Listener para Sincronización entre Pestañas
+window.addEventListener('storage', function(e) {
+    if (e.key === 'evento_actualizado') {
+        console.log('Cambio detectado en otra pestaña, actualizando...');
+        window.location.reload();
+    }
+});
 </script>
 
 </body>

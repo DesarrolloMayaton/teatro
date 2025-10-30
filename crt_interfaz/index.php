@@ -1,6 +1,6 @@
 <?php
 // 1. CONEXIÓN A LA BD
-include "../evt_interfaz/conexion.php"; // Ajusta la ruta si es necesario
+include "../conexion.php"; // Ajusta la ruta si es necesario
 
 // 2. OBTENER EVENTOS ACTIVOS CON SU PRÓXIMA FUNCIÓN
 // Seleccionamos eventos activos (finalizado = 0)

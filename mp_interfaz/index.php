@@ -1,17 +1,15 @@
 <?php
 // 1. CONEXIÓN
-// Ajusta la ruta si es necesario. Asumo que está en /vnt_interfaz/
-include "../conexion.php"; 
+include "../evt_interfaz/conexion.php"; 
 
 $id_evento_seleccionado = null;
 $evento_info = null;
 $eventos_lista = [];
 $categorias_palette = [];
-$mapa_guardado = []; 
+$mapa_guardado = []; // <-- Se llenará con el JSON
 $colores_por_id = [0 => '#BDBDBD']; 
-$categorias_js = [0 => ['nombre' => 'General (Borrador)', 'precio' => 0.00]]; // <-- NUEVO: Para JS
 
-// 2. Cargar todos los eventos
+// 2. Cargar todos los eventos (MODIFICADO: Se añade 'mapa_json')
 $res_eventos = $conn->query("SELECT id_evento, titulo, tipo, mapa_json FROM evento WHERE finalizado = 0 ORDER BY titulo ASC");
 if ($res_eventos) {
     $eventos_lista = $res_eventos->fetch_all(MYSQLI_ASSOC);
@@ -38,20 +36,16 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
             $categorias_palette = $res_categorias->fetch_all(MYSQLI_ASSOC);
             foreach ($categorias_palette as $c) {
                 $colores_por_id[$c['id_categoria']] = $c['color'];
-                
-                // --- NUEVO: Preparar datos para JavaScript ---
-                $categorias_js[$c['id_categoria']] = [
-                    'nombre' => $c['nombre_categoria'],
-                    'precio' => $c['precio']
-                ];
             }
         }
         $stmt_cat->close();
 
-        // 5. Cargar el mapa desde JSON
+        // --- 5. MODIFICADO: Cargar el mapa desde JSON ---
         if (!empty($evento_info['mapa_json'])) {
+            // Decodifica el string JSON a un array de PHP (true)
             $mapa_guardado = json_decode($evento_info['mapa_json'], true);
         }
+        // Si está vacío o es nulo, $mapa_guardado seguirá siendo un array vacío []
     }
 }
 $conn->close();
@@ -61,10 +55,11 @@ $conn->close();
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Punto de Venta</title>
+<title>Mapeador de Asientos</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
+/* --- Todos los estilos (CSS) son EXACTAMENTE IGUALES que antes --- */
 html, body {
   height: 100vh;
   overflow: hidden; 
@@ -121,16 +116,17 @@ body {
   display: flex; align-items: center; justify-content: center;
   border: 2px solid #9E9E9E; 
   cursor: pointer;
-  transition: transform .15s ease, filter .15s ease;
+  transition: transform .15s ease, background-color .15s ease, border-color .15s ease;
   padding: 2px;
   box-sizing: border-box;
   text-align: center;
   line-height: 1; 
 }
-/* --- MODIFICADO: Hover de solo lectura --- */
 .seat:hover {
   transform: scale(1.1);
-  filter: brightness(0.9);
+  background-color: #9E9E9E; 
+  border-color: #757575;
+  color: #fff;
 }
 .row-label {
   width: 50px; 
@@ -139,8 +135,12 @@ body {
   font-size: 1.25em; 
   border-radius: 8px; 
   padding: 5px 0;
-  /* --- MODIFICADO: Ya no es clicable --- */
-  cursor: default; 
+  transition: background-color 0.2s ease;
+  cursor: pointer; 
+}
+.row-label:hover {
+  background-color: #e0eafc;
+  color: #0d6efd;
 }
 .pasarela {
   width: 100px; 
@@ -165,9 +165,7 @@ body {
   margin-bottom: 12px; 
 }
 .pasillo { width: 40px; } 
-
-/* --- MODIFICADO: Panel derecho solo para selección --- */
-.controls-panel {
+.category-palette {
   width: 320px; 
   background: #fff; 
   border-radius: 14px;
@@ -175,6 +173,54 @@ body {
   overflow-y: auto; 
   height: 100%;
   flex-shrink: 0;
+  position: relative;
+  transition: all 0.3s ease-in-out;
+}
+.palette-item {
+  display: flex; align-items: center; padding: 10px; border-radius: 8px;
+  cursor: pointer; transition: 0.2s ease;
+}
+.palette-item:hover { background: #f0f0f0; }
+.palette-item.selected { background: #e0eafc; border: 2px solid #0d6efd; }
+.palette-color { width: 24px; height: 24px; border-radius: 50%; margin-right: 10px; }
+#togglePaletteBtn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+}
+.palette-content {
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  opacity: 1;
+  visibility: visible;
+}
+.category-palette.collapsed {
+  width: 60px;
+  padding: 10px;
+}
+.category-palette.collapsed #togglePaletteBtn {
+  position: relative; 
+  top: 0;
+  right: 0;
+  margin: 0 auto; 
+}
+.category-palette.collapsed .palette-content {
+  opacity: 0;
+  visibility: hidden;
+  height: 0;
+  overflow: hidden;
+}
+#btnGuardarMapa {
+    position: sticky;
+    bottom: 0;
+    font-size: 1.1em;
 }
 </style>
 </head>
@@ -347,9 +393,15 @@ body {
       <?php endif; ?>
     </div>
     <?php endif; ?>
-    <div class="controls-panel card">
+    <div class="category-palette card" id="palette-sidebar">
       
-        <h2><i class="bi bi-ticket-perforated"></i> Punto de Venta</h2>
+      <button class="btn btn-outline-primary" id="togglePaletteBtn" title="Minimizar Paleta">
+          <i class="bi bi-chevron-right"></i>
+      </button>
+
+      <div class="palette-content">
+        
+        <h2><i class="bi bi-palette"></i> Mapeador</h2>
         <form method="GET" class="mb-3">
           <label class="form-label fw-bold">Selecciona un Evento:</label>
           <select name="id_evento" class="form-select form-select-lg" onchange="this.form.submit()">
@@ -373,91 +425,225 @@ body {
         
         <?php if ($evento_info): ?>
         <hr>
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle-fill"></i>
-            Haga clic en un asiento para ver su categoría y precio.
+        <h5><i class="bi bi-paint-bucket"></i> Paleta</h5><hr>
+        
+        <div class="palette-item selected" data-color="#BDBDBD" data-id-categoria="0">
+          <span class="palette-color" style="background-color:#BDBDBD"></span>
+          <div>Borrador (General)</div>
         </div>
         
-        <h5>Categorías del Evento</h5>
-        <ul class="list-group">
-            <?php foreach ($categorias_palette as $c): ?>
-                <li class="list-group-item d-flex align-items-center">
-                    <span class="palette-color d-inline-block me-2" style="width: 20px; height: 20px; border-radius: 50%; background-color:<?= htmlspecialchars($c['color']) ?>"></span>
-                    <?= htmlspecialchars($c['nombre_categoria']) ?> ($<?= number_format($c['precio'],2) ?>)
-                </li>
-            <?php endforeach; ?>
-        </ul>
+        <?php foreach ($categorias_palette as $c): ?>
+        <div class="palette-item" data-color="<?= htmlspecialchars($c['color']) ?>" data-id-categoria="<?= $c['id_categoria'] ?>">
+          <span class="palette-color" style="background-color:<?= htmlspecialchars($c['color']) ?>"></span>
+          <div><?= htmlspecialchars($c['nombre_categoria']) ?> - $<?= number_format($c['precio'],2) ?></div>
+        </div>
+        <?php endforeach; ?>
 
+        <hr>
+        <button type="button" class="btn btn-success w-100" data-bs-toggle="modal" data-bs-target="#modalNuevaCategoria">
+          <i class="bi bi-plus-circle-fill"></i> Nueva Categoría
+        </button>
+
+        <button type="button" id="btnGuardarMapa" class="btn btn-primary w-100 mt-2">
+            <i class="bi bi-save"></i> Guardar Mapa
+        </button>
+        <div id="guardar-spinner" class="d-none text-center mt-2">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Guardando...</span>
+            </div>
+        </div>
+        
         <?php endif; ?>
-    </div>
-    </div>
-</div>
-
-
-<div class="modal fade" id="modalAsientoInfo" tabindex="-1" aria-labelledby="modalInfoLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="modalInfoLabel">Detalles del Asiento</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <h3 id="info_asiento_nombre" class="text-center"></h3>
-        <p id="info_asiento_categoria" class="fs-5 text-center"></p>
-        <p id="info_asiento_precio" class="fs-4 fw-bold text-center text-success"></p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-primary w-100" data-bs-dismiss="modal">Aceptar</button>
       </div>
     </div>
   </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-<script>
-    const CATEGORIAS_INFO = <?= json_encode($categorias_js, JSON_NUMERIC_CHECK) ?>;
-</script>
+
+<div class="modal fade" id="modalNuevaCategoria" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalLabel">Agregar Nueva Categoría</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="formNuevaCategoria">
+          <input type="hidden" name="id_evento" value="<?= $id_evento_seleccionado ?>">
+          <div class="mb-3">
+            <label for="cat_nombre" class="form-label">Nombre Categoría</label>
+            <input type="text" class="form-control" id="cat_nombre" name="nombre" required>
+          </div>
+          <div class="mb-3">
+            <label for="cat_precio" class="form-label">Precio</label>
+            <input type="number" class="form-control" id="cat_precio" name="precio" step="0.01" min="0" required>
+          </div>
+          <div class="mb-3">
+            <label for="cat_color" class="form-label">Color</label>
+            <input type="color" class="form-control form-control-color" id="cat_color" name="color" value="#E0E0E0" title="Elige un color">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="submit" class="btn btn-primary" form="formNuevaCategoria">Guardar Categoría</button>
+      </div>
+    </div>
+  </div>
+</div>
+<input type="hidden" id="hidden_id_evento" value="<?= $id_evento_seleccionado ?>">
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded',()=>{
   
-  // --- NUEVO: Lógica del Modal de Información ---
-
-  // 1. Instancia del Modal
-  const infoModalElement = document.getElementById('modalAsientoInfo');
-  const infoModal = new bootstrap.Modal(infoModalElement);
+  let activeColor = '#BDBDBD';
+  let activeCategoryId = 0; // 0 = General/Borrador
   
-  // 2. Elementos de texto dentro del Modal
-  const infoNombre = document.getElementById('info_asiento_nombre');
-  const infoCategoria = document.getElementById('info_asiento_categoria');
-  const infoPrecio = document.getElementById('info_asiento_precio');
-
-  // 3. Agregar listener a CADA asiento
-  document.querySelectorAll('.seat').forEach(s=>{
-    s.addEventListener('click',()=>{ 
-        // 4. Obtener datos del asiento clickeado
-        const asientoId = s.dataset.asientoId;
-        const catId = s.dataset.categoriaId;
-
-        // 5. Buscar la info de la categoría en nuestro objeto JS
-        // Si no la encuentra (ej: catId=0), usa la info de la categoría 0
-        const categoriaInfo = CATEGORIAS_INFO[catId] || CATEGORIAS_INFO[0];
-
-        // 6. Formatear el precio
-        const precioFormateado = parseFloat(categoriaInfo.precio).toLocaleString('es-MX', {
-            style: 'currency',
-            currency: 'MXN'
-        });
-
-        // 7. Rellenar el modal con la información
-        infoNombre.textContent = `Asiento: ${asientoId}`;
-        infoCategoria.textContent = `Categoría: ${categoriaInfo.nombre}`;
-        infoPrecio.textContent = precioFormateado;
-        
-        // 8. Mostrar el modal
-        infoModal.show();
+  // Lógica de selección de color
+  document.querySelectorAll('.palette-item').forEach(el=>{
+    el.addEventListener('click',()=>{
+      document.querySelectorAll('.palette-item').forEach(i=>i.classList.remove('selected'));
+      el.classList.add('selected');
+      
+      // Almacenar ID y Color
+      activeColor = el.dataset.color;
+      activeCategoryId = el.dataset.idCategoria;
     });
   });
+  
+  // APLICAR EVENTO A ASIENTOS INDIVIDUALES
+  document.querySelectorAll('.seat').forEach(s=>{
+    s.addEventListener('click',()=>{ 
+        s.style.backgroundColor = activeColor; 
+        s.dataset.categoriaId = activeCategoryId; // Guardar estado en el elemento
+    });
+  });
+
+  // APLICAR EVENTO A FILAS (ROW-LABEL)
+  document.querySelectorAll('.row-label').forEach(label => {
+    label.addEventListener('click', () => {
+      const rowWrapper = label.closest('.seat-row-wrapper');
+      if (rowWrapper) {
+        const seatsInRow = rowWrapper.querySelectorAll('.seat');
+        seatsInRow.forEach(seat => {
+          seat.style.backgroundColor = activeColor;
+          seat.dataset.categoriaId = activeCategoryId; // Guardar estado
+        });
+      }
+    });
+  });
+
+  // Lógica para paleta minimizable
+  const palette = document.getElementById('palette-sidebar');
+  const toggleBtn = document.getElementById('togglePaletteBtn');
+  
+  if (palette && toggleBtn) { 
+    toggleBtn.addEventListener('click', () => {
+      const icon = toggleBtn.querySelector('i');
+      const isCollapsed = palette.classList.toggle('collapsed');
+      
+      if (isCollapsed) {
+        icon.classList.remove('bi-chevron-right');
+        icon.classList.add('bi-chevron-left');
+        toggleBtn.title = "Expandir Paleta";
+      } else {
+        icon.classList.remove('bi-chevron-left');
+        icon.classList.add('bi-chevron-right');
+        toggleBtn.title = "Minimizar Paleta";
+      }
+    });
+  }
+
+
+  // LÓGICA PARA GUARDAR CATEGORÍA (MODAL)
+  const formNuevaCategoria = document.getElementById('formNuevaCategoria');
+  const modalNuevaCategoria = new bootstrap.Modal(document.getElementById('modalNuevaCategoria'));
+
+  if(formNuevaCategoria) {
+    formNuevaCategoria.addEventListener('submit', function(e) {
+      e.preventDefault(); 
+      const formData = new FormData(formNuevaCategoria);
+      fetch('ajax_guardar_categoria.php', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success') {
+          alert(data.message);
+          modalNuevaCategoria.hide();
+          location.reload(); 
+        } else {
+          alert('Error: ' + data.message);
+        }
+      })
+      .catch(error => {
+        console.error('Error en fetch:', error);
+        alert('Error de conexión al intentar guardar.');
+      });
+    });
+  }
+
+
+  // --- LÓGICA PARA GUARDAR MAPA ---
+  const btnGuardarMapa = document.getElementById('btnGuardarMapa');
+  const spinner = document.getElementById('guardar-spinner');
+  
+  if (btnGuardarMapa) {
+    btnGuardarMapa.addEventListener('click', () => {
+        
+        btnGuardarMapa.disabled = true;
+        spinner.classList.remove('d-none');
+
+        const idEvento = document.getElementById('hidden_id_evento').value;
+        const seats = document.querySelectorAll('.seat');
+        const seatData = [];
+
+        // 1. Recolectar datos de TODOS los asientos
+        seats.forEach(seat => {
+            seatData.push({
+                asiento: seat.dataset.asientoId, // "A1", "PB1-1", etc.
+                cat_id: seat.dataset.categoriaId ?? 0 // "5", "0", etc.
+            });
+        });
+
+        // 2. Preparar el paquete de datos
+        const payload = {
+            id_evento: idEvento,
+            mapa: seatData // Este es el array completo
+        };
+
+        // 3. Enviar datos a 'ajax_guardar_mapa.php'
+        fetch('ajax_guardar_mapa.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload) // Convertir a JSON
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(data.message);
+            } else {
+                alert('Error al guardar: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error en fetch (Guardar Mapa):', error);
+            alert('Error de conexión al intentar guardar el mapa.');
+        })
+        .finally(() => {
+            // 4. Reactivar el botón
+            btnGuardarMapa.disabled = false;
+            spinner.classList.add('d-none');
+        });
+    });
+  }
 
 });
 </script>
