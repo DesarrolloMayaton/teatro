@@ -1,0 +1,76 @@
+/* Estilos para el carrito de compras */
+.seat.selected {
+  border: 3px solid #28a745 !important;
+  box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
+  transform: scale(1.05);
+}
+
+.seat.vendido {
+  background-color: #dc3545 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6;
+}
+
+.seat.vendido:hover {
+  transform: none !important;
+  filter: none !important;
+}
+
+.carrito-item {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.carrito-item .asiento-info {
+  flex-grow: 1;
+}
+
+.carrito-item .btn-remove {
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 25px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.carrito-item .btn-remove:hover {
+  background: #c82333;
+}
+
+.total-section {
+  background: #e9ecef;
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: 15px;
+}
+
+.total-section h4 {
+  margin: 0;
+  color: #28a745;
+}
+
+#btnPagar {
+  width: 100%;
+  padding: 12px;
+  font-size: 18px;
+  font-weight: bold;
+  margin-top: 15px;
+}
+
+.carrito-vacio {
+  text-align: center;
+  color: #6c757d;
+  padding: 20px;
+  font-style: italic;
+}

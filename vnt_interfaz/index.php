@@ -97,6 +97,7 @@ $conn->close();
 <title>Punto de Venta</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="css/carrito.css">
 <style>
 /* --- (Tus estilos CSS son iguales) --- */
 html, body {
@@ -413,13 +414,35 @@ body {
         
         <?php if ($evento_info): ?>
         <hr>
+        
+        <!-- Carrito de Compras -->
+        <div class="mb-3">
+            <h5><i class="bi bi-cart3"></i> Carrito de Compras</h5>
+            <div id="carritoItems" class="mb-2">
+                <div class="carrito-vacio">No hay asientos seleccionados</div>
+            </div>
+            
+            <div class="total-section">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4>Total:</h4>
+                    <h4 id="totalCompra">$0.00</h4>
+                </div>
+            </div>
+            
+            <button id="btnPagar" class="btn btn-success" onclick="procesarPago()" disabled>
+                <i class="bi bi-credit-card"></i> Pagar
+            </button>
+        </div>
+        
+        <hr>
+        
         <div class="alert alert-info">
             <i class="bi bi-info-circle-fill"></i>
-            Haga clic en un asiento para ver su categoría y precio.
+            Haga clic en un asiento para agregarlo al carrito.
         </div>
         
         <h5>Categorías del Evento</h5>
-        <ul class="list-group">
+        <ul class="list-group mb-3">
             <?php foreach ($categorias_palette as $c): ?>
                 <li class="list-group-item d-flex align-items-center">
                     <span class="palette-color d-inline-block me-2" style="width: 20px; height: 20px; border-radius: 50%; background-color:<?= htmlspecialchars($c['color']) ?>"></span>
@@ -427,6 +450,12 @@ body {
                 </li>
             <?php endforeach; ?>
         </ul>
+        
+        <div class="d-grid gap-2">
+            <a href="escanear_qr.php" class="btn btn-primary" target="_blank">
+                <i class="bi bi-qr-code-scan"></i> Escanear QR
+            </a>
+        </div>
 
         <?php endif; ?>
     </div>
@@ -462,50 +491,7 @@ body {
     const DEFAULT_CAT_ID = <?= $id_categoria_general ?>;
 </script>
 
-<script>
-document.addEventListener('DOMContentLoaded',()=>{
-  
-  // --- NUEVO: Lógica del Modal de Información ---
-
-  // 1. Instancia del Modal
-  const infoModalElement = document.getElementById('modalAsientoInfo');
-  const infoModal = new bootstrap.Modal(infoModalElement);
-  
-  // 2. Elementos de texto dentro del Modal
-  const infoNombre = document.getElementById('info_asiento_nombre');
-  const infoCategoria = document.getElementById('info_asiento_categoria');
-  const infoPrecio = document.getElementById('info_asiento_precio');
-
-  // 3. Agregar listener a CADA asiento
-  document.querySelectorAll('.seat').forEach(s=>{
-    s.addEventListener('click',()=>{ 
-        // 4. Obtener datos del asiento clickeado
-        const asientoId = s.dataset.asientoId;
-        const catId = s.dataset.categoriaId;
-
-        // 5. Buscar la info de la categoría en nuestro objeto JS
-        // --- MODIFICADO: Usar el ID de "General" como fallback dinámico ---
-        // Si no encuentra el ID (ej: un '0' antiguo), usa la info de la categoría "General"
-        const categoriaInfo = CATEGORIAS_INFO[catId] || CATEGORIAS_INFO[DEFAULT_CAT_ID];
-
-        // 6. Formatear el precio
-        const precioFormateado = parseFloat(categoriaInfo.precio).toLocaleString('es-MX', {
-            style: 'currency',
-            currency: 'MXN'
-        });
-
-        // 7. Rellenar el modal con la información
-        infoNombre.textContent = `Asiento: ${asientoId}`;
-        infoCategoria.textContent = `Categoría: ${categoriaInfo.nombre}`;
-        infoPrecio.textContent = precioFormateado;
-        
-        // 8. Mostrar el modal
-        infoModal.show();
-    });
-  });
-
-});
-</script>
+<script src="js/carrito.js?v=3"></script>
 
 </body>
 </html>
