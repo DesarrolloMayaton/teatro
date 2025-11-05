@@ -74,6 +74,7 @@ if ($stmt_evento->execute()) {
     
     $stmt_funcion->close();
 
+<<<<<<< HEAD
     // --- 7. (NUEVO) Procesar y guardar las CATEGORÍAS POR DEFECTO ---
     // -----------------------------------------------------------------
     
@@ -126,6 +127,46 @@ if ($stmt_evento->execute()) {
     }
     
     echo "<a href='index.php'>Volver al listado de eventos</a>";
+=======
+    // Mensaje de éxito y redirección a Cartelera en el marco principal
+    ?>
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <title>Evento creado</title>
+    </head>
+    <body>
+    <script>
+    (function(){
+        try {
+            if (window.top && window.top !== window) {
+                const d = window.top.document;
+                // Guardar la pestaña activa como Cartelera
+                window.top.localStorage.setItem('ultimaPestanaActiva', 'frame-cartelera');
+                // Activar iframe de Cartelera
+                d.querySelectorAll('.content-frame').forEach(f => f.classList.remove('active'));
+                const target = d.getElementById('frame-cartelera');
+                if (target) {
+                    target.classList.add('active');
+                    // Forzar recarga para reflejar el nuevo evento
+                    const src = target.getAttribute('src');
+                    target.setAttribute('src', src);
+                }
+                // Marcar elemento del menú como activo
+                d.querySelectorAll('nav.menu-lateral a.menu-item').forEach(a => {
+                    a.classList.toggle('active', a.dataset.target === 'frame-cartelera');
+                });
+            }
+        } catch(e) {}
+        // Volver al listado de eventos en este iframe
+        window.location.href = 'index.php';
+    })();
+    </script>
+    </body>
+    </html>
+    <?php
+>>>>>>> moises-avila
 
 } else {
     echo "<p style='color:red;'>❌ Error al guardar el evento principal: " . $stmt_evento->error . "</p>";

@@ -19,10 +19,25 @@ $query = "
 
 $resultado = $conn->query($query);
 
-$eventos = [];
+// Separar eventos: esta semana vs próximos
+$eventos_esta_semana = [];
+$eventos_proximos = [];
+
 if ($resultado && $resultado->num_rows > 0) {
-    // Guardamos todos los eventos en un array
-    $eventos = $resultado->fetch_all(MYSQLI_ASSOC);
+    $ahora = new DateTime();
+    $fin_semana = clone $ahora;
+    $fin_semana->modify('Sunday this week');
+    $fin_semana->setTime(23, 59, 59);
+    
+    while ($evento = $resultado->fetch_assoc()) {
+        $fecha_funcion = new DateTime($evento['proxima_funcion_fecha']);
+        
+        if ($fecha_funcion <= $fin_semana) {
+            $eventos_esta_semana[] = $evento;
+        } else {
+            $eventos_proximos[] = $evento;
+        }
+    }
 }
 ?>
 
@@ -31,225 +46,956 @@ if ($resultado && $resultado->num_rows > 0) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cartelera Próximos Eventos</title>
+    <title>Teatro Constitución · Apatzingan</title>
+    <link rel="icon" href="imagenes_teatro/nat.png" type="image/png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     
     <style>
         body {
-            background-color: #eef2f7; /* Un fondo gris claro suave */
+            background-image: url('imagenes_teatro/TeatroNoche1.jpg');
+            background-size: cover;
+            background-position: center center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+            color: #e8e8e8;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 95vh; /* Ajustado ligeramente */
-            padding: 15px; /* Añadir padding por si acaso */
+            margin: 0;
+            min-height: 100vh;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: inherit;
+            filter: blur(0px);
+            z-index: -1;
         }
 
-        .cartelera-container {
-            position: relative;
-            max-width: 380px; /* Un poco más estrecho para mejor estética */
+        .site-header {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: rgba(10, 10, 12, 0.9);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .header-inner {
             width: 100%;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 12px 20px 12px 0;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            text-decoration: none;
+            color: #ffffff;
+            margin-right: auto; /* empuja el menú hacia la derecha */
+        }
+        .brand-logo {
+            width: 50px;
+            height: 50px;
+            gap: 20px;
+            margin-left: 20px;
+            border-radius: 7px;
+            background: none;
+            display: grid;
+            place-items: center;
+            font-weight: 800;
+            letter-spacing: 0.1px;
+        }
+        .brand-logo .logo-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+        .brand-name {
+            font-weight: 600;
+            font-height: 1.55rem;
+            font-size: 1.55rem;
+        }
+        .nav {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            margin-left: auto; /* mantener opciones a la derecha */
+        }
+        .nav a {
+            color: #e8e8e8;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color .2s ease, transform .2s ease;
+        }
+        .nav a:hover {
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
+        .cta {
+            margin-left: 6px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #e53935, #b71c1c);
+            color: #fff !important;
+            font-weight: 700;
+            box-shadow: 0 8px 18px rgba(229,57,53,.25);
+            transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+            border: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 26px rgba(229,57,53,.35);
+            filter: brightness(1.07);
+        }
+        .hamburger {
+            display: none;
+            background: transparent;
+            color: #e8e8e8;
+            border: 1px solid rgba(255,255,255,0.15);
+            width: 42px;
+            height: 42px;
+            border-radius: 8px;
+            align-items: center;
+            justify-content: center;
+        }
+        @media (max-width: 900px) {
+            .nav {
+                position: fixed;
+                inset: 64px 0 0 0;
+                background: rgba(10,10,12,.98);
+                flex-direction: column;
+                padding: 24px;
+                gap: 12px;
+                transform: translateY(-120%);
+                transition: transform .25s ease;
+            }
+            .nav.open { transform: translateY(0); }
+            .hamburger { display: inline-flex; }
         }
 
-        /* La tarjeta en sí (generada por JS) */
-        .card-link {
+        .hero {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px 80px;
+        }
+
+        /* SECCIÓN DE TÍTULOS */
+        .section-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 30px;
+            text-align: left;
+            text-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+            letter-spacing: -0.02em;
+        }
+
+        /* EVENTOS DE ESTA SEMANA - CARRUSEL HERO (UNO A LA VEZ) */
+        .eventos-semana-section {
+            margin-bottom: 60px;
+            margin-left: -20px;
+            margin-right: -20px;
+            padding: 0;
+        }
+
+        .hero-carrusel {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            overflow: hidden;
+            border-radius: 20px;
+        }
+
+        .hero-slide {
+            display: none;
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .hero-slide.active {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 40px;
+            padding: 40px 60px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+            backdrop-filter: blur(30px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            animation: fadeIn 0.6s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.98); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .hero-imagen {
+            width: 100%;
+            height: 100%;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+        }
+
+        .hero-imagen img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.4s ease;
+        }
+
+        .hero-slide:hover .hero-imagen img {
+            transform: scale(1.05);
+        }
+
+        .hero-contenido {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding-right: 40px;
+        }
+
+        .hero-titulo {
+            font-size: 3rem;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 20px;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            line-height: 1.1;
+        }
+
+        .hero-descripcion {
+            font-size: 1.15rem;
+            color: rgba(255, 255, 255, 0.9);
+            line-height: 1.7;
+            margin-bottom: 25px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .hero-fecha {
+            font-size: 1.2rem;
+            color: #e53935;
+            font-weight: 700;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .hero-btn {
+            background: linear-gradient(135deg, #e53935, #b71c1c);
+            color: #ffffff;
+            padding: 16px 40px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-decoration: none;
+            display: inline-block;
+            width: fit-content;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 24px rgba(229, 57, 53, 0.4);
+        }
+
+        .hero-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 32px rgba(229, 57, 53, 0.6);
+            background: linear-gradient(135deg, #f44336, #c62828);
+        }
+
+        /* BOTONES DE NAVEGACIÓN DEL HERO */
+        .btn-hero-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 1.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-hero-nav:hover {
+            background: rgba(229, 57, 53, 0.9);
+            border-color: rgba(229, 57, 53, 1);
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .btn-hero-nav.prev {
+            left: 20px;
+        }
+
+        .btn-hero-nav.next {
+            right: 20px;
+        }
+
+        /* INDICADORES DEL CARRUSEL */
+        .hero-indicadores {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 15;
+        }
+
+        .indicador {
+            width: 40px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .indicador.active {
+            background: #e53935;
+            width: 60px;
+        }
+
+        /* CARRUSEL HORIZONTAL PARA PRÓXIMOS */
+        .carrusel-horizontal {
+            position: relative;
+            padding: 0 60px;
+        }
+
+        .eventos-scroll-container {
+            display: flex;
+            gap: 20px;
+            overflow-x: auto;
+            scroll-behavior: smooth;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            padding: 10px 0;
+        }
+
+        .eventos-scroll-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        .evento-card {
+            flex: 0 0 auto;
+            width: 280px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.08));
+            backdrop-filter: blur(20px) saturate(180%);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             text-decoration: none;
             color: inherit;
             display: block;
-            transition: transform 0.25s ease, box-shadow 0.25s ease;
-             border-radius: 12px; /* Redondear enlace para que sombra coincida */
-             overflow: hidden; /* Asegurar que la imagen no se salga */
-        }
-        
-        .card-link:hover {
-            transform: translateY(-5px); /* Elevar ligeramente */
-            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
         }
 
-        .card {
-             border: none; /* Quitar borde por defecto */
-             border-radius: 12px; /* Bordes redondeados */
+        .evento-card:hover {
+            transform: translateY(-10px) scale(1.03);
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+            border-color: rgba(255, 255, 255, 0.4);
         }
 
-        .image-container {
-            height: 500px; /* Altura fija para la imagen */
-            background-color: #f8f9fa; /* Color de fondo si la imagen no llena */
+        .evento-card-imagen {
+            width: 100%;
+            height: 380px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .evento-card-imagen img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.4s ease;
+        }
+
+        .evento-card:hover .evento-card-imagen img {
+            transform: scale(1.08);
+        }
+
+        .evento-card-info {
+            padding: 20px;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.6));
+        }
+
+        .evento-card-titulo {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .evento-card-fecha {
+            font-size: 0.9rem;
+            color: #e53935;
+            font-weight: 600;
             display: flex;
-            justify-content: center;
             align-items: center;
-            overflow: hidden; /* Asegura que nada se salga */
+            gap: 6px;
         }
 
-        .card-img-top {
-             width: 100%;
-             height: 100%;
-             object-fit: cover; /* Cambiado a cover para llenar, ajustar si se ve mal */
-             /* Prueba con 'contain' si 'cover' sigue cortando mucho: */
-             /* object-fit: contain; */
-             transition: transform 0.3s ease; /* Transición suave para zoom */
-        }
-        
-         .card-link:hover .card-img-top {
-             transform: scale(1.05); /* Ligero zoom a la imagen en hover */
-         }
-
-
-        .card-body {
-            padding: 1.5rem; /* Más padding */
-        }
-        
-        .card-title {
-            font-weight: 600; /* Título más grueso */
-            margin-bottom: 0.75rem;
-        }
-        
-        .card-text {
-            font-size: 1rem; /* Tamaño de texto para la fecha */
-        }
-
-        /* Botones de navegación */
-        .nav-btn {
+        /* BOTONES DE NAVEGACIÓN DEL CARRUSEL HORIZONTAL */
+        .btn-nav-carrusel {
             position: absolute;
-            top: 40%; /* Subir un poco los botones */
+            top: 50%;
             transform: translateY(-50%);
             z-index: 10;
-            background-color: rgba(44, 62, 80, 0.6); /* Color del menú lateral semi-transparente */
+            background: rgba(229, 57, 53, 0.9);
             color: white;
             border: none;
             border-radius: 50%;
-            width: 45px; /* Ligeramente más pequeños */
-            height: 45px;
-            font-size: 1.3rem;
-            line-height: 1;
-            display: none; 
-            opacity: 0.8;
-            transition: background-color 0.2s ease, opacity 0.2s ease;
-        }
-        
-        .nav-btn:hover {
-            background-color: rgba(44, 62, 80, 0.9);
-            opacity: 1;
+            width: 50px;
+            height: 50px;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
         }
 
-        #btn-prev { left: -22px; } /* Ajustar posición */
-        #btn-next { right: -22px; }
+        .btn-nav-carrusel:hover {
+            background: rgba(229, 57, 53, 1);
+            transform: translateY(-50%) scale(1.1);
+            box-shadow: 0 6px 20px rgba(229, 57, 53, 0.5);
+        }
 
-         /* Estilo para el mensaje de no eventos */
-        .no-eventos-card {
-            background-color: #fff;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        .btn-nav-carrusel.prev {
+            left: 5px;
+        }
+
+        .btn-nav-carrusel.next {
+            right: 5px;
+        }
+
+        /* EVENTOS PRÓXIMOS - CARRUSEL HORIZONTAL */
+        .eventos-proximos-section {
+            margin-bottom: 60px;
+        }
+
+        .no-eventos-msg {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+            backdrop-filter: blur(25px) saturate(180%);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+            color: rgba(255, 255, 255, 0.9);
+            padding: 40px;
+            text-align: center;
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 968px) {
+            .hero-slide.active {
+                grid-template-columns: 1fr;
+                padding: 30px;
+            }
+
+            .hero-imagen {
+                height: 300px;
+                margin-bottom: 20px;
+            }
+
+            .hero-contenido {
+                padding-right: 0;
+            }
+
+            .hero-titulo {
+                font-size: 2rem;
+            }
+
+            .hero-descripcion {
+                font-size: 1rem;
+            }
+
+            .hero-carrusel {
+                height: auto;
+                min-height: 500px;
+            }
+
+            .btn-hero-nav {
+                width: 50px;
+                height: 50px;
+                font-size: 1.5rem;
+            }
+
+            .btn-hero-nav.prev {
+                left: 10px;
+            }
+
+            .btn-hero-nav.next {
+                right: 10px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .eventos-semana-section {
+                margin-left: -10px;
+                margin-right: -10px;
+            }
+
+            .carrusel-horizontal {
+                padding: 0 50px;
+            }
+
+            .evento-card {
+                width: 240px;
+            }
+
+            .evento-card-imagen {
+                height: 320px;
+            }
+
+            .btn-nav-carrusel {
+                width: 40px;
+                height: 40px;
+                font-size: 1.2rem;
+            }
+
+            .section-title {
+                font-size: 1.5rem;
+            }
+
+            .hero-titulo {
+                font-size: 1.8rem;
+            }
+
+            .hero-descripcion {
+                font-size: 0.95rem;
+            }
+
+            .hero-fecha {
+                font-size: 1rem;
+            }
+
+            .hero-btn {
+                font-size: 1rem;
+                padding: 12px 30px;
+            }
+        }
+
+        .slide-enter {
+            animation: slideIn .5s ease both;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(30px); opacity: .2; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Footer */
+        .site-footer {
+            background: rgba(10,10,12,0.95);
+            border-top: 1px solid rgba(255,255,255,0.06);
+            color: #cfd3d7;
+            margin-top: 80px; /* mayor separación del contenido */
+        }
+        .footer-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 28px 20px;
+            display: grid;
+            grid-template-columns: 1.2fr 1fr 1fr 1fr;
+            gap: 24px;
+        }
+        .footer-col h4 {
+            color: #ffffff;
+            font-size: 1rem;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+        .footer-col p, .footer-col li, .footer-col a, .footer-col span {
+            font-size: 0.95rem;
+            color: #cfd3d7;
+        }
+        .footer-links { list-style: none; padding: 0; margin: 0; }
+        .footer-links li { margin: 8px 0; }
+        .footer-links a { text-decoration: none; color: #cfd3d7; transition: color .2s ease; }
+        .footer-links a:hover { color: #fff; }
+        .social { display: flex; gap: 10px; margin-top: 8px; }
+        .social a { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #e8e8e8; text-decoration: none; transition: all .2s ease; }
+        .social a:hover { color: #fff; border-color: rgba(255,255,255,0.35); transform: translateY(-2px); }
+        .footer-bottom { border-top: 1px solid rgba(255,255,255,0.06); padding: 14px 20px; color: #aeb4ba; font-size: 0.9rem; }
+        .footer-bottom-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .muted { color: #aeb4ba; }
+        @media (max-width: 900px){
+            .footer-inner { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 600px){
+            .footer-inner { grid-template-columns: 1fr; }
+            .footer-bottom-inner { flex-direction: column; align-items: flex-start; }
         }
     </style>
 </head>
 <body>
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="#inicio" class="brand" aria-label="Inicio">
+                <div class="brand-logo"><img src="imagenes_teatro/nat.png" alt="Teatro Constitución" class="logo-img"></div>
+                <div class="brand-name">Teatro Constitución · Apatzingan</div>
+            </a>
+            <nav class="nav" id="mainNav">
+                <a href="#inicio">Inicio</a>
+                <a href="acerca.php">Acerca del teatro</a>
+                <a href="contacto.php">Contacto / Reservaciones</a>
+                <a href="cartelera_cliente.php" class="cta">Ver cartelera completa <i class="bi bi-arrow-right"></i></a>
+            </nav>
+            <button class="hamburger" id="hamburgerBtn" aria-label="Menú">
+                <i class="bi bi-list" style="font-size:1.25rem"></i>
+            </button>
+        </div>
+    </header>
 
-    <div class="cartelera-container">
-        
-        <div id="evento-card-container">
+    <main class="hero" id="inicio">
+        <!-- EVENTOS DE ESTA SEMANA - CARRUSEL HERO -->
+        <section class="eventos-semana-section">
+            <div class="hero-carrusel" id="hero-carrusel">
+                <!-- Los slides se generan con JavaScript -->
+                <button class="btn-hero-nav prev" id="btn-hero-prev"><i class="bi bi-chevron-left"></i></button>
+                <button class="btn-hero-nav next" id="btn-hero-next"><i class="bi bi-chevron-right"></i></button>
+                <div class="hero-indicadores" id="hero-indicadores"></div>
             </div>
+        </section>
 
-        <button id="btn-prev" class="nav-btn" title="Anterior"><i class="bi bi-chevron-left"></i></button>
-        <button id="btn-next" class="nav-btn" title="Siguiente"><i class="bi bi-chevron-right"></i></button>
+        <!-- EVENTOS PRÓXIMOS -->
+        <?php if (!empty($eventos_proximos)): ?>
+        <section class="eventos-proximos-section">
+            <h2 class="section-title">Próximos Eventos</h2>
+            <div class="carrusel-horizontal">
+                <div id="eventos-proximos-container" class="eventos-scroll-container"></div>
+                <button class="btn-nav-carrusel prev" id="btn-prev-proximos"><i class="bi bi-chevron-left"></i></button>
+                <button class="btn-nav-carrusel next" id="btn-next-proximos"><i class="bi bi-chevron-right"></i></button>
+            </div>
+        </section>
+        <?php endif; ?>
+    </main>
 
-    </div>
+    <footer class="site-footer" id="contacto">
+        <div class="footer-inner">
+            <div class="footer-col">
+                <h4>Teatro Constitución · Apatzingan</h4>
+                <p class="muted">Arte escénico, música y cultura para todos. Vive la experiencia teatral.</p>
+                <div class="social" aria-label="Redes sociales">
+                    <a href="#" title="Facebook" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
+                    <a href="#" title="Instagram" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
+                    <a href="#" title="YouTube" aria-label="YouTube"><i class="bi bi-youtube"></i></a>
+                    <a href="#" title="TikTok" aria-label="TikTok"><i class="bi bi-tiktok"></i></a>
+                </div>
+            </div>
+            <div class="footer-col">
+                <h4>Enlaces</h4>
+                <ul class="footer-links">
+                    <li><a href="#inicio">Inicio</a></li>
+                    <li><a href="acerca.php">Acerca del teatro</a></li>
+                    <li><a href="contacto.php">Contacto / Reservaciones</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Contacto</h4>
+                <ul class="footer-links">
+                    <li><i class="bi bi-telephone"></i> <span>+52 (XXX) XXX XXXX</span></li>
+                    <li><i class="bi bi-envelope"></i> <span>contacto@teatro-constitucion.mx</span></li>
+                    <li><i class="bi bi-geo-alt"></i> <span>Apatzingán, Michoacán, México</span></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Horarios</h4>
+                <ul class="footer-links">
+                    <li><span>Taquilla: Mar-Dom 11:00–19:00</span></li>
+                    <li><span>Funciones: Según cartelera</span></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <div class="footer-bottom-inner">
+                <div>© <?php echo date('Y'); ?> Teatro Constitución · Apatzingan. Todos los derechos reservados.</div>
+                <div class="muted">Términos · Privacidad</div>
+            </div>
+        </div>
+    </footer>
 
     <script>
-        // 3. DATOS DE PHP A JAVASCRIPT
-        const eventos = <?php echo json_encode($eventos); ?>;
-        let currentIndex = 0;
+        // DATOS DE PHP A JAVASCRIPT
+        const eventosEstaSemana = <?php echo json_encode($eventos_esta_semana); ?>;
+        const eventosProximos = <?php echo json_encode($eventos_proximos); ?>;
 
-        // 4. ELEMENTOS DEL DOM
-        const cardContainer = document.getElementById('evento-card-container');
-        const btnPrev = document.getElementById('btn-prev');
-        const btnNext = document.getElementById('btn-next');
+        // ELEMENTOS DEL DOM
+        const containerProximos = document.getElementById('eventos-proximos-container');
+        const hamburgerBtn = document.getElementById('hamburgerBtn');
+        const mainNav = document.getElementById('mainNav');
 
-        // 5. FUNCIÓN PARA MOSTRAR EL EVENTO
-        function mostrarEvento(index) {
-            if (!eventos || eventos.length === 0) {
-                cardContainer.innerHTML = `
-                    <div class="card no-eventos-card text-center">
-                        <div class="card-body" style="padding: 50px;">
-                            <h4 class="card-title text-muted">Próximamente</h4>
-                            <p class="card-text text-secondary">No hay eventos activos en cartelera en este momento.</p>
-                             <i class="bi bi-calendar-x" style="font-size: 3rem; color: #adb5bd;"></i>
-                        </div>
+        // FALLBACK DE IMAGEN
+        function buildImageCandidates(evento){
+            const src = (evento && evento.imagen) ? String(evento.imagen) : '';
+            const parts = src.split('/');
+            const filename = parts[parts.length-1] || '';
+            const basename = filename.replace(/\.(jpg|jpeg|png|gif)$/i,'');
+            const exts = ['jpg','jpeg','png','gif'];
+            const candidates = [];
+            if(src){ candidates.push(`../evt_interfaz/${src}`); }
+            exts.forEach(ext=> candidates.push(`../evt_interfaz/imagenes/${basename}.${ext}`));
+            if(src){ candidates.push(src); }
+            return [...new Set(candidates)];
+        }
+
+        function createImgWithFallback(evento, alt, className = ''){
+            const img = document.createElement('img');
+            if(className) img.className = className;
+            img.alt = alt || '';
+            const cands = buildImageCandidates(evento);
+            let idx = 0;
+            function tryNext(){
+                if(idx < cands.length){ img.src = cands[idx++]; }
+            }
+            img.onerror = () => { tryNext(); };
+            tryNext();
+            return img;
+        }
+
+        // FORMATEAR FECHA
+        function formatearFecha(fechaStr) {
+            const fecha = new Date(fechaStr);
+            return fecha.toLocaleString('es-ES', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+
+        // RENDERIZAR CARRUSEL HERO (EVENTOS DE ESTA SEMANA)
+        let heroSlideActual = 0;
+        let heroAutoplay = null;
+
+        function renderizarHeroCarrusel() {
+            const heroCarrusel = document.getElementById('hero-carrusel');
+            const indicadores = document.getElementById('hero-indicadores');
+            
+            if (!eventosEstaSemana || eventosEstaSemana.length === 0) {
+                heroCarrusel.innerHTML = `
+                    <div class="no-eventos-msg" style="margin: 40px; text-align: center;">
+                        <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
+                        <h4 style="margin-top: 15px;">No hay eventos esta semana</h4>
+                        <p>Revisa nuestros próximos eventos más abajo</p>
                     </div>`;
-                // Ocultar botones si no hay eventos
-                 btnPrev.style.display = 'none';
-                 btnNext.style.display = 'none';
                 return;
             }
 
-            // Seleccionamos el evento actual
-            const evento = eventos[index];
-            
-            // Usamos la 'proxima_funcion_fecha' que calculó PHP
-            const fechaProximaFuncion = new Date(evento.proxima_funcion_fecha);
-            const fechaFormateada = fechaProximaFuncion.toLocaleString('es-ES', {
-                weekday: 'long', // 'martes'
-                day: 'numeric',   // '28'
-                month: 'long',   // 'octubre'
-                hour: 'numeric',  // '09'
-                minute: '2-digit', // '20'
-                hour12: true      // AM/PM
+            // Limpiar contenido previo
+            const slides = heroCarrusel.querySelectorAll('.hero-slide');
+            slides.forEach(s => s.remove());
+
+            // Crear slides
+            eventosEstaSemana.forEach((evento, index) => {
+                const slide = document.createElement('a');
+                slide.href = `comprar_boletos.php?evento=${evento.id_evento}`;
+                slide.className = `hero-slide ${index === 0 ? 'active' : ''}`;
+                
+                const imagen = document.createElement('div');
+                imagen.className = 'hero-imagen';
+                imagen.appendChild(createImgWithFallback(evento, evento.titulo));
+                
+                const contenido = document.createElement('div');
+                contenido.className = 'hero-contenido';
+                
+                const descripcion = evento.descripcion ? evento.descripcion.substring(0, 200) + '...' : '';
+                
+                contenido.innerHTML = `
+                    <h2 class="hero-titulo">${evento.titulo}</h2>
+                    ${descripcion ? `<p class="hero-descripcion">${descripcion}</p>` : ''}
+                    <p class="hero-fecha">
+                        <i class="bi bi-calendar-event"></i>
+                        ${formatearFecha(evento.proxima_funcion_fecha)}
+                    </p>
+                    <span class="hero-btn">Comprar Boletos <i class="bi bi-arrow-right"></i></span>
+                `;
+                
+                slide.appendChild(imagen);
+                slide.appendChild(contenido);
+                
+                // Insertar antes de los botones
+                heroCarrusel.insertBefore(slide, heroCarrusel.querySelector('.btn-hero-nav'));
             });
-            
-            // Ruta de la imagen (relativa a evt_interfaz)
-            const rutaImagen = evento.imagen ? `../evt_interfaz/${evento.imagen}` : 'ruta/a/imagen/placeholder.jpg'; // Añadir placeholder si no hay imagen
 
-            // Enlace a la venta
-            const enlaceVenta = `../vnt_interfaz/index.php?id_evento=${evento.id_evento}`;
+            // Crear indicadores
+            indicadores.innerHTML = '';
+            eventosEstaSemana.forEach((_, index) => {
+                const indicador = document.createElement('div');
+                indicador.className = `indicador ${index === 0 ? 'active' : ''}`;
+                indicador.addEventListener('click', () => cambiarHeroSlide(index));
+                indicadores.appendChild(indicador);
+            });
 
-            // Creamos el HTML de la tarjeta
-            const cardHTML = `
-                <a href="${enlaceVenta}" class="card-link" title="Ver detalles de ${evento.titulo}">
-                    <div class="card shadow-sm overflow-hidden">
-                         <div class="image-container">
-                              <img src="${rutaImagen}" class="card-img-top" alt="${evento.titulo}">
-                         </div>
-                        <div class="card-body text-center">
-                            <h4 class="card-title mb-2">${evento.titulo}</h4>
-                            <p class="card-text text-danger fw-bold">
-                                <i class="bi bi-calendar-event"></i> Próxima función:<br> ${fechaFormateada}
-                            </p>
-                        </div>
-                    </div>
-                </a>`;
-            
-            cardContainer.innerHTML = cardHTML;
-
-             // Mostrar botones SOLO si hay más de 1 evento
-             if (eventos.length > 1) {
-                btnPrev.style.display = 'block';
-                btnNext.style.display = 'block';
-             } else {
-                 btnPrev.style.display = 'none';
-                 btnNext.style.display = 'none';
-             }
+            // Iniciar autoplay
+            iniciarHeroAutoplay();
         }
 
-        // 6. LÓGICA DE INICIALIZACIÓN
+        function cambiarHeroSlide(nuevoIndex) {
+            const slides = document.querySelectorAll('.hero-slide');
+            const indicadores = document.querySelectorAll('.indicador');
+            
+            if (!slides.length) return;
+            
+            slides[heroSlideActual].classList.remove('active');
+            indicadores[heroSlideActual].classList.remove('active');
+            
+            heroSlideActual = nuevoIndex;
+            if (heroSlideActual >= slides.length) heroSlideActual = 0;
+            if (heroSlideActual < 0) heroSlideActual = slides.length - 1;
+            
+            slides[heroSlideActual].classList.add('active');
+            indicadores[heroSlideActual].classList.add('active');
+        }
+
+        function iniciarHeroAutoplay() {
+            clearInterval(heroAutoplay);
+            if (eventosEstaSemana && eventosEstaSemana.length > 1) {
+                heroAutoplay = setInterval(() => {
+                    cambiarHeroSlide(heroSlideActual + 1);
+                }, 5000);
+            }
+        }
+
+        function detenerHeroAutoplay() {
+            clearInterval(heroAutoplay);
+        }
+
+        // RENDERIZAR EVENTOS EN CARRUSEL HORIZONTAL (PRÓXIMOS)
+        function renderizarEventosCarrusel(eventos, container) {
+            if (!eventos || eventos.length === 0) {
+                return;
+            }
+
+            eventos.forEach(evento => {
+                const eventoCard = document.createElement('a');
+                eventoCard.href = `comprar_boletos.php?evento=${evento.id_evento}`;
+                eventoCard.className = 'evento-card';
+                
+                const imagen = document.createElement('div');
+                imagen.className = 'evento-card-imagen';
+                imagen.appendChild(createImgWithFallback(evento, evento.titulo));
+                
+                const info = document.createElement('div');
+                info.className = 'evento-card-info';
+                info.innerHTML = `
+                    <h4 class="evento-card-titulo">${evento.titulo}</h4>
+                    <p class="evento-card-fecha">
+                        <i class="bi bi-calendar-event"></i>
+                        ${formatearFecha(evento.proxima_funcion_fecha)}
+                    </p>
+                `;
+                
+                eventoCard.appendChild(imagen);
+                eventoCard.appendChild(info);
+                container.appendChild(eventoCard);
+            });
+        }
+
+        // FUNCIONALIDAD DE SCROLL DEL CARRUSEL
+        function configurarCarrusel(containerId, btnPrevId, btnNextId) {
+            const container = document.getElementById(containerId);
+            const btnPrev = document.getElementById(btnPrevId);
+            const btnNext = document.getElementById(btnNextId);
+            
+            if (!container || !btnPrev || !btnNext) return;
+
+            const scrollAmount = 300;
+
+            btnNext.addEventListener('click', () => {
+                container.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+            });
+
+            btnPrev.addEventListener('click', () => {
+                container.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+            });
+
+            // Ocultar/mostrar botones según posición del scroll
+            function actualizarBotones() {
+                const maxScroll = container.scrollWidth - container.clientWidth;
+                btnPrev.style.opacity = container.scrollLeft > 0 ? '1' : '0.3';
+                btnNext.style.opacity = container.scrollLeft < maxScroll - 10 ? '1' : '0.3';
+                btnPrev.style.pointerEvents = container.scrollLeft > 0 ? 'auto' : 'none';
+                btnNext.style.pointerEvents = container.scrollLeft < maxScroll - 10 ? 'auto' : 'none';
+            }
+
+            container.addEventListener('scroll', actualizarBotones);
+            actualizarBotones();
+        }
+
+        // INICIALIZACIÓN
         document.addEventListener('DOMContentLoaded', () => {
-            mostrarEvento(currentIndex);
-        });
-
-        // 7. EVENT LISTENERS PARA LOS BOTONES
-        btnNext.addEventListener('click', () => {
-            currentIndex++;
-            if (currentIndex >= eventos.length) {
-                currentIndex = 0; // Vuelve al inicio
+            // Renderizar carrusel hero (eventos de esta semana)
+            renderizarHeroCarrusel();
+            
+            // Botones del hero
+            const btnHeroPrev = document.getElementById('btn-hero-prev');
+            const btnHeroNext = document.getElementById('btn-hero-next');
+            const heroCarrusel = document.getElementById('hero-carrusel');
+            
+            if (btnHeroPrev) {
+                btnHeroPrev.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    cambiarHeroSlide(heroSlideActual - 1);
+                    detenerHeroAutoplay();
+                    setTimeout(iniciarHeroAutoplay, 1000);
+                });
             }
-            mostrarEvento(currentIndex);
-        });
-
-        btnPrev.addEventListener('click', () => {
-            currentIndex--;
-            if (currentIndex < 0) {
-                currentIndex = eventos.length - 1; // Va al final
+            
+            if (btnHeroNext) {
+                btnHeroNext.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    cambiarHeroSlide(heroSlideActual + 1);
+                    detenerHeroAutoplay();
+                    setTimeout(iniciarHeroAutoplay, 1000);
+                });
             }
-            mostrarEvento(currentIndex);
+            
+            // Pausar autoplay al hacer hover
+            if (heroCarrusel) {
+                heroCarrusel.addEventListener('mouseenter', detenerHeroAutoplay);
+                heroCarrusel.addEventListener('mouseleave', iniciarHeroAutoplay);
+            }
+            
+            // Renderizar eventos próximos
+            renderizarEventosCarrusel(eventosProximos, containerProximos);
+            
+            // Configurar carrusel de próximos
+            configurarCarrusel('eventos-proximos-container', 'btn-prev-proximos', 'btn-next-proximos');
+            
+            // Menú hamburguesa
+            if (hamburgerBtn && mainNav) {
+                hamburgerBtn.addEventListener('click', () => {
+                    mainNav.classList.toggle('open');
+                });
+            }
         });
 
     </script>

@@ -229,7 +229,20 @@ if ($eventos_finalizados === false) {
                         
                         <div class="col-lg-4 col-md-6 mb-4" id="evento-card-<?= $e['id_evento'] ?>">
                             <div class="card shadow-sm">
-                                <?php if($e['imagen']) echo "<img src='{$e['imagen']}' class='card-img-top'>"; ?>
+                                <?php 
+                                    $imgMostrar = '';
+                                    if (!empty($e['imagen']) && file_exists($e['imagen'])) {
+                                        $imgMostrar = $e['imagen'];
+                                    } else {
+                                        $candidatas = glob(__DIR__ . DIRECTORY_SEPARATOR . 'imagenes' . DIRECTORY_SEPARATOR . '*.{jpg,jpeg,png,gif}', GLOB_BRACE);
+                                        if ($candidatas && count($candidatas) > 0) {
+                                            // Convertir a ruta relativa desde este script
+                                            $primeraAbs = $candidatas[0];
+                                            $imgMostrar = 'imagenes/' . basename($primeraAbs);
+                                        }
+                                    }
+                                    if ($imgMostrar) echo "<img src='" . htmlspecialchars($imgMostrar, ENT_QUOTES, 'UTF-8') . "' class='card-img-top'>";
+                                ?>
                                 <div class="card-body">
                                     <h5 class="card-title"><?= htmlspecialchars($e['titulo']) ?></h5>
                                     <p class="card-text">
@@ -284,7 +297,19 @@ if ($eventos_finalizados === false) {
                         
                         <div class="col-lg-4 col-md-6 mb-4" id="evento-card-<?= $e['id_evento'] ?>">
                             <div class="card shadow-sm bg-light">
-                                <?php if($e['imagen']) echo "<img src='{$e['imagen']}' class='card-img-top' style='opacity: 0.6;'>"; ?>
+                                <?php 
+                                    $imgMostrar = '';
+                                    if (!empty($e['imagen']) && file_exists($e['imagen'])) {
+                                        $imgMostrar = $e['imagen'];
+                                    } else {
+                                        $candidatas = glob(__DIR__ . DIRECTORY_SEPARATOR . 'imagenes' . DIRECTORY_SEPARATOR . '*.{jpg,jpeg,png,gif}', GLOB_BRACE);
+                                        if ($candidatas && count($candidatas) > 0) {
+                                            $primeraAbs = $candidatas[0];
+                                            $imgMostrar = 'imagenes/' . basename($primeraAbs);
+                                        }
+                                    }
+                                    if ($imgMostrar) echo "<img src='" . htmlspecialchars($imgMostrar, ENT_QUOTES, 'UTF-8') . "' class='card-img-top' style='opacity: 0.6;'>";
+                                ?>
                                 <div class="card-body">
                                     <h5 class="card-title text-muted"><?= htmlspecialchars($e['titulo']) ?></h5>
                                     <p class="card-text">

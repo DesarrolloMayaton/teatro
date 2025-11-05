@@ -1,0 +1,596 @@
+<?php
+// CONEXIÓN A LA BD
+include "../evt_interfaz/conexion.php";
+
+// OBTENER EVENTOS ACTIVOS CON SUS PRÓXIMAS FUNCIONES
+$query = "
+    SELECT 
+        e.id_evento,
+        e.titulo,
+        e.descripcion,
+        e.imagen,
+        f.id_funcion,
+        f.fecha_hora
+    FROM evento e
+    INNER JOIN funciones f ON e.id_evento = f.id_evento
+    WHERE e.finalizado = 0 
+      AND f.fecha_hora >= NOW()
+    ORDER BY f.fecha_hora ASC
+";
+
+$resultado = $conn->query($query);
+
+// Agrupar funciones por evento
+$eventos = [];
+if ($resultado && $resultado->num_rows > 0) {
+    while ($row = $resultado->fetch_assoc()) {
+        $id_evento = $row['id_evento'];
+        
+        // Si el evento no existe en el array, lo creamos
+        if (!isset($eventos[$id_evento])) {
+            $eventos[$id_evento] = [
+                'id_evento' => $row['id_evento'],
+                'titulo' => $row['titulo'],
+                'descripcion' => $row['descripcion'],
+                'imagen' => $row['imagen'],
+                'funciones' => []
+            ];
+        }
+        
+        // Agregamos la función al evento
+        $eventos[$id_evento]['funciones'][] = [
+            'id_funcion' => $row['id_funcion'],
+            'fecha_hora' => $row['fecha_hora']
+        ];
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cartelera Completa · Teatro Constitución</title>
+    <link rel="icon" href="imagenes_teatro/nat.png" type="image/png">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <style>
+        body {
+            background-image: url('imagenes_teatro/TeatroNoche1.jpg');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            color: #e8e8e8;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+        }
+
+        .site-header {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: rgba(10, 10, 12, 0.9);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .header-inner {
+            width: 100%;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 12px 20px 12px 0;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            text-decoration: none;
+            color: #ffffff;
+            margin-right: auto;
+        }
+        .brand-logo {
+            width: 50px;
+            height: 50px;
+            gap: 20px;
+            margin-left: 20px;
+            border-radius: 7px;
+            background: none;
+            display: grid;
+            place-items: center;
+            font-weight: 800;
+            letter-spacing: 0.1px;
+        }
+        .brand-logo .logo-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+        .brand-name {
+            font-weight: 600;
+            font-height: 1.55rem;
+            font-size: 1.55rem;
+        }
+        .nav {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            margin-left: auto;
+        }
+        .nav a {
+            color: #e8e8e8;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color .2s ease, transform .2s ease;
+        }
+        .nav a:hover {
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
+        .cta {
+            margin-left: 6px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #e53935, #b71c1c);
+            color: #fff !important;
+            font-weight: 700;
+            box-shadow: 0 8px 18px rgba(229,57,53,.25);
+            transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+            border: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 26px rgba(229,57,53,.35);
+            filter: brightness(1.07);
+        }
+        .hamburger {
+            display: none;
+            background: transparent;
+            color: #e8e8e8;
+            border: 1px solid rgba(255,255,255,0.15);
+            width: 42px;
+            height: 42px;
+            border-radius: 8px;
+            align-items: center;
+            justify-content: center;
+        }
+        @media (max-width: 900px) {
+            .nav {
+                position: fixed;
+                inset: 64px 0 0 0;
+                background: rgba(10,10,12,.98);
+                flex-direction: column;
+                padding: 24px;
+                gap: 12px;
+                transform: translateY(-120%);
+                transition: transform .25s ease;
+            }
+            .nav.open { transform: translateY(0); }
+            .hamburger { display: inline-flex; }
+        }
+
+        /* Contenido principal */
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+
+        .hero-section {
+            text-align: center;
+            margin-bottom: 50px;
+            animation: fadeInUp 0.8s ease;
+        }
+
+        .hero-section h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: #ffffff;
+            text-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+            letter-spacing: -0.03em;
+        }
+
+        .hero-section p {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            max-width: 700px;
+            margin: 0 auto;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Lista de eventos */
+        .eventos-lista {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .evento-item {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.08));
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.2),
+                inset 0 1px 1px rgba(255, 255, 255, 0.5),
+                inset 0 -1px 1px rgba(0, 0, 0, 0.05);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInUp 0.6s ease;
+        }
+
+        .evento-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 
+                0 16px 48px rgba(0, 0, 0, 0.3),
+                inset 0 1px 1px rgba(255, 255, 255, 0.6),
+                inset 0 -1px 1px rgba(0, 0, 0, 0.05);
+            border-color: rgba(255, 255, 255, 0.35);
+        }
+
+        .evento-content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+
+        .evento-imagen {
+            width: 100%;
+            height: 400px;
+            border-radius: 12px;
+            overflow: hidden;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+        }
+
+        .evento-imagen img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .evento-item:hover .evento-imagen img {
+            transform: scale(1.05);
+        }
+
+        .evento-info {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .evento-header h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            letter-spacing: -0.02em;
+        }
+
+        .evento-descripcion {
+            color: rgba(255, 255, 255, 0.85);
+            line-height: 1.6;
+            font-size: 0.95rem;
+            margin-bottom: 10px;
+        }
+
+        .funciones-titulo {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 15px;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .funciones-lista {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .funcion-item {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px 20px;
+            border-radius: 10px;
+            border-left: 4px solid #e53935;
+            transition: all 0.3s ease;
+        }
+
+        .funcion-item:hover {
+            background: rgba(0, 0, 0, 0.4);
+            border-left-color: #ff5252;
+            transform: translateX(5px);
+        }
+
+        .funcion-fecha {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .funcion-fecha i {
+            color: #e53935;
+            font-size: 1.2rem;
+        }
+
+        .no-eventos {
+            text-align: center;
+            padding: 80px 20px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+            backdrop-filter: blur(25px) saturate(180%);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .no-eventos i {
+            font-size: 4rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 20px;
+        }
+
+        .no-eventos h3 {
+            color: #ffffff;
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+
+        .no-eventos p {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.1rem;
+        }
+
+        /* Animaciones */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 992px) {
+            .evento-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .evento-imagen {
+                height: 300px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .hero-section h1 {
+                font-size: 2rem;
+            }
+        }
+
+        /* Footer */
+        .site-footer {
+            background: rgba(10,10,12,0.95);
+            border-top: 1px solid rgba(255,255,255,0.06);
+            color: #cfd3d7;
+            margin-top: 80px;
+        }
+        .footer-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 28px 20px;
+            display: grid;
+            grid-template-columns: 1.2fr 1fr 1fr 1fr;
+            gap: 24px;
+        }
+        .footer-col h4 {
+            color: #ffffff;
+            font-size: 1rem;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+        .footer-col p, .footer-col li, .footer-col a, .footer-col span {
+            font-size: 0.95rem;
+            color: #cfd3d7;
+        }
+        .footer-links { list-style: none; padding: 0; margin: 0; }
+        .footer-links li { margin: 8px 0; }
+        .footer-links a { text-decoration: none; color: #cfd3d7; transition: color .2s ease; }
+        .footer-links a:hover { color: #fff; }
+        .social { display: flex; gap: 10px; margin-top: 8px; }
+        .social a { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #e8e8e8; text-decoration: none; transition: all .2s ease; }
+        .social a:hover { color: #fff; border-color: rgba(255,255,255,0.35); transform: translateY(-2px); }
+        .footer-bottom { border-top: 1px solid rgba(255,255,255,0.06); padding: 14px 20px; color: #aeb4ba; font-size: 0.9rem; }
+        .footer-bottom-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .muted { color: #aeb4ba; }
+        @media (max-width: 900px){
+            .footer-inner { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 600px){
+            .footer-inner { grid-template-columns: 1fr; }
+            .footer-bottom-inner { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="index.php" class="brand" aria-label="Inicio">
+                <div class="brand-logo"><img src="imagenes_teatro/nat.png" alt="Teatro Constitución" class="logo-img"></div>
+                <div class="brand-name">Teatro Constitución · Apatzingan</div>
+            </a>
+            <nav class="nav" id="mainNav">
+                <a href="index.php">Inicio</a>
+                <a href="acerca.php">Acerca del teatro</a>
+                <a href="contacto.php">Contacto / Reservaciones</a>
+                <a href="cartelera_cliente.php" class="cta">Ver cartelera completa <i class="bi bi-arrow-right"></i></a>
+            </nav>
+            <button class="hamburger" id="hamburgerBtn" aria-label="Menú">
+                <i class="bi bi-list" style="font-size:1.25rem"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <!-- Hero Section -->
+        <section class="hero-section">
+            <h1>Cartelera Completa</h1>
+            <p>Todos los eventos y funciones próximas del Teatro Constitución</p>
+        </section>
+
+        <!-- Lista de Eventos -->
+        <div class="eventos-lista">
+            <?php if (empty($eventos)): ?>
+                <div class="no-eventos">
+                    <i class="bi bi-calendar-x"></i>
+                    <h3>No hay eventos programados</h3>
+                    <p>En este momento no hay funciones disponibles. Vuelve pronto para ver nuestra nueva cartelera.</p>
+                </div>
+            <?php else: ?>
+                <?php foreach ($eventos as $evento): ?>
+                    <div class="evento-item">
+                        <div class="evento-content">
+                            <!-- Imagen del evento -->
+                            <div class="evento-imagen">
+                                <img src="../evt_interfaz/<?php echo htmlspecialchars($evento['imagen']); ?>" 
+                                     alt="<?php echo htmlspecialchars($evento['titulo']); ?>"
+                                     onerror="this.src='imagenes_teatro/nat.png'">
+                            </div>
+                            
+                            <!-- Información del evento -->
+                            <div class="evento-info">
+                                <div class="evento-header">
+                                    <h2><?php echo htmlspecialchars($evento['titulo']); ?></h2>
+                                    <?php if (!empty($evento['descripcion'])): ?>
+                                        <p class="evento-descripcion"><?php echo nl2br(htmlspecialchars($evento['descripcion'])); ?></p>
+                                    <?php endif; ?>
+                                </div>
+                                
+                                <!-- Lista de funciones -->
+                                <div>
+                                    <h3 class="funciones-titulo">
+                                        <i class="bi bi-calendar-event"></i>
+                                        Próximas Funciones
+                                    </h3>
+                                    <div class="funciones-lista">
+                                        <?php foreach ($evento['funciones'] as $funcion): ?>
+                                            <?php
+                                            $fecha = new DateTime($funcion['fecha_hora']);
+                                            $fechaFormateada = $fecha->format('l, d \d\e F \d\e Y');
+                                            $horaFormateada = $fecha->format('h:i A');
+                                            
+                                            // Traducir días de la semana y meses al español
+                                            $dias = ['Monday' => 'Lunes', 'Tuesday' => 'Martes', 'Wednesday' => 'Miércoles', 
+                                                     'Thursday' => 'Jueves', 'Friday' => 'Viernes', 'Saturday' => 'Sábado', 'Sunday' => 'Domingo'];
+                                            $meses = ['January' => 'Enero', 'February' => 'Febrero', 'March' => 'Marzo', 
+                                                      'April' => 'Abril', 'May' => 'Mayo', 'June' => 'Junio',
+                                                      'July' => 'Julio', 'August' => 'Agosto', 'September' => 'Septiembre', 
+                                                      'October' => 'Octubre', 'November' => 'Noviembre', 'December' => 'Diciembre'];
+                                            
+                                            $diaIngles = $fecha->format('l');
+                                            $mesIngles = $fecha->format('F');
+                                            
+                                            $fechaEspanol = str_replace(
+                                                array_keys($dias),
+                                                array_values($dias),
+                                                str_replace(
+                                                    array_keys($meses),
+                                                    array_values($meses),
+                                                    $fechaFormateada
+                                                )
+                                            );
+                                            ?>
+                                            <div class="funcion-item">
+                                                <div class="funcion-fecha">
+                                                    <i class="bi bi-calendar-check"></i>
+                                                    <span><?php echo $fechaEspanol; ?> · <?php echo $horaFormateada; ?></span>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <div class="footer-col">
+                <h4>Teatro Constitución · Apatzingan</h4>
+                <p class="muted">Arte escénico, música y cultura para todos. Vive la experiencia teatral.</p>
+                <div class="social" aria-label="Redes sociales">
+                    <a href="#" title="Facebook" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
+                    <a href="#" title="Instagram" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
+                    <a href="#" title="YouTube" aria-label="YouTube"><i class="bi bi-youtube"></i></a>
+                    <a href="#" title="TikTok" aria-label="TikTok"><i class="bi bi-tiktok"></i></a>
+                </div>
+            </div>
+            <div class="footer-col">
+                <h4>Enlaces</h4>
+                <ul class="footer-links">
+                    <li><a href="index.php">Inicio</a></li>
+                    <li><a href="acerca.php">Acerca del teatro</a></li>
+                    <li><a href="contacto.php">Contacto / Reservaciones</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Contacto</h4>
+                <ul class="footer-links">
+                    <li><i class="bi bi-telephone"></i> <span>+52 (XXX) XXX XXXX</span></li>
+                    <li><i class="bi bi-envelope"></i> <span>contacto@teatro-constitucion.mx</span></li>
+                    <li><i class="bi bi-geo-alt"></i> <span>Apatzingán, Michoacán, México</span></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Horarios</h4>
+                <ul class="footer-links">
+                    <li><span>Taquilla: Mar-Dom 11:00–19:00</span></li>
+                    <li><span>Funciones: Según cartelera</span></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <div class="footer-bottom-inner">
+                <div>© <?php echo date('Y'); ?> Teatro Constitución · Apatzingan. Todos los derechos reservados.</div>
+                <div class="muted">Términos · Privacidad</div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Menú hamburguesa
+        const hamburgerBtn = document.getElementById('hamburgerBtn');
+        const mainNav = document.getElementById('mainNav');
+        
+        if (hamburgerBtn && mainNav) {
+            hamburgerBtn.addEventListener('click', () => {
+                mainNav.classList.toggle('open');
+            });
+        }
+    </script>
+
+</body>
+</html>
