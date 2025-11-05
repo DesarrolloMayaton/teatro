@@ -452,9 +452,9 @@ body {
         </ul>
         
         <div class="d-grid gap-2">
-            <a href="escanear_qr.php" class="btn btn-primary" target="_blank">
+            <button class="btn btn-primary" onclick="abrirEscanerQR()">
                 <i class="bi bi-qr-code-scan"></i> Escanear QR
-            </a>
+            </button>
         </div>
 
         <?php endif; ?>
@@ -481,7 +481,47 @@ body {
     </div>
   </div>
 </div>
+
+<!-- Modal Escáner QR -->
+<div class="modal fade" id="modalEscanerQR" tabindex="-1" aria-labelledby="modalEscanerLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="modalEscanerLabel">
+          <i class="bi bi-qr-code-scan"></i> Escanear Código QR
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="qr-reader" style="width: 100%;"></div>
+        <div id="qr-reader-results" class="mt-3"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Información del Boleto -->
+<div class="modal fade" id="modalBoletoInfo" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header" id="boletoInfoHeader">
+        <h5 class="modal-title" id="boletoInfoTitle"></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="boletoInfoBody">
+        <!-- Contenido dinámico -->
+      </div>
+      <div class="modal-footer" id="boletoInfoFooter">
+        <!-- Botones dinámicos -->
+      </div>
+    </div>
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <script>
     // --- MODIFICADO: Estos datos ahora vienen de la lógica de PHP ---
@@ -492,6 +532,7 @@ body {
 </script>
 
 <script src="js/carrito.js?v=3"></script>
+<script src="js/escaner_qr.js"></script>
 
 </body>
 </html>

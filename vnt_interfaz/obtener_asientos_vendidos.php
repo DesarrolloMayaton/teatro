@@ -3,21 +3,38 @@ header('Content-Type: application/json');
 include "../conexion.php";
 
 $id_evento = isset($_GET['id_evento']) ? (int)$_GET['id_evento'] : 0;
+$id_funcion = isset($_GET['id_funcion']) ? (int)$_GET['id_funcion'] : 0;
 
 if ($id_evento <= 0) {
     echo json_encode(['success' => false, 'message' => 'ID de evento inválido']);
     exit;
 }
 
-// Obtener todos los asientos vendidos para este evento (estatus 1 = activo, 0 = usado)
-$stmt = $conn->prepare("
-    SELECT a.codigo_asiento 
-    FROM boletos b
-    INNER JOIN asientos a ON b.id_asiento = a.id_asiento
-    WHERE b.id_evento = ?
-");
+// Verificar si la columna id_funcion existe en boletos
+$check_column = $conn->query("SHOW COLUMNS FROM boletos LIKE 'id_funcion'");
+$has_id_funcion = ($check_column && $check_column->num_rows > 0);
 
-$stmt->bind_param("i", $id_evento);
+// Obtener asientos vendidos
+if ($has_id_funcion && $id_funcion > 0) {
+    // Si existe id_funcion y se proporcionó, filtrar por función
+    $stmt = $conn->prepare("
+        SELECT a.codigo_asiento 
+        FROM boletos b
+        INNER JOIN asientos a ON b.id_asiento = a.id_asiento
+        WHERE b.id_evento = ? AND b.id_funcion = ?
+    ");
+    $stmt->bind_param("ii", $id_evento, $id_funcion);
+} else {
+    // Si no existe id_funcion o no se proporcionó, filtrar solo por evento
+    $stmt = $conn->prepare("
+        SELECT a.codigo_asiento 
+        FROM boletos b
+        INNER JOIN asientos a ON b.id_asiento = a.id_asiento
+        WHERE b.id_evento = ?
+    ");
+    $stmt->bind_param("i", $id_evento);
+}
+
 $stmt->execute();
 $result = $stmt->get_result();
 
