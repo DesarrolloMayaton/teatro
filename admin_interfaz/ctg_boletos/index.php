@@ -143,7 +143,7 @@ $conn->close();
 <body>
 
     <div id="alert-container">
-        </div>
+    </div>
     <div class="container-fluid">
         
         <div class="card p-3">
@@ -170,7 +170,7 @@ $conn->close();
                 Usa este formulario para establecer rápidamente el precio de 'General' y 'Discapacitado' en uno o todos los eventos.
             </p>
 
-            <form action="action.php" method="POST">
+            <form id="form-actualizacion-rapida" action="action.php" method="POST">
                 
                 <div class="form-grid">
                     <div>
@@ -184,14 +184,13 @@ $conn->close();
                 </div>
 
                 <div class="actions">
-                    <button type="submit" name="accion" value="actualizar_todos" class="btn btn-primary" 
-                            onclick="return confirm('¿Estás seguro de actualizar estos precios para TODOS los eventos?')">
+                    <button type="button" id="btn-actualizar-todos" data-accion="actualizar_todos" class="btn btn-primary">
                         <i class="bi bi-globe"></i> Actualizar TODOS
                     </button>
                     
                     <?php if ($id_evento_seleccionado): ?>
                         <input type="hidden" name="id_evento" value="<?php echo $id_evento_seleccionado; ?>">
-                        <button type="submit" name="accion" value="actualizar_seleccionado" class="btn btn-info">
+                        <button type="button" id="btn-actualizar-seleccionado" data-accion="actualizar_seleccionado" class="btn btn-info">
                             <i class="bi bi-check-square"></i> Actualizar SÓLO "<?php echo htmlspecialchars($nombre_evento); ?>"
                         </button>
                     <?php endif; ?>
@@ -301,9 +300,41 @@ $conn->close();
 
     </div> 
 
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title" id="confirmModalLabel"><i class="bi bi-exclamation-triangle-fill"></i> Confirmar Actualización Masiva</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="fs-5" id="modal-mensaje-accion"></p>
+        
+        <ul class="list-group mb-3">
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                Precio General: <strong id="modal-precio-general">N/A</strong>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                Precio Discapacitado: <strong id="modal-precio-discapacitado">N/A</strong>
+            </li>
+        </ul>
+
+        <p class="text-danger fw-bold">
+            <i class="bi bi-shield-lock-fill"></i> Esta acción no se puede deshacer.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-warning" id="modal-btn-confirmar">
+            <i class="bi bi-check-circle"></i> Sí, Aplicar Cambios
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    // --- LÓGICA CRUD JS (Igual) ---
+    // --- LÓGICA CRUD JS (Edición Individual) ---
     function editCat(jsonString) {
         const cat = JSON.parse(jsonString);
         
@@ -340,63 +371,117 @@ $conn->close();
         document.getElementById('btn-submit-text').innerText = "Guardar Categoría";
     }
 
-    // --- NUEVO: Lógica de la Alerta de Confirmación ---
+    // --- NUEVO: Lógica de la Alerta y el Modal de Confirmación ---
     document.addEventListener('DOMContentLoaded', function() {
         const urlParams = new URLSearchParams(window.location.search);
         const status = urlParams.get('status');
         const msg = urlParams.get('msg');
         const alertContainer = document.getElementById('alert-container');
         
-        if (status === 'success') {
-            const alertHTML = `
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <i class="bi bi-check-circle-fill me-2"></i>
-                    ¡Operación completada con éxito!
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            `;
+        // --- 1. Control de Alerta de Éxito/Error ---
+        if (status) {
+            let alertHTML = '';
+            
+            if (status === 'success') {
+                alertHTML = `
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        ¡Operación completada con éxito!
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `;
+            } else if (status === 'error' && msg) {
+                const decodedMsg = decodeURIComponent(msg);
+                alertHTML = `
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="bi bi-x-octagon-fill me-2"></i>
+                        Error: ${decodedMsg}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `;
+            }
+
             alertContainer.innerHTML = alertHTML;
 
-            // Ocultar después de 4 segundos
-            setTimeout(() => {
-                const alertElement = alertContainer.querySelector('.alert');
-                if (alertElement) {
-                    alertElement.classList.remove('show');
-                    alertElement.classList.add('fade');
-                    // Después de que la transición termine, eliminar de la URL y el DOM
-                    setTimeout(() => {
-                        // Limpiar el parámetro 'status' de la URL sin recargar la página
-                        urlParams.delete('status');
-                        urlParams.delete('msg'); // Borrar también el mensaje de error si existe
-                        const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
-                        window.history.replaceState({}, document.title, newUrl);
-                        
-                        alertContainer.innerHTML = '';
-                    }, 500); // Esperar a la transición CSS
-                }
-            }, 4000); 
-
-        } else if (status === 'error' && msg) {
-            const decodedMsg = decodeURIComponent(msg);
-            const errorHTML = `
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <i class="bi bi-x-octagon-fill me-2"></i>
-                    Error: ${decodedMsg}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            `;
-            alertContainer.innerHTML = errorHTML;
+            // Ocultar después de 4 segundos (solo éxito)
+            if (status === 'success') {
+                setTimeout(() => {
+                    const alertElement = alertContainer.querySelector('.alert');
+                    if (alertElement) {
+                         // Usa la función dismiss de Bootstrap para la animación
+                        const bsAlert = bootstrap.Alert.getOrCreateInstance(alertElement);
+                        bsAlert.dispose(); 
+                    }
+                }, 4000); 
+            }
             
-            // Limpiar la URL inmediatamente si hay un error
+            // Limpiar los parámetros de la URL DESPUÉS de mostrar el mensaje
+            // Usamos un pequeño delay para que la alerta no desaparezca inmediatamente si es un error.
             setTimeout(() => {
                 urlParams.delete('status');
-                urlParams.delete('msg');
+                urlParams.delete('msg'); 
                 const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
                 window.history.replaceState({}, document.title, newUrl);
-            }, 10);
+            }, 100); 
         }
+
+        // --- 2. Control del Modal de Confirmación ---
+        const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+        const formRapida = document.getElementById('form-actualizacion-rapida');
+        const modalBtnConfirmar = document.getElementById('modal-btn-confirmar');
+        
+        let accionPendiente = null;
+        
+        // Listener para los botones de actualización rápida
+        document.querySelectorAll('#form-actualizacion-rapida .btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const precioGeneral = formRapida.querySelector('#precio_general').value.trim();
+                const precioDiscapacitado = formRapida.querySelector('#precio_discapacitado').value.trim();
+                const accion = this.dataset.accion;
+                const nombreEvento = '<?php echo $nombre_evento; ?>';
+                
+                // --- Validación: Al menos un campo debe tener valor ---
+                if (!precioGeneral && !precioDiscapacitado) {
+                    alert('Debes ingresar un precio en al menos uno de los campos (General o Discapacitado).');
+                    return;
+                }
+                
+                // Almacenar la acción
+                accionPendiente = accion;
+                
+                // Rellenar el modal
+                document.getElementById('modal-precio-general').textContent = precioGeneral ? `$${parseFloat(precioGeneral).toFixed(2)}` : 'Sin cambios';
+                document.getElementById('modal-precio-discapacitado').textContent = precioDiscapacitado ? `$${parseFloat(precioDiscapacitado).toFixed(2)}` : 'Sin cambios';
+
+                if (accion === 'actualizar_todos') {
+                    document.getElementById('modal-mensaje-accion').innerHTML = 
+                        '<i class="bi bi-globe me-2"></i> ¿Deseas aplicar estos precios a **TODOS** los eventos?';
+                } else {
+                    document.getElementById('modal-mensaje-accion').innerHTML = 
+                        `<i class="bi bi-check-square me-2"></i> ¿Deseas aplicar estos precios **SÓLO** al evento: **${nombreEvento}**?`;
+                }
+
+                confirmModal.show();
+            });
+        });
+        
+        // Listener para el botón de confirmar dentro del modal
+        modalBtnConfirmar.addEventListener('click', function() {
+            if (accionPendiente) {
+                // Crear un campo oculto temporal para enviar la acción
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'accion';
+                hiddenInput.value = accionPendiente;
+                
+                formRapida.appendChild(hiddenInput);
+                
+                // Cerrar el modal y enviar el formulario
+                confirmModal.hide();
+                formRapida.submit();
+            }
+        });
     });
-    // ----------------------------------------------------
 </script>
 
 </body>
