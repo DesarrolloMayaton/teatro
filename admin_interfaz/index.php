@@ -6,8 +6,6 @@
     <title>Panel de Administración</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
-    <!-- Esto hace que las rutas relativas apunten a /teatro/admin_interfaz/ -->
-
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -50,7 +48,8 @@
             margin-right: 12px;
         }
 
-        nav.menu-admin a.menu-item:hover {
+        nav.menu-admin a.menu-item:hover,
+        nav.menu-admin a.menu-item.active { /* MODIFICADO: Estilo para el item activo */
             background-color: #3498db;
             color: #fff;
             border-left: 4px solid #fff;
@@ -73,27 +72,32 @@
             height: 100vh;
         }
 
-        .bienvenida {
-            padding: 30px;
-            color: #2c3e50;
-            font-size: 16px;
-            line-height: 1.4;
+        /* MODIFICADO: Estilo para el iframe */
+        iframe.content-frame {
+            flex-grow: 1; /* Hace que el iframe ocupe todo el espacio restante */
+            width: 100%;
+            height: 100%;
+            border: none;
+            background-color: #f4f7f6; /* Color de fondo mientras carga */
         }
     </style>
 </head>
 <body>
 
     <nav class="menu-admin" id="menuAdmin">
-        <!-- Cada botón ahora es un link REAL -->
-        <a class="menu-item" href="dsc_boletos/index.php">
+        <a class="menu-item" href="inicio.php" target="contentFrame">
+            <i class="bi bi-house-door"></i> Inicio
+        </a>
+    
+        <a class="menu-item" href="dsc_boletos/index.php" target="contentFrame">
             <i class="bi bi-percent"></i> Descuentos
         </a>
 
-        <a class="menu-item" href="rpt_reportes/index.php">
+        <a class="menu-item" href="rpt_reportes/index.php" target="contentFrame">
             <i class="bi bi-graph-up"></i> Reportes
         </a>
 
-        <a class="menu-item" href="ctg_boletos/index.php">
+        <a class="menu-item" href="ctg_boletos/index.php" target="contentFrame">
             <i class="bi bi-tags"></i> Categorías
         </a>
     </nav>
@@ -101,11 +105,26 @@
     <div class="contenido-admin">
         <header>Panel de Administración</header>
 
-        <div class="bienvenida">
-            <h2 style="margin-top:0;">Bienvenido al panel 👋</h2>
-            <p>Selecciona una opción del menú de la izquierda para administrar descuentos, ver reportes o manejar categorías de boletos.</p>
-        </div>
+        <iframe class="content-frame" name="contentFrame" id="contentFrame" src="inicio.php">
+            Tu navegador no soporta iframes.
+        </iframe>
     </div>
+
+    <script>
+        document.querySelectorAll('nav.menu-admin a.menu-item').forEach(link => {
+            link.addEventListener('click', function(e) {
+                // Quitar 'active' de todos los links
+                document.querySelectorAll('nav.menu-admin a.menu-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                // Añadir 'active' solo al link clickeado
+                this.classList.add('active');
+            });
+        });
+
+        // Activar el link de "Inicio" por defecto al cargar la página
+        document.querySelector('nav.menu-admin a.menu-item[href="inicio.php"]').classList.add('active');
+    </script>
 
 </body>
 </html>
