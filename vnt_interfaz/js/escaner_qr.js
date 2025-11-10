@@ -34,11 +34,23 @@ function iniciarEscaner() {
         config,
         onScanSuccess,
         onScanError
-    ).catch(err => {
+    ).then(() => {
+        // Aplicar efecto espejo a la cámara
+        aplicarEfectoEspejo();
+    }).catch(err => {
         console.error("Error al iniciar cámara:", err);
         document.getElementById('qr-reader-results').innerHTML = 
             '<div class="alert alert-danger">Error al acceder a la cámara. Por favor, verifique los permisos.</div>';
     });
+}
+
+// Aplicar efecto espejo a la cámara
+function aplicarEfectoEspejo() {
+    const videoElement = document.querySelector('#qr-reader video');
+    if (videoElement) {
+        videoElement.style.transform = 'scaleX(-1)';
+        videoElement.style.webkitTransform = 'scaleX(-1)';
+    }
 }
 
 // Detener el escáner
@@ -213,9 +225,13 @@ function mostrarError(mensaje) {
 
 // Confirmar entrada
 async function confirmarEntrada(codigoUnico) {
-    if (!confirm('¿Confirmar entrada? Esta acción marcará el boleto como usado y no se puede deshacer.')) {
-        return;
-    }
+    // Crear modal de confirmación personalizado
+    const confirmar = await mostrarConfirmacion(
+        '¿Confirmar entrada?',
+        'Esta acción marcará el boleto como usado y no se puede deshacer.'
+    );
+    
+    if (!confirmar) return;
     
     try {
         const response = await fetch('confirmar_entrada.php', {
@@ -235,14 +251,64 @@ async function confirmarEntrada(codigoUnico) {
             modalBoletoInfo.hide();
             
             // Mostrar mensaje de éxito
-            alert('✓ Entrada confirmada exitosamente');
+            notify.success('Entrada confirmada exitosamente');
         } else {
-            alert('Error: ' + (data.message || 'No se pudo confirmar la entrada'));
+            notify.error(data.message || 'No se pudo confirmar la entrada');
         }
     } catch (error) {
         console.error('Error al confirmar entrada:', error);
-        alert('Error al confirmar la entrada');
+        notify.error('Error al confirmar la entrada');
     }
+}
+
+// Mostrar modal de confirmación personalizado
+function mostrarConfirmacion(titulo, mensaje) {
+    return new Promise((resolve) => {
+        const modalHtml = `
+            <div class="modal fade" id="modalConfirmacion" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-warning text-dark">
+                            <h5 class="modal-title">
+                                <i class="bi bi-exclamation-triangle"></i> ${titulo}
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-0">${mensaje}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancelar">
+                                Cancelar
+                            </button>
+                            <button type="button" class="btn btn-warning" id="btnConfirmar">
+                                Confirmar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
+        
+        document.getElementById('btnConfirmar').addEventListener('click', () => {
+            modal.hide();
+            resolve(true);
+        });
+        
+        document.getElementById('btnCancelar').addEventListener('click', () => {
+            modal.hide();
+            resolve(false);
+        });
+        
+        document.getElementById('modalConfirmacion').addEventListener('hidden.bs.modal', function () {
+            this.remove();
+        });
+        
+        modal.show();
+    });
 }
 
 // Formatear fecha
@@ -257,3 +323,34 @@ function formatearFecha(fechaStr) {
     };
     return fecha.toLocaleString('es-MX', opciones);
 }
+
+
+// Variable para controlar el estado del efecto espejo
+let espejoActivo = true;
+
+// Alternar efecto espejo
+function toggleEfectoEspejo() {
+    const videoElement = document.querySelector('#qr-reader video');
+    const btnEspejo = document.getElementById('btnEspejo');
+    
+    if (videoElement) {
+        espejoActivo = !espejoActivo;
+        
+        if (espejoActivo) {
+            videoElement.style.transform = 'scaleX(-1)';
+            videoElement.style.webkitTransform = 'scaleX(-1)';
+            btnEspejo.innerHTML = '<i class="bi bi-arrow-left-right"></i> Efecto Espejo';
+            btnEspejo.classList.remove('btn-primary');
+            btnEspejo.classList.add('btn-outline-primary');
+        } else {
+            videoElement.style.transform = 'scaleX(1)';
+            videoElement.style.webkitTransform = 'scaleX(1)';
+            btnEspejo.innerHTML = '<i class="bi bi-arrow-left-right"></i> Normal';
+            btnEspejo.classList.remove('btn-outline-primary');
+            btnEspejo.classList.add('btn-primary');
+        }
+    }
+}
+
+// Exportar función para uso global
+window.toggleEfectoEspejo = toggleEfectoEspejo;
