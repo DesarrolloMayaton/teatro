@@ -2,12 +2,45 @@
 include "../conexion.php";
 
 // ==================================================================
+// == FUNCIONES DE AYUDA (HELPER FUNCTIONS) ==
+// ==================================================================
+
+function limpiar_datos_asociados($id_evento, $conn) {
+    // 1. BORRAR ARCHIVOS QR FISICOS
+    $sql_qrs = "SELECT qr_path FROM boletos WHERE id_evento = ?";
+    if ($stmt = $conn->prepare($sql_qrs)) {
+        $stmt->bind_param("i", $id_evento);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            if (!empty($row['qr_path'])) {
+                $ruta_fisica = __DIR__ . '/../' . $row['qr_path'];
+                if (file_exists($ruta_fisica)) {
+                    unlink($ruta_fisica); // Borra el archivo QR
+                }
+            }
+        }
+        $stmt->close();
+    }
+
+    // 2. BORRAR REGISTROS DE LA DB
+    $conn->query("DELETE FROM boletos WHERE id_evento = $id_evento");
+    $conn->query("DELETE FROM categorias WHERE id_evento = $id_evento");
+    $conn->query("DELETE FROM promociones WHERE id_evento = $id_evento");
+    $conn->query("DELETE FROM funciones WHERE id_evento = $id_evento");
+}
+
+// ==================================================================
 // == INICIO: PROCESADOR DE ACCIONES (AJAX / POST) ==
 // ==================================================================
 
-// --- ACCIÓN 1: FINALIZAR UN EVENTO ---
+// --- ACCIÓN 1: FINALIZAR UN EVENTO (MANUAL) ---
 if (isset($_POST['accion']) && $_POST['accion'] == 'finalizar') {
     $id = $_POST['id_evento'];
+    
+    // Limpiamos datos asociados al finalizar manualmente
+    limpiar_datos_asociados($id, $conn);
+
     if ($stmt = $conn->prepare("UPDATE evento SET finalizado=1 WHERE id_evento = ?")) {
         $stmt->bind_param("i", $id);
         $stmt->execute();
@@ -19,91 +52,99 @@ if (isset($_POST['accion']) && $_POST['accion'] == 'finalizar') {
     exit;
 }
 
-// --- ACCIÓN 2: BORRAR UN EVENTO ---
+// --- ACCIÓN 2: BORRAR UN EVENTO (TOTAL Y SEGURO) ---
 if (isset($_POST['accion']) && $_POST['accion'] == 'borrar') {
     $id = $_POST['id_evento'];
-    
-    // --- INICIO DE MODIFICACIÓN (Borrado en Cascada) ---
+    $usuario_nombre = $_POST['auth_user'] ?? '';
+    $pin_ingresado = $_POST['auth_pin'] ?? '';
 
-    // 1. Borrar imagen (esto es sistema de archivos, va primero)
-    if ($stmt_img = $conn->prepare("SELECT imagen FROM evento WHERE id_evento = ?")) {
+    // 1. VERIFICACIÓN DE SEGURIDAD
+    $auth_ok = false;
+    $sql_auth = "SELECT id_usuario FROM usuario WHERE nombre = ? AND pin = ?";
+    if ($stmt_auth = $conn->prepare($sql_auth)) {
+        $stmt_auth->bind_param("ss", $usuario_nombre, $pin_ingresado);
+        $stmt_auth->execute();
+        $stmt_auth->store_result();
+        if ($stmt_auth->num_rows > 0) {
+            $auth_ok = true;
+        }
+        $stmt_auth->close();
+    }
+
+    if (!$auth_ok) {
+        echo json_encode(['status' => 'error', 'message' => 'Credenciales incorrectas.']);
+        exit;
+    }
+
+    // 2. BORRADO TOTAL AUTORIZADO
+    $conn->begin_transaction();
+    try {
+        // Borrar imagen de cartelera
+        $stmt_img = $conn->prepare("SELECT imagen FROM evento WHERE id_evento = ?");
         $stmt_img->bind_param("i", $id);
         $stmt_img->execute();
-        $res = $stmt_img->get_result();
-        if ($row = $res->fetch_assoc()) {
-            if (!empty($row['imagen']) && file_exists($row['imagen'])) {
-                unlink($row['imagen']);
+        $res_img = $stmt_img->get_result();
+        if ($row_img = $res_img->fetch_assoc()) {
+            if (!empty($row_img['imagen'])) {
+                $ruta_imagen = __DIR__ . '/../' . $row_img['imagen'];
+                if (file_exists($ruta_imagen)) {
+                    unlink($ruta_imagen);
+                }
             }
         }
         $stmt_img->close();
-    }
-    
-    // 2. Iniciar una transacción para asegurar que todo se borre
-    $conn->begin_transaction();
-    
-    try {
-        // Borrar Boletos
-        $stmt_boletos = $conn->prepare("DELETE FROM boletos WHERE id_evento = ?");
-        $stmt_boletos->bind_param("i", $id);
-        $stmt_boletos->execute();
-        $stmt_boletos->close();
 
-        // Borrar Categorias
-        $stmt_cat = $conn->prepare("DELETE FROM categorias WHERE id_evento = ?");
-        $stmt_cat->bind_param("i", $id);
-        $stmt_cat->execute();
-        $stmt_cat->close();
-
-        // Borrar Promociones
-        $stmt_promo = $conn->prepare("DELETE FROM promociones WHERE id_evento = ?");
-        $stmt_promo->bind_param("i", $id);
-        $stmt_promo->execute();
-        $stmt_promo->close();
+        // Limpieza profunda
+        limpiar_datos_asociados($id, $conn);
         
-        // Borrar el Evento principal
-        // (La tabla 'funciones' se borra en cascada, como mencionaste)
-        $stmt_evento = $conn->prepare("DELETE FROM evento WHERE id_evento = ?");
-        $stmt_evento->bind_param("i", $id);
-        $stmt_evento->execute();
-        $stmt_evento->close();
+        // Borrar evento principal
+        $conn->query("DELETE FROM evento WHERE id_evento = $id");
 
-        // Si todo salió bien, confirma los cambios
         $conn->commit();
         echo json_encode(['status' => 'success', 'accion' => 'borrado']);
 
-    } catch (mysqli_sql_exception $exception) {
-        // Si algo falló, revierte todo
+    } catch (Exception $e) {
         $conn->rollback();
-        echo json_encode(['status' => 'error', 'message' => 'Error en la transacción: ' . $exception->getMessage()]);
+        echo json_encode(['status' => 'error', 'message' => 'Error al borrar: ' . $e->getMessage()]);
     }
-    // --- FIN DE MODIFICACIÓN ---
-    
     exit;
 }
 
 // ==================================================================
-// == FIN: PROCESADOR DE ACCIONES ==
+// == AUTOMATIZACIÓN: FINALIZAR Y LIMPIAR ==
 // ==================================================================
-
-
-// --- LÓGICA NORMAL DE CARGA DE PÁGINA ---
-// $conn->query("UPDATE evento SET finalizado=1 WHERE inicio_show <= NOW() AND finalizado=0"); // <-- LÍNEA ELIMINADA
-
-// Consulta para eventos activos (finalizado = 0)
-$eventos_activos = $conn->query("SELECT * FROM evento WHERE finalizado=0 ORDER BY inicio_venta DESC");
-
-// Consulta para eventos finalizados (finalizado = 1)
-$sql_finalizados = "SELECT * FROM evento WHERE finalizado=1 ORDER BY cierre_venta DESC"; // Ordenamos por cierre_venta ahora
-$eventos_finalizados = $conn->query($sql_finalizados);
-
-// Verificamos si la consulta de finalizados falló
-if ($eventos_finalizados === false) {
-    echo "<h1>Error en la consulta de eventos finalizados:</h1>";
-    echo "<p>Error: " . $conn->error . "</p>";
-    echo "<p>Consulta: " . $sql_finalizados . "</p>";
-    die(); // Detenemos la ejecución para ver el error
+$sql_vencidos = "
+SELECT e.id_evento 
+FROM evento e
+LEFT JOIN (
+    SELECT id_evento, MAX(fecha_hora) as ultima_funcion
+    FROM funciones
+    GROUP BY id_evento
+) lf ON e.id_evento = lf.id_evento
+WHERE 
+    e.finalizado = 0 
+    AND (
+        (lf.ultima_funcion IS NOT NULL AND lf.ultima_funcion < NOW()) 
+        OR 
+        (lf.ultima_funcion IS NULL AND e.cierre_venta < NOW())
+    )
+";
+$res_vencidos = $conn->query($sql_vencidos);
+if ($res_vencidos && $res_vencidos->num_rows > 0) {
+    while ($row = $res_vencidos->fetch_assoc()) {
+        limpiar_datos_asociados($row['id_evento'], $conn);
+        $conn->query("UPDATE evento SET finalizado = 1 WHERE id_evento = " . $row['id_evento']);
+    }
 }
 
+// --- CARGA DE DATOS PARA LA INTERFAZ ---
+$eventos_activos = $conn->query("SELECT * FROM evento WHERE finalizado=0 ORDER BY inicio_venta DESC");
+$sql_finalizados = "SELECT * FROM evento WHERE finalizado=1 ORDER BY cierre_venta DESC";
+$eventos_finalizados = $conn->query($sql_finalizados);
+
+if ($eventos_finalizados === false) {
+    die("Error en la consulta de eventos finalizados: " . $conn->error);
+}
 ?>
 
 <!DOCTYPE html>
@@ -139,7 +180,7 @@ if ($eventos_finalizados === false) {
         width: 25px;
     }
     .sidebar .nav-link:hover { 
-        background-color: #495057;
+        background-color: #34495e;
         color: #ffffff;
     }
     .sidebar .nav-link.active { 
@@ -231,17 +272,15 @@ if ($eventos_finalizados === false) {
                             <div class="card shadow-sm">
                                 <?php 
                                     $imgMostrar = '';
-                                    if (!empty($e['imagen']) && file_exists($e['imagen'])) {
-                                        $imgMostrar = $e['imagen'];
-                                    } else {
-                                        $candidatas = glob(__DIR__ . DIRECTORY_SEPARATOR . 'imagenes' . DIRECTORY_SEPARATOR . '*.{jpg,jpeg,png,gif}', GLOB_BRACE);
-                                        if ($candidatas && count($candidatas) > 0) {
-                                            // Convertir a ruta relativa desde este script
-                                            $primeraAbs = $candidatas[0];
-                                            $imgMostrar = 'imagenes/' . basename($primeraAbs);
+                                    if (!empty($e['imagen'])) {
+                                        // Ajustar ruta relativa para mostrar desde esta carpeta
+                                        $ruta_relativa = '../' . $e['imagen'];
+                                        if (file_exists(__DIR__ . '/' . $ruta_relativa)) {
+                                            $imgMostrar = $ruta_relativa;
                                         }
                                     }
                                     if ($imgMostrar) echo "<img src='" . htmlspecialchars($imgMostrar, ENT_QUOTES, 'UTF-8') . "' class='card-img-top'>";
+                                    else echo "<div class='card-img-top bg-secondary d-flex align-items-center justify-content-center text-white'><i class='bi bi-image fs-1'></i></div>";
                                 ?>
                                 <div class="card-body">
                                     <h5 class="card-title"><?= htmlspecialchars($e['titulo']) ?></h5>
@@ -249,7 +288,7 @@ if ($eventos_finalizados === false) {
                                         <strong>Funciones:</strong><br>
                                         <?php 
                                             if(empty($funciones_evento)){
-                                                echo "<small>No hay funciones asignadas.</small><br>";
+                                                echo "<small class='text-danger'>No hay funciones asignadas.</small><br>";
                                             } else {
                                                 foreach($funciones_evento as $fecha_func){
                                                     echo "<small>• {$fecha_func}</small><br>";
@@ -299,16 +338,14 @@ if ($eventos_finalizados === false) {
                             <div class="card shadow-sm bg-light">
                                 <?php 
                                     $imgMostrar = '';
-                                    if (!empty($e['imagen']) && file_exists($e['imagen'])) {
-                                        $imgMostrar = $e['imagen'];
-                                    } else {
-                                        $candidatas = glob(__DIR__ . DIRECTORY_SEPARATOR . 'imagenes' . DIRECTORY_SEPARATOR . '*.{jpg,jpeg,png,gif}', GLOB_BRACE);
-                                        if ($candidatas && count($candidatas) > 0) {
-                                            $primeraAbs = $candidatas[0];
-                                            $imgMostrar = 'imagenes/' . basename($primeraAbs);
+                                    if (!empty($e['imagen'])) {
+                                        $ruta_relativa = '../' . $e['imagen'];
+                                        if (file_exists(__DIR__ . '/' . $ruta_relativa)) {
+                                            $imgMostrar = $ruta_relativa;
                                         }
                                     }
                                     if ($imgMostrar) echo "<img src='" . htmlspecialchars($imgMostrar, ENT_QUOTES, 'UTF-8') . "' class='card-img-top' style='opacity: 0.6;'>";
+                                    else echo "<div class='card-img-top bg-secondary d-flex align-items-center justify-content-center text-white' style='opacity: 0.6;'><i class='bi bi-image fs-1'></i></div>";
                                 ?>
                                 <div class="card-body">
                                     <h5 class="card-title text-muted"><?= htmlspecialchars($e['titulo']) ?></h5>
@@ -332,41 +369,50 @@ if ($eventos_finalizados === false) {
     </div>
 </div>
 
-<div class="modal fade" id="modalBorrar" tabindex="-1">
+<div class="modal fade" id="modalFinalizar" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Confirmar Borrado</h5>
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Finalizar Evento</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>¿Estás seguro de que quieres eliminar permanentemente el evento?</p>
-                <p class="text-danger fw-bold" id="nombreEventoBorrar"></p>
-                <p class="small text-muted">Esta acción no se puede deshacer y borrará todas las funciones asociadas.</p>
+                <p>¿Finalizar <strong><span id="nombreEventoFinalizar"></span></strong>?</p>
+                <div class="alert alert-warning small">
+                    <i class="bi bi-info-circle-fill"></i> Esto moverá el evento al historial y <strong>eliminará permanentemente</strong> todos los boletos generados y sus códigos QR para liberar espacio.
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" id="btnConfirmarBorrado" class="btn btn-danger">Sí, Borrar</button>
+                <button type="button" id="btnConfirmarFinalizar" class="btn btn-warning">Sí, Finalizar y Limpiar</button>
             </div>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="modalFinalizar" tabindex="-1">
+<div class="modal fade" id="modalBorrar" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Confirmar Finalización</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-shield-lock-fill me-2"></i>Borrado Seguro Requerido</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>¿Estás seguro de que quieres finalizar manualmente el evento?</p>
-                <p class="text-success fw-bold" id="nombreEventoFinalizar"></p>
-                <p class="small text-muted">El evento se moverá al historial.</p>
+                <p class="text-danger fw-bold">ESTA ACCIÓN ES DESTRUCTIVA E IRREVERSIBLE.</p>
+                <p>Para eliminar el evento <strong><span id="nombreEventoBorrar"></span></strong>, ingrese sus credenciales.</p>
+                <div class="form-floating mb-2">
+                    <input type="text" class="form-control" id="auth_user" placeholder="Usuario" autocomplete="off">
+                    <label>Usuario Administrador</label>
+                </div>
+                <div class="form-floating mb-3">
+                    <input type="password" class="form-control" id="auth_pin" placeholder="PIN" autocomplete="new-password">
+                    <label>PIN de Seguridad</label>
+                </div>
+                <div id="borrar-error-msg" class="text-danger small fw-bold"></div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" id="btnConfirmarFinalizar" class="btn btn-success">Sí, Finalizar</button>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="btnConfirmarBorrado" class="btn btn-danger px-4"><i class="bi bi-trash-fill me-2"></i>AUTORIZAR BORRADO</button>
             </div>
         </div>
     </div>
@@ -374,68 +420,76 @@ if ($eventos_finalizados === false) {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// Instancias de los Modales
 const modalBorrar = new bootstrap.Modal(document.getElementById('modalBorrar'));
 const modalFinalizar = new bootstrap.Modal(document.getElementById('modalFinalizar'));
 
-// Función para FINALIZAR
 function prepararFinalizar(id, nombre) {
-    document.getElementById('nombreEventoFinalizar').textContent = `"${nombre}"`;
-    document.getElementById('btnConfirmarFinalizar').onclick = function() {
-        const formData = new FormData();
-        formData.append('accion', 'finalizar');
-        formData.append('id_evento', id);
-
-        fetch('index.php', { method: 'POST', body: formData })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                modalFinalizar.hide();
-                localStorage.setItem('evento_actualizado', 'finalizar_' + id + '_' + Date.now());
-                window.location.reload(); 
-            } else { alert('Error al finalizar: ' + (data.message || 'Error desconocido')); }
-        })
-        .catch(error => {
-             console.error('Error en fetch:', error);
-             alert('Ocurrió un error de red al intentar finalizar.');
-        });
-    }
+    document.getElementById('nombreEventoFinalizar').textContent = nombre;
+    document.getElementById('btnConfirmarFinalizar').onclick = () => ejecutarAccion('finalizar', id, null, modalFinalizar);
     modalFinalizar.show();
 }
 
-// Función para BORRAR
 function prepararBorrado(id, nombre) {
-    document.getElementById('nombreEventoBorrar').textContent = `"${nombre}"`;
-    document.getElementById('btnConfirmarBorrado').onclick = function() {
-        const formData = new FormData();
-        formData.append('accion', 'borrar');
-        formData.append('id_evento', id);
-
-        fetch('index.php', { method: 'POST', body: formData })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                modalBorrar.hide();
-                localStorage.setItem('evento_actualizado', 'borrar_' + id + '_' + Date.now());
-                window.location.reload();
-            } else { alert('Error al borrar: ' + (data.message || 'Error desconocido')); }
-        })
-         .catch(error => {
-             console.error('Error en fetch:', error);
-             alert('Ocurrió un error de red al intentar borrar.');
-        });
-    }
+    document.getElementById('nombreEventoBorrar').textContent = nombre;
+    document.getElementById('auth_user').value = '';
+    document.getElementById('auth_pin').value = '';
+    document.getElementById('borrar-error-msg').textContent = '';
+    
+    document.getElementById('btnConfirmarBorrado').onclick = () => {
+        const user = document.getElementById('auth_user').value.trim();
+        const pin = document.getElementById('auth_pin').value.trim();
+        if(!user || !pin) {
+            document.getElementById('borrar-error-msg').textContent = 'Ingrese Usuario y PIN.';
+            return;
+        }
+        ejecutarAccion('borrar', id, { auth_user: user, auth_pin: pin }, modalBorrar, 'borrar-error-msg');
+    };
     modalBorrar.show();
 }
 
-// Listener para Sincronización entre Pestañas
+function ejecutarAccion(accion, id, extras, modal, errorDivId = null) {
+    const modalEl = modal._element;
+    const btn = modalEl.querySelector('.modal-footer button:last-child');
+    const txtOriginal = btn.innerHTML;
+    
+    btn.disabled = true; 
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
+    if(errorDivId) document.getElementById(errorDivId).textContent = '';
+
+    const formData = new FormData();
+    formData.append('accion', accion);
+    formData.append('id_evento', id);
+    if(extras) { for(const key in extras) formData.append(key, extras[key]); }
+
+    fetch('index.php', { method: 'POST', body: formData })
+    .then(r => r.json())
+    .then(data => {
+        if(data.status === 'success') {
+            // Sincronizar otras pestañas si están abiertas
+            localStorage.setItem('evento_actualizado', accion + '_' + id + '_' + Date.now());
+            window.location.reload();
+        } else {
+            if(errorDivId) document.getElementById(errorDivId).textContent = data.message;
+            else alert(data.message);
+            btn.disabled = false; 
+            btn.innerHTML = txtOriginal;
+        }
+    })
+    .catch(e => {
+        console.error(e);
+        alert('Error de conexión con el servidor.');
+        btn.disabled = false; 
+        btn.innerHTML = txtOriginal;
+    });
+}
+
+// Listener para recargar si otra pestaña hizo cambios
 window.addEventListener('storage', function(e) {
     if (e.key === 'evento_actualizado') {
-        console.log('Cambio detectado en otra pestaña, actualizando...');
+        console.log('Cambio detectado externamente, recargando...');
         window.location.reload();
     }
 });
 </script>
-
 </body>
 </html>
