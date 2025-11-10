@@ -88,6 +88,9 @@ try {
         $codigo_asiento = $asiento_data['asiento'];
         $categoria_id = (int)$asiento_data['categoriaId'];
         $precio = (float)$asiento_data['precio'];
+        $descuento_aplicado = isset($asiento_data['descuento_aplicado']) ? (float)$asiento_data['descuento_aplicado'] : 0;
+        $precio_final = isset($asiento_data['precio_final']) ? (float)$asiento_data['precio_final'] : $precio;
+        $id_promocion = isset($asiento_data['id_promocion']) ? (int)$asiento_data['id_promocion'] : null;
         
         // Obtener o crear id_asiento de la tabla asientos
         $stmt = $conn->prepare("SELECT id_asiento FROM asientos WHERE codigo_asiento = ?");
@@ -132,27 +135,55 @@ try {
         $codigo_unico = strtoupper(bin2hex(random_bytes(8)));
         
         // Insertar boleto en la base de datos
-        $stmt = $conn->prepare("
-            INSERT INTO boletos (
-                id_evento, 
-                id_asiento, 
-                id_categoria, 
-                codigo_unico, 
-                precio_base, 
-                descuento_aplicado, 
-                precio_final, 
-                estatus
-            ) VALUES (?, ?, ?, ?, ?, 0, ?, 1)
-        ");
-        
-        $stmt->bind_param("iiisdd", 
-            $id_evento, 
-            $id_asiento, 
-            $categoria_id, 
-            $codigo_unico, 
-            $precio, 
-            $precio
-        );
+        if ($id_promocion) {
+            $stmt = $conn->prepare("
+                INSERT INTO boletos (
+                    id_evento, 
+                    id_asiento, 
+                    id_categoria, 
+                    id_promocion,
+                    codigo_unico, 
+                    precio_base, 
+                    descuento_aplicado, 
+                    precio_final, 
+                    estatus
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+            ");
+            
+            $stmt->bind_param("iiiisddd", 
+                $id_evento, 
+                $id_asiento, 
+                $categoria_id,
+                $id_promocion, 
+                $codigo_unico, 
+                $precio,
+                $descuento_aplicado, 
+                $precio_final
+            );
+        } else {
+            $stmt = $conn->prepare("
+                INSERT INTO boletos (
+                    id_evento, 
+                    id_asiento, 
+                    id_categoria, 
+                    codigo_unico, 
+                    precio_base, 
+                    descuento_aplicado, 
+                    precio_final, 
+                    estatus
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            ");
+            
+            $stmt->bind_param("iiisddd", 
+                $id_evento, 
+                $id_asiento, 
+                $categoria_id, 
+                $codigo_unico, 
+                $precio,
+                $descuento_aplicado, 
+                $precio_final
+            );
+        }
         
         if (!$stmt->execute()) {
             throw new Exception("Error al crear boleto: " . $stmt->error);
@@ -184,7 +215,7 @@ try {
         $boletos_generados[] = [
             'asiento' => $codigo_asiento,
             'codigo_unico' => $codigo_unico,
-            'precio' => $precio
+            'precio' => $precio_final
         ];
     }
     
