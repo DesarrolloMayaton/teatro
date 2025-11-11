@@ -2,146 +2,189 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Crear Evento</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
-    body { background: #f8f9fa; font-family: Arial, sans-serif; }
-    .container { max-width: 700px; margin-top: 30px; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
-    h2 { text-align: center; margin-bottom: 25px; }
-    .help-text { font-size: 0.9em; color: #6c757d; margin-bottom: 10px; }
-    .input-error { border-color: #dc3545 !important; }
-    .tooltip-error {
-        background-color: #dc3545; color: #fff; padding: 6px 10px; border-radius: 5px;
-        font-size: 0.85em; /*position: absolute;*/ margin-top: 5px; display: none; /* Changed position */
-        z-index: 10;
-        width: 100%; /* Make tooltip full width */
+    :root {
+        --primary-color: #2563eb; --primary-dark: #1e40af;
+        --success-color: #10b981; --danger-color: #ef4444;
+        --warning-color: #f59e0b; --info-color: #3b82f6;
+        --bg-primary: #f8fafc; --bg-secondary: #ffffff;
+        --text-primary: #0f172a; --text-secondary: #64748b;
+        --border-color: #e2e8f0;
+        --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+        --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
+        --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
     }
-    .form-group { position: relative; }
-    /* Estilos para la lista de funciones */
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        color: var(--text-primary);
+        line-height: 1.6;
+        padding: 24px;
+        min-height: 100vh;
+    }
+    .main-wrapper { max-width: 800px; margin: 0 auto; }
+    .card {
+        background: var(--bg-secondary); border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+        transition: all 0.3s ease;
+    }
+    .card:hover { box-shadow: var(--shadow-lg); }
+    h2 { color: var(--text-primary); font-weight: 700; font-size: 1.75rem; margin: 0; }
+    .form-label { font-weight: 600; color: var(--text-primary); font-size: 0.95rem; margin-bottom: 8px; }
+    .form-control, .form-select {
+        border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+        padding: 10px 14px; font-size: 0.95rem; transition: all 0.2s;
+        background-color: var(--bg-primary);
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); outline: none; background-color: #fff;
+    }
+    .btn {
+        border-radius: var(--radius-sm); padding: 10px 20px; font-weight: 600;
+        font-size: 0.95rem; transition: all 0.2s; border: none;
+        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-primary { background: var(--primary-color); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+    .btn-secondary { background: #64748b; color: white; }
+    .btn-secondary:hover { background: #475569; transform: translateY(-1px); box-shadow: var(--shadow-md); }
+    .btn-success { background: var(--success-color); color: white; }
+    .btn-success:hover { background: #059669; transform: translateY(-1px); }
+
+    .help-text { font-size: 0.85rem; color: var(--text-secondary); margin-top: 6px; }
+    .input-error { border-color: var(--danger-color) !important; background-color: #fef2f2 !important; }
+    .tooltip-error {
+        background-color: var(--danger-color); color: #fff; padding: 6px 12px;
+        border-radius: var(--radius-sm); font-size: 0.85em; margin-top: 6px; display: none;
+        animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
     #lista-funciones-container {
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        padding: 15px;
-        min-height: 100px;
-        max-height: 200px; /* Added max-height */
-        overflow-y: auto; /* Added scroll */
+        background-color: var(--bg-primary); border: 1px dashed var(--border-color);
+        border-radius: var(--radius-sm); padding: 15px; min-height: 80px;
+        display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
     }
     .funcion-item {
-        display: inline-flex;
-        align-items: center;
-        background-color: #e0e7ff;
-        color: #4338ca;
-        padding: 5px 10px;
-        border-radius: 15px;
-        font-weight: 500;
-        margin: 4px;
-        font-size: 0.9em;
+        background: #e0e7ff; color: var(--primary-dark); padding: 6px 12px;
+        border-radius: 20px; font-weight: 600; font-size: 0.9rem;
+        display: inline-flex; align-items: center; box-shadow: var(--shadow-sm);
     }
     .funcion-item button {
-        background: none;
-        border: none;
-        color: #4338ca;
-        opacity: 0.7;
-        margin-left: 8px;
-        font-weight: bold;
-        padding: 0; /* Adjust padding */
-        line-height: 1; /* Adjust line-height */
+        background: none; border: none; color: var(--primary-color);
+        margin-left: 8px; font-size: 1.2em; line-height: 1; padding: 0 4px;
+        cursor: pointer; opacity: 0.6; transition: opacity 0.2s;
     }
-    .funcion-item button:hover { opacity: 1; }
+    .funcion-item button:hover { opacity: 1; color: var(--danger-color); }
 </style>
 </head>
 <body>
 
-<div class="container">
-
-<a href="index.php" class="btn btn-outline-secondary mb-3">
-    <i class="bi bi-arrow-left"></i> Volver al Listado
-</a>
-<h2>Crear Nuevo Evento</h2>
-<form id="eventoForm" action="procesar_evento.php" method="POST" enctype="multipart/form-data">
-
-    <div class="mb-3 form-group">
-        <label class="form-label">Título del evento</label>
-        <input type="text" name="titulo" id="titulo" class="form-control" placeholder="Ej: Concierto de Rock" required>
-        <div class="help-text">Ingrese un título descriptivo para el evento.</div>
+<div class="main-wrapper">
+    <div class="mb-4">
+        <a href="index.php" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Volver al Dashboard
+        </a>
     </div>
 
-    <div class="mb-3 form-group">
-        <label class="form-label">Funciones</label>
-        <div class="input-group">
-            <input type="text" id="funcion_fecha" class="form-control" placeholder="Selecciona un día..." readonly style="cursor:pointer;">
-            <input type="text" id="funcion_hora" class="form-control" placeholder="Selecciona una hora..." readonly style="cursor:pointer;">
-            <button class="btn btn-success" type="button" id="btn-add-funcion" disabled>
-                <i class="bi bi-plus-circle"></i> Añadir
+    <div class="card p-4 p-md-5">
+        <div class="d-flex align-items-center mb-4 pb-3 border-bottom">
+            <h2><i class="bi bi-plus-circle-fill me-2 text-success"></i>Crear Nuevo Evento</h2>
+        </div>
+
+        <form id="eventoForm" action="procesar_evento.php" method="POST" enctype="multipart/form-data">
+
+            <div class="row g-4">
+                <div class="col-12">
+                    <label class="form-label" for="titulo">Título del Evento</label>
+                    <input type="text" name="titulo" id="titulo" class="form-control form-control-lg fw-bold" placeholder="Ej: Concierto de Rock..." required>
+                    <div class="help-text">Un nombre descriptivo y atractivo.</div>
+                </div>
+
+                <div class="col-12">
+                    <div class="card p-3 bg-light border-0">
+                        <label class="form-label mb-3"><i class="bi bi-calendar-week me-2"></i>Gestión de Funciones</label>
+                        
+                        <div class="input-group mb-2 shadow-sm">
+                            <span class="input-group-text bg-white border-end-0"><i class="bi bi-calendar-event"></i></span>
+                            <input type="text" id="funcion_fecha" class="form-control border-start-0 ps-0" placeholder="Selecciona fecha" readonly style="cursor:pointer;">
+                            <span class="input-group-text bg-white border-end-0 border-start-0"><i class="bi bi-clock"></i></span>
+                            <input type="text" id="funcion_hora" class="form-control border-start-0 ps-0" placeholder="Hora" readonly style="cursor:pointer; max-width: 120px;">
+                            <button class="btn btn-success" type="button" id="btn-add-funcion" disabled>
+                                <i class="bi bi-plus-lg"></i> Añadir
+                            </button>
+                        </div>
+                        <div id="tooltip_funciones" class="tooltip-error mb-2"></div>
+                        
+                        <div id="lista-funciones-container">
+                            <p id="no-funciones-msg" class="text-muted m-0 w-100 text-center fst-italic">
+                                <i class="bi bi-inbox me-1"></i> Aún no hay funciones añadidas.
+                            </p>
+                        </div>
+                        <div id="hidden-funciones-container"></div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label"><i class="bi bi-shop me-1"></i>Inicio de Venta</label>
+                    <input type="text" name="inicio_venta" id="inicio_venta" class="form-control" required readonly style="cursor:pointer;" placeholder="Selecciona fecha y hora...">
+                    <div id="tooltip_inicio_venta" class="tooltip-error"></div>
+                    <div class="help-text">Cuándo pueden empezar a comprar boletos.</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><i class="bi bi-door-closed me-1"></i>Cierre de Venta</label>
+                    <input type="text" name="cierre_venta" id="cierre_venta" class="form-control" required readonly style="cursor:pointer;" placeholder="Selecciona fecha y hora...">
+                    <div id="tooltip_cierre_venta" class="tooltip-error"></div>
+                    <div class="help-text">Se ajusta 2h después de la última función.</div>
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">Descripción / Sinopsis</label>
+                    <textarea name="descripcion" id="descripcion" class="form-control" rows="4" placeholder="Detalles del evento..." required></textarea>
+                </div>
+
+                <div class="col-md-7">
+                    <label class="form-label"><i class="bi bi-image me-1"></i>Imagen de Cartelera</label>
+                    <input type="file" name="imagen" id="imagen" class="form-control" accept="image/*" required>
+                    <div class="help-text">Formatos: JPG, PNG. Idealmente vertical.</div>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label"><i class="bi bi-diagram-3 me-1"></i>Tipo de Escenario</label>
+                    <select name="tipo" id="tipo" class="form-select form-select-lg" required>
+                        <option value="">-- Selecciona --</option>
+                        <option value="1">🎭 Completo (420)</option>
+                        <option value="2">🚶 Pasarela (540)</option>
+                    </select>
+                </div>
+
+            </div> <div id="hidden-precios-container">
+                <input type="hidden" name="precios[General]" value="80">
+                <input type="hidden" name="precios[Discapacitado]" value="80">
+            </div>
+
+            <hr class="my-4" style="border-color: var(--border-color);">
+
+            <button type="submit" id="btn-submit" class="btn btn-primary w-100 py-3 fs-5 shadow-sm" disabled>
+                <i class="bi bi-check2-circle me-2"></i> Crear Evento
             </button>
-        </div>
-         <div id="tooltip_funciones" class="tooltip-error"></div> <div class="help-text">Añade una o varias funciones para el evento.</div>
+        </form>
     </div>
-    
-    <label>Funciones Añadidas:</label>
-    <div id="lista-funciones-container" class="mb-3">
-        <p id="no-funciones-msg" class="text-muted text-center m-0">Aún no hay funciones añadidas.</p>
-    </div>
-    
-    <div id="hidden-funciones-container"></div>
-    <div class="row">
-        <div class="col-md-6 mb-3 form-group">
-            <label class="form-label">Inicio de venta</label>
-            <input type="text" name="inicio_venta" id="inicio_venta" class="form-control" required readonly style="cursor:pointer;">
-            <div id="tooltip_inicio_venta" class="tooltip-error"></div>
-            <div class="help-text">Debe ser anterior a la primera función.</div>
-        </div>
-        <div class="col-md-6 mb-3 form-group">
-            <label class="form-label">Cierre de venta</label>
-            <input type="text" name="cierre_venta" id="cierre_venta" class="form-control" required readonly style="cursor:pointer;">
-            <div id="tooltip_cierre_venta" class="tooltip-error"></div>
-            <div class="help-text">Se ajusta 2h después de la última función.</div>
-        </div>
-    </div>
-
-    <div class="mb-3 form-group">
-        <label class="form-label">Descripción</label>
-        <textarea name="descripcion" id="descripcion" class="form-control" rows="4" placeholder="Detalles del evento" required></textarea>
-        <div class="help-text">Información adicional sobre el evento.</div>
-    </div>
-
-    <div class="mb-3 form-group">
-        <label class="form-label">Imagen de cartelera</label>
-        <input type="file" name="imagen" id="imagen" class="form-control" accept="image/*" required>
-        <div class="help-text">Suba una imagen representativa del evento.</div>
-    </div>
-
-    <div class="mb-3 form-group">
-        <label class="form-label">Tipo de escenario</label>
-        <select name="tipo" id="tipo" class="form-select" required>
-            <option value="">Seleccione</option>
-            <option value="1">Escenario completo (420 asientos)</option>
-            <option value="2">Escenario pasarela (540 asientos)</option>
-        </select>
-        <div class="help-text">Seleccione el tipo de escenario.</div>
-    </div>
-
-    <div id="hidden-precios-container">
-        <input type="hidden" name="precios[General]" value="80">
-        <input type="hidden" name="precios[Discapacitado]" value="80">
-    </div>
-
-    <button type="submit" id="btn-submit" class="btn btn-primary w-100 btn-lg" disabled>Crear Evento</button>
-</form>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
 <script>
-// (Tu JavaScript existente va aquí... no necesita cambios)
 document.addEventListener('DOMContentLoaded', function() {
-    
+    flatpickr.localize(flatpickr.l10ns.es);
     const ahora = new Date();
     
-    // --- 1. Almacén de datos y elementos del DOM ---
-    let listaDeFunciones = []; // Array de objetos Date()
+    let listaDeFunciones = [];
     const btnAddFuncion = document.getElementById('btn-add-funcion');
     const btnSubmit = document.getElementById('btn-submit');
     const listaContainer = document.getElementById('lista-funciones-container');
@@ -151,319 +194,124 @@ document.addEventListener('DOMContentLoaded', function() {
     const tooltipInicioVenta = document.getElementById('tooltip_inicio_venta');
     const tooltipCierreVenta = document.getElementById('tooltip_cierre_venta');
 
-    // --- 2. Configuración de Calendarios (Flatpickr) ---
     const configComun = {
-        dateFormat: "Y-m-d H:i", // Formato para PHP/MySQL
+        dateFormat: "Y-m-d H:i", 
         time_24hr: true,
-        minuteIncrement: 1, // Permitir cualquier minuto
-        minDate: ahora
+        minuteIncrement: 15, 
+        minDate: ahora,
+        disableMobile: "true"
     };
 
     const fpFecha = flatpickr("#funcion_fecha", {
-        minDate: ahora,
-        dateFormat: "Y-m-d", // Solo fecha
-        onChange: checkAddButton
+        minDate: ahora, dateFormat: "Y-m-d", onChange: checkAddButton
     });
-    
     const fpHora = flatpickr("#funcion_hora", {
-        enableTime: true,
-        noCalendar: true, // Solo hora
-        dateFormat: "H:i", // Solo hora
-        time_24hr: true,
-        minuteIncrement: 15, // Intervalos de 15 min para la hora
-        onChange: checkAddButton
+        enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, minuteIncrement: 15, onChange: checkAddButton
     });
 
-    // Calendarios de venta (habilitados más adelante)
     const fpInicioVenta = flatpickr("#inicio_venta", { ...configComun, enableTime: true, onChange: validarFormulario });
     const fpCierreVenta = flatpickr("#cierre_venta", { ...configComun, enableTime: true, onChange: validarFormulario });
 
-    // Habilita el botón "+" solo si se ha elegido fecha Y hora válidas
     function checkAddButton() {
-        // Validación adicional: si la fecha es hoy, la hora no puede ser pasada
         let horaValida = true;
         if (fpFecha.selectedDates.length > 0 && fpHora.selectedDates.length > 0) {
-            const fechaSeleccionada = fpFecha.selectedDates[0];
-            const horaSeleccionada = fpHora.selectedDates[0];
-            const fechaHoraSeleccionada = new Date(
-                fechaSeleccionada.getFullYear(),
-                fechaSeleccionada.getMonth(),
-                fechaSeleccionada.getDate(),
-                horaSeleccionada.getHours(),
-                horaSeleccionada.getMinutes()
-            );
-            if (fechaHoraSeleccionada < ahora) {
-                horaValida = false;
-                // Opcional: mostrar un mensaje de error o deshabilitar
-            }
+            const f = fpFecha.selectedDates[0], h = fpHora.selectedDates[0];
+            const dt = new Date(f.getFullYear(), f.getMonth(), f.getDate(), h.getHours(), h.getMinutes());
+            if (dt <= new Date(ahora.getTime() + 60000)) horaValida = false;
         }
         btnAddFuncion.disabled = !(fpFecha.selectedDates.length > 0 && fpHora.selectedDates.length > 0 && horaValida);
     }
 
-    // --- 3. Lógica de AÑADIR Función ---
     btnAddFuncion.addEventListener('click', function() {
-        const fechaStr = fpFecha.input.value;
-        const horaStr = fpHora.input.value;
-        
-        // Combinamos fecha y hora
-        const fechaHoraCompletaStr = `${fechaStr} ${horaStr}`;
-        const nuevaFecha = new Date(fechaHoraCompletaStr.replace(/-/g, '/')); // Formato compatible JS
+        const fStr = fpFecha.input.value, hStr = fpHora.input.value;
+        const nuevaFecha = new Date(fStr + 'T' + hStr); 
 
-        // Validar que la fecha/hora combinada no sea pasada (doble chequeo)
-        if (nuevaFecha < ahora) {
-             alert("No puedes añadir una función en una fecha u hora pasada.");
-             return;
-        }
+        if (nuevaFecha <= new Date(ahora.getTime() + 60000)) { alert("Fecha/hora inválida (pasada o muy próxima)."); return; }
+        if (listaDeFunciones.some(f => f.getTime() === nuevaFecha.getTime())) { alert("Función duplicada."); return; }
 
-        // Validar que no esté duplicada
-        const esDuplicado = listaDeFunciones.some(f => f.getTime() === nuevaFecha.getTime());
-        if (esDuplicado) {
-            alert("Esa función (día y hora) ya ha sido añadida.");
-            return;
-        }
-
-        // Añadir al array
         listaDeFunciones.push(nuevaFecha);
-        
-        // Ordenar el array (muy importante)
         listaDeFunciones.sort((a, b) => a.getTime() - b.getTime());
-
-        // Limpiar los selectores
-        fpFecha.clear();
-        fpHora.clear();
-        btnAddFuncion.disabled = true;
-
-        // Actualizar la UI
+        fpFecha.clear(); fpHora.clear(); checkAddButton();
         actualizarUIFunciones();
     });
 
-    // --- 4. Lógica de ACTUALIZAR la UI y los Inputs Ocultos ---
     function actualizarUIFunciones() {
-        // Limpiar contenedores
-        listaContainer.innerHTML = '';
-        hiddenContainer.innerHTML = '';
-
+        listaContainer.innerHTML = ''; hiddenContainer.innerHTML = '';
         if (listaDeFunciones.length === 0) {
-            listaContainer.appendChild(noFuncionesMsg); // Mostrar mensaje "vacío"
-            // Resetear calendarios de venta
-            fpInicioVenta.set('maxDate', null); // Sin límite superior
-            fpInicioVenta.clear(); // Limpiar fecha si había
-            fpCierreVenta.set('minDate', ahora); // Mínimo es ahora
-            fpCierreVenta.clear();
-            tooltipFunciones.style.display = 'block'; // Mostrar error si se vacía
-            tooltipFunciones.textContent = 'Debe añadir al menos una función.';
+            listaContainer.appendChild(noFuncionesMsg);
+            fpInicioVenta.set('maxDate', null); fpInicioVenta.clear();
+            fpCierreVenta.set('minDate', ahora); fpCierreVenta.clear();
         } else {
-            // Si hay funciones, ocultar el mensaje de "vacío" y el error
-            if (noFuncionesMsg.parentNode) {
-                noFuncionesMsg.remove();
-            }
-            tooltipFunciones.style.display = 'none';
-
             listaDeFunciones.forEach((fecha, index) => {
-                // Formato legible para el usuario
-                const fechaLegible = fecha.toLocaleString('es-ES', {
-                    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false // Formato 24h
-                });
-                
-                // Formato MySQL "YYYY-MM-DD HH:MM:SS"
-                const y = fecha.getFullYear();
-                const m = String(fecha.getMonth() + 1).padStart(2, '0');
-                const d = String(fecha.getDate()).padStart(2, '0');
-                const h = String(fecha.getHours()).padStart(2, '0');
-                const i = String(fecha.getMinutes()).padStart(2, '0');
-                const fechaMySQL = `${y}-${m}-${d} ${h}:${i}:00`;
-
-                // Crear la "píldora" (badge) visible
-                const item = document.createElement('span');
-                item.className = 'funcion-item';
-                item.innerHTML = `${fechaLegible} <button type="button" data-index="${index}" title="Eliminar función">&times;</button>`;
+                const item = document.createElement('span'); item.className = 'funcion-item';
+                item.innerHTML = `${fecha.toLocaleString('es-ES', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})} <button type="button" data-index="${index}">×</button>`;
                 listaContainer.appendChild(item);
-
-                // Crear el input oculto para el formulario
-                const hiddenInput = document.createElement('input');
-                hiddenInput.type = 'hidden';
-                hiddenInput.name = 'funciones[]'; // <-- Se envía como array a PHP
-                hiddenInput.value = fechaMySQL;
+                const hiddenInput = document.createElement('input'); hiddenInput.type = 'hidden'; hiddenInput.name = 'funciones[]';
+                // Formato YYYY-MM-DD HH:MM:SS manual para asegurar compatibilidad
+                const y = fecha.getFullYear(), m = String(fecha.getMonth() + 1).padStart(2, '0'), d = String(fecha.getDate()).padStart(2, '0');
+                const h = String(fecha.getHours()).padStart(2, '0'), i = String(fecha.getMinutes()).padStart(2, '0');
+                hiddenInput.value = `${y}-${m}-${d} ${h}:${i}:00`;
                 hiddenContainer.appendChild(hiddenInput);
             });
-
-            // Ajustar calendarios de venta automáticamente
-            const primeraFuncion = listaDeFunciones[0];
-            const ultimaFuncion = listaDeFunciones[listaDeFunciones.length - 1];
-
-            // Inicio Venta: debe ser ANTES de la primera función
-            fpInicioVenta.set('maxDate', primeraFuncion);
-            // Si la fecha actual de inicio venta es posterior a la nueva primera función, limpiarla
-            if (fpInicioVenta.selectedDates.length > 0 && fpInicioVenta.selectedDates[0] >= primeraFuncion) {
-                fpInicioVenta.clear();
+            fpInicioVenta.set('maxDate', listaDeFunciones[0]);
+            const minCierre = new Date(listaDeFunciones[listaDeFunciones.length - 1].getTime() + 7200000); // +2h
+            fpCierreVenta.set('minDate', minCierre);
+            if (fpCierreVenta.selectedDates.length === 0 || fpCierreVenta.selectedDates[0] < minCierre) {
+                 fpCierreVenta.setDate(minCierre, true);
             }
-            
-            // Cierre Venta: debe ser DESPUÉS de la última función
-            const minCierre = new Date(ultimaFuncion.getTime() + 2 * 60 * 60 * 1000); // 2h después
-            fpCierreVenta.set('minDate', ultimaFuncion);
-            // Forzar la fecha mínima si la actual es anterior, o establecerla si no hay
-             if (fpCierreVenta.selectedDates.length === 0 || fpCierreVenta.selectedDates[0] < minCierre) {
-                fpCierreVenta.setDate(minCierre, true); // Auto-establece la fecha y dispara onChange
-             } else {
-                 validarFormulario(); // Validar si no se cambió la fecha
-             }
         }
-        
-        // Llamar a validarFormulario al final SIEMPRE
-         validarFormulario();
+        validarFormulario();
     }
 
-    // --- 5. Lógica de QUITAR Función ---
     listaContainer.addEventListener('click', function(e) {
-        // Usamos delegación de eventos
         if (e.target.tagName === 'BUTTON') {
-            const index = parseInt(e.target.dataset.index, 10);
-            listaDeFunciones.splice(index, 1); // Quitar del array
-            actualizarUIFunciones(); // Volver a dibujar todo
+            listaDeFunciones.splice(parseInt(e.target.dataset.index, 10), 1);
+            actualizarUIFunciones();
         }
     });
 
-    // --- 6. Validación General del Formulario ---
     function validarFormulario() {
         let esValido = true;
-        let primerError = null; // Para enfocar el primer campo con error
+        // Reset visual errors
+        [tooltipFunciones, tooltipInicioVenta, tooltipCierreVenta].forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
 
-        // Validar Título
-        const tituloInput = document.getElementById('titulo');
-        if (tituloInput.value.trim() === '') {
-             esValido = false;
-             // Opcional: Añadir clase de error a tituloInput
-             if(!primerError) primerError = tituloInput;
-        }
-
-        // Validar Funciones
+        if (document.getElementById('titulo').value.trim() === '') esValido = false;
         if (listaDeFunciones.length === 0) {
-            tooltipFunciones.textContent = 'Debe añadir al menos una función.';
-            tooltipFunciones.style.display = 'block';
-            esValido = false;
-             if(!primerError) primerError = fpFecha.input; // Enfocar el input de fecha
-        } else {
-            tooltipFunciones.style.display = 'none';
+            tooltipFunciones.textContent = 'Añade al menos una función.'; tooltipFunciones.style.display = 'block'; esValido = false;
         }
 
-        // Validar Inicio Venta
-        const inicioVentaInput = document.getElementById('inicio_venta');
+        const iniInput = document.getElementById('inicio_venta'), finInput = document.getElementById('cierre_venta');
         if (fpInicioVenta.selectedDates.length === 0) {
-             tooltipInicioVenta.textContent = 'Seleccione inicio de venta.';
-             tooltipInicioVenta.style.display = 'block';
-             inicioVentaInput.classList.add('input-error');
-             esValido = false;
-             if(!primerError) primerError = inicioVentaInput;
-        } else {
-             const startSale = fpInicioVenta.selectedDates[0];
-             const primeraFuncion = listaDeFunciones.length > 0 ? listaDeFunciones[0] : null;
-             if (primeraFuncion && startSale >= primeraFuncion) {
-                 tooltipInicioVenta.textContent = 'Debe ser ANTES de la primera función.';
-                 tooltipInicioVenta.style.display = 'block';
-                 inicioVentaInput.classList.add('input-error');
-                 esValido = false;
-                 if(!primerError) primerError = inicioVentaInput;
-             } else if (startSale < ahora) { // Doble chequeo por si minDate falla
-                 tooltipInicioVenta.textContent = 'No puede ser en el pasado.';
-                 tooltipInicioVenta.style.display = 'block';
-                 inicioVentaInput.classList.add('input-error');
-                 esValido = false;
-                 if(!primerError) primerError = inicioVentaInput;
-             }
-             else {
-                 tooltipInicioVenta.style.display = 'none';
-                 inicioVentaInput.classList.remove('input-error');
-             }
+             resaltarError(iniInput, tooltipInicioVenta, 'Requerido.'); esValido = false;
+        } else if (listaDeFunciones.length > 0 && fpInicioVenta.selectedDates[0] >= listaDeFunciones[0]) {
+             resaltarError(iniInput, tooltipInicioVenta, 'Debe ser antes de la 1ª función.'); esValido = false;
         }
 
-        // Validar Cierre Venta
-        const cierreVentaInput = document.getElementById('cierre_venta');
-         if (fpCierreVenta.selectedDates.length === 0) {
-             tooltipCierreVenta.textContent = 'Seleccione cierre de venta.';
-             tooltipCierreVenta.style.display = 'block';
-             cierreVentaInput.classList.add('input-error');
-             esValido = false;
-              if(!primerError) primerError = cierreVentaInput;
-        } else {
-             const endSale = fpCierreVenta.selectedDates[0];
-             const ultimaFuncion = listaDeFunciones.length > 0 ? listaDeFunciones[listaDeFunciones.length - 1] : null;
-             const startSale = fpInicioVenta.selectedDates[0]; // Ya validado arriba
-              const minCierreReq = ultimaFuncion ? new Date(ultimaFuncion.getTime() + 2 * 60 * 60 * 1000 - 1000) : ahora; // -1 seg margen
-
-             if (ultimaFuncion && endSale < minCierreReq) {
-                 tooltipCierreVenta.textContent = 'Debe ser al menos 2h después de la última función.';
-                 tooltipCierreVenta.style.display = 'block';
-                 cierreVentaInput.classList.add('input-error');
-                 esValido = false;
-                 if(!primerError) primerError = cierreVentaInput;
-             } else if (startSale && endSale <= startSale) {
-                 tooltipCierreVenta.textContent = 'Debe ser POSTERIOR al inicio de venta.';
-                 tooltipCierreVenta.style.display = 'block';
-                 cierreVentaInput.classList.add('input-error');
-                 esValido = false;
-                  if(!primerError) primerError = cierreVentaInput;
-             } else {
-                 tooltipCierreVenta.style.display = 'none';
-                 cierreVentaInput.classList.remove('input-error');
-             }
+        if (fpCierreVenta.selectedDates.length === 0) {
+            resaltarError(finInput, tooltipCierreVenta, 'Requerido.'); esValido = false;
+        } else if (fpInicioVenta.selectedDates.length > 0 && fpCierreVenta.selectedDates[0] <= fpInicioVenta.selectedDates[0]) {
+            resaltarError(finInput, tooltipCierreVenta, 'Debe ser posterior al inicio.'); esValido = false;
         }
 
-        // Validar Descripción
-         const descInput = document.getElementById('descripcion');
-        if (descInput.value.trim() === '') {
-             esValido = false;
-             if(!primerError) primerError = descInput;
-        }
+        if (document.getElementById('descripcion').value.trim() === '') esValido = false;
+        if (document.getElementById('imagen').files.length === 0) esValido = false;
+        if (document.getElementById('tipo').value === '') esValido = false;
 
-        // Validar Imagen
-         const imgInput = document.getElementById('imagen');
-        if (imgInput.files.length === 0) {
-             esValido = false;
-             if(!primerError) primerError = imgInput;
-        }
-
-        // Validar Tipo
-        const tipoSelect = document.getElementById('tipo');
-        if (tipoSelect.value === '') {
-             esValido = false;
-             if(!primerError) primerError = tipoSelect;
-        }
-
-
-        // Habilitar o deshabilitar el botón de envío
         btnSubmit.disabled = !esValido;
-        
-        // Retornar validez (para el listener del submit)
         return esValido;
     }
 
-    // Escuchar cambios en inputs y select para re-validar
+    function resaltarError(input, tooltip, msg) {
+        input.classList.add('input-error'); tooltip.textContent = msg; tooltip.style.display = 'block';
+    }
+
     ['titulo', 'descripcion', 'imagen', 'tipo'].forEach(id => {
-        const element = document.getElementById(id);
-        element.addEventListener('input', validarFormulario); // 'input' para texto/textarea
-        element.addEventListener('change', validarFormulario); // 'change' para file/select
+        document.getElementById(id).addEventListener(id === 'imagen' || id === 'tipo' ? 'change' : 'input', validarFormulario);
     });
 
-    // Validar una vez al cargar (para que el botón esté deshabilitado)
-    validarFormulario();
-
-    // --- 7. Listener para el SUBMIT ---
     document.getElementById('eventoForm').addEventListener('submit', function(e){
-        if(!validarFormulario()){ // Llama a la validación una última vez
-            e.preventDefault();
-            alert("Por favor, corrija los errores marcados en el formulario antes de continuar.");
-            // Enfocar el primer campo con error
-            const primerErrorCampo = document.querySelector('.input-error, #lista-funciones-container .tooltip-error[style*="display: block"]');
-             if(primerErrorCampo){
-                 // Si el error es de funciones, enfocar el input de fecha
-                 if(primerErrorCampo.id === 'tooltip_funciones'){
-                     document.getElementById('funcion_fecha').focus();
-                 } else {
-                     primerErrorCampo.focus();
-                 }
-             }
-        }
-        // Si es válido, el formulario se envía normalmente
+        if(!validarFormulario()){ e.preventDefault(); alert("Revisa los errores del formulario."); }
     });
 });
 </script>

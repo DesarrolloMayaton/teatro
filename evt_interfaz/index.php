@@ -2,7 +2,7 @@
 include "../conexion.php";
 
 // ==================================================================
-// == FUNCIONES DE AYUDA (HELPER FUNCTIONS) ==
+// == FUNCIONES DE AYUDA ==
 // ==================================================================
 
 function limpiar_datos_asociados($id_evento, $conn) {
@@ -14,9 +14,13 @@ function limpiar_datos_asociados($id_evento, $conn) {
         $res = $stmt->get_result();
         while ($row = $res->fetch_assoc()) {
             if (!empty($row['qr_path'])) {
-                $ruta_fisica = __DIR__ . '/../' . $row['qr_path'];
-                if (file_exists($ruta_fisica)) {
-                    unlink($ruta_fisica); // Borra el archivo QR
+                // Intentar borrar en varias rutas posibles por si acaso
+                $rutas_posibles = [
+                    __DIR__ . '/' . $row['qr_path'],
+                    __DIR__ . '/../' . $row['qr_path']
+                ];
+                foreach($rutas_posibles as $ruta_fisica) {
+                    if (file_exists($ruta_fisica)) { @unlink($ruta_fisica); break; }
                 }
             }
         }
@@ -31,465 +35,298 @@ function limpiar_datos_asociados($id_evento, $conn) {
 }
 
 // ==================================================================
-// == INICIO: PROCESADOR DE ACCIONES (AJAX / POST) ==
+// == PROCESADOR DE ACCIONES (AJAX / POST) ==
 // ==================================================================
 
-// --- ACCIÓN 1: FINALIZAR UN EVENTO (MANUAL) ---
 if (isset($_POST['accion']) && $_POST['accion'] == 'finalizar') {
     $id = $_POST['id_evento'];
-    
-    // Limpiamos datos asociados al finalizar manualmente
     limpiar_datos_asociados($id, $conn);
-
     if ($stmt = $conn->prepare("UPDATE evento SET finalizado=1 WHERE id_evento = ?")) {
         $stmt->bind_param("i", $id);
         $stmt->execute();
         $stmt->close();
         echo json_encode(['status' => 'success', 'accion' => 'finalizado']);
     } else {
-        echo json_encode(['status' => 'error', 'message' => 'Error al preparar la consulta.']);
+        echo json_encode(['status' => 'error', 'message' => 'Error DB']);
     }
     exit;
 }
 
-// --- ACCIÓN 2: BORRAR UN EVENTO (TOTAL Y SEGURO) ---
 if (isset($_POST['accion']) && $_POST['accion'] == 'borrar') {
     $id = $_POST['id_evento'];
-    $usuario_nombre = $_POST['auth_user'] ?? '';
-    $pin_ingresado = $_POST['auth_pin'] ?? '';
+    $usuario = $_POST['auth_user'] ?? '';
+    $pin = $_POST['auth_pin'] ?? '';
 
-    // 1. VERIFICACIÓN DE SEGURIDAD
-    $auth_ok = false;
-    $sql_auth = "SELECT id_usuario FROM usuario WHERE nombre = ? AND pin = ?";
-    if ($stmt_auth = $conn->prepare($sql_auth)) {
-        $stmt_auth->bind_param("ss", $usuario_nombre, $pin_ingresado);
-        $stmt_auth->execute();
-        $stmt_auth->store_result();
-        if ($stmt_auth->num_rows > 0) {
-            $auth_ok = true;
-        }
-        $stmt_auth->close();
-    }
-
-    if (!$auth_ok) {
+    $stmt_auth = $conn->prepare("SELECT id_usuario FROM usuario WHERE nombre = ? AND pin = ?");
+    $stmt_auth->bind_param("ss", $usuario, $pin);
+    $stmt_auth->execute();
+    if ($stmt_auth->get_result()->num_rows === 0) {
         echo json_encode(['status' => 'error', 'message' => 'Credenciales incorrectas.']);
         exit;
     }
+    $stmt_auth->close();
 
-    // 2. BORRADO TOTAL AUTORIZADO
     $conn->begin_transaction();
     try {
-        // Borrar imagen de cartelera
-        $stmt_img = $conn->prepare("SELECT imagen FROM evento WHERE id_evento = ?");
-        $stmt_img->bind_param("i", $id);
-        $stmt_img->execute();
-        $res_img = $stmt_img->get_result();
+        $res_img = $conn->query("SELECT imagen FROM evento WHERE id_evento = $id");
         if ($row_img = $res_img->fetch_assoc()) {
             if (!empty($row_img['imagen'])) {
-                $ruta_imagen = __DIR__ . '/../' . $row_img['imagen'];
-                if (file_exists($ruta_imagen)) {
-                    unlink($ruta_imagen);
+                $rutas = [
+                    $row_img['imagen'],
+                    '../' . $row_img['imagen'],
+                    'evt_interfaz/' . $row_img['imagen']
+                ];
+                foreach ($rutas as $r) {
+                    if (file_exists(__DIR__ . '/' . $r)) { @unlink(__DIR__ . '/' . $r); break; }
                 }
             }
         }
-        $stmt_img->close();
-
-        // Limpieza profunda
         limpiar_datos_asociados($id, $conn);
-        
-        // Borrar evento principal
         $conn->query("DELETE FROM evento WHERE id_evento = $id");
-
         $conn->commit();
         echo json_encode(['status' => 'success', 'accion' => 'borrado']);
-
     } catch (Exception $e) {
         $conn->rollback();
-        echo json_encode(['status' => 'error', 'message' => 'Error al borrar: ' . $e->getMessage()]);
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
     }
     exit;
 }
 
 // ==================================================================
-// == AUTOMATIZACIÓN: FINALIZAR Y LIMPIAR ==
+// == AUTOMATIZACIÓN Y CARGA ==
 // ==================================================================
-$sql_vencidos = "
-SELECT e.id_evento 
-FROM evento e
-LEFT JOIN (
-    SELECT id_evento, MAX(fecha_hora) as ultima_funcion
-    FROM funciones
-    GROUP BY id_evento
-) lf ON e.id_evento = lf.id_evento
-WHERE 
-    e.finalizado = 0 
-    AND (
-        (lf.ultima_funcion IS NOT NULL AND lf.ultima_funcion < NOW()) 
-        OR 
-        (lf.ultima_funcion IS NULL AND e.cierre_venta < NOW())
-    )
-";
-$res_vencidos = $conn->query($sql_vencidos);
-if ($res_vencidos && $res_vencidos->num_rows > 0) {
-    while ($row = $res_vencidos->fetch_assoc()) {
-        limpiar_datos_asociados($row['id_evento'], $conn);
-        $conn->query("UPDATE evento SET finalizado = 1 WHERE id_evento = " . $row['id_evento']);
-    }
-}
 
-// --- CARGA DE DATOS PARA LA INTERFAZ ---
+$sql_v = "SELECT e.id_evento FROM evento e LEFT JOIN (SELECT id_evento, MAX(fecha_hora) as ult FROM funciones GROUP BY id_evento) lf ON e.id_evento = lf.id_evento WHERE e.finalizado = 0 AND ((lf.ult IS NOT NULL AND lf.ult < NOW()) OR (lf.ult IS NULL AND e.cierre_venta < NOW()))";
+$res_v = $conn->query($sql_v);
+if ($res_v) { while ($r = $res_v->fetch_assoc()) { limpiar_datos_asociados($r['id_evento'], $conn); } }
+$conn->query("UPDATE evento e LEFT JOIN (SELECT id_evento, MAX(fecha_hora) as ult FROM funciones GROUP BY id_evento) lf ON e.id_evento = lf.id_evento SET e.finalizado = 1 WHERE e.finalizado = 0 AND ((lf.ult IS NOT NULL AND lf.ult < NOW()) OR (lf.ult IS NULL AND e.cierre_venta < NOW()))");
+
 $eventos_activos = $conn->query("SELECT * FROM evento WHERE finalizado=0 ORDER BY inicio_venta DESC");
-$sql_finalizados = "SELECT * FROM evento WHERE finalizado=1 ORDER BY cierre_venta DESC";
-$eventos_finalizados = $conn->query($sql_finalizados);
-
-if ($eventos_finalizados === false) {
-    die("Error en la consulta de eventos finalizados: " . $conn->error);
-}
+$eventos_finalizados = $conn->query("SELECT * FROM evento WHERE finalizado=1 ORDER BY cierre_venta DESC");
 ?>
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <title>Dashboard de Eventos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
-    body, html { height: 100%; margin: 0; background-color: #f8f9fa; }
-    .main-container { display: flex; min-height: 100vh; }
-    .sidebar { 
-        width: 280px; 
-        background-color: #2c3e50; 
-        padding: 20px; 
-        color: #fff; 
-        flex-shrink: 0; 
+    :root {
+        --primary-color: #2563eb; --primary-dark: #1e40af;
+        --success-color: #10b981; --danger-color: #ef4444;
+        --warning-color: #f59e0b; --info-color: #3b82f6;
+        --bg-primary: #f8fafc; --bg-secondary: #ffffff;
+        --text-primary: #0f172a; --text-secondary: #64748b;
+        --border-color: #e2e8f0;
+        --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+        --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
+        --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
     }
-    .sidebar .nav-link { 
-        color: #ced4da; 
-        font-size: 1.05em; 
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        padding: 12px 18px;
-        border-radius: 8px; 
-        transition: all 0.2s ease-in-out;
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        color: var(--text-primary);
+        margin: 0; padding: 0; height: 100vh; display: flex;
     }
-    .sidebar .nav-link i {
-        margin-right: 12px; 
-        font-size: 1.1em;
-        width: 25px;
+    .main-container { display: flex; width: 100%; height: 100vh; }
+    .sidebar {
+        width: 280px; background-color: #1e293b; padding: 24px; color: #fff; flex-shrink: 0;
+        display: flex; flex-direction: column;
     }
-    .sidebar .nav-link:hover { 
-        background-color: #34495e;
-        color: #ffffff;
+    .sidebar .nav-link {
+        color: #94a3b8; font-weight: 500; padding: 12px 16px; border-radius: var(--radius-sm);
+        margin-bottom: 8px; transition: all 0.2s; display: flex; align-items: center;
     }
-    .sidebar .nav-link.active { 
-        background-color: #f8f9fa; 
-        color: #2c3e50; 
-        font-weight: 600; 
+    .sidebar .nav-link:hover, .sidebar .nav-link.active {
+        background-color: #334155; color: #fff;
     }
+    .sidebar .nav-link i { margin-right: 12px; font-size: 1.25rem; }
     .btn-agregar {
-        display: block;
-        width: 100%;
-        padding: 12px;
-        background-color: #198754; 
-        color: #fff;
-        text-decoration: none;
-        border-radius: 8px;
-        font-weight: 500;
-        text-align: center;
-        transition: background-color 0.2s ease;
+        background: var(--success-color); color: white; padding: 12px; border-radius: var(--radius-sm);
+        text-align: center; text-decoration: none; font-weight: 600; display: block; transition: all 0.2s;
     }
-    .btn-agregar:hover {
-        background-color: #157347;
-        color: #fff;
-        text-decoration: none;
+    .btn-agregar:hover { background: #059669; color: white; transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    
+    .content { flex-grow: 1; padding: 32px; overflow-y: auto; }
+    h2 { font-weight: 800; color: var(--text-primary); margin-bottom: 24px; font-size: 2rem; }
+    
+    .card {
+        border: none; border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+        transition: all 0.3s ease; background: var(--bg-secondary); overflow: hidden; height: 100%;
+    }
+    .card:hover { transform: translateY(-5px); box-shadow: var(--shadow-lg); }
+    .card-img-top { height: 220px; object-fit: cover; }
+    .card-body { padding: 20px; display: flex; flex-direction: column; }
+    .card-title { font-weight: 700; color: var(--text-primary); font-size: 1.25rem; margin-bottom: 16px; }
+    .card-text { color: var(--text-secondary); font-size: 0.95rem; flex-grow: 1; }
+    .card-text strong { color: var(--text-primary); font-weight: 600; }
+    .card-footer {
+        background: transparent; border-top: 1px solid var(--border-color);
+        padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;
     }
     
-    .content { flex-grow: 1; padding: 30px; height: 100vh; overflow-y: auto; }
-    .card-img-top { height: 200px; object-fit: cover; }
-    .card { margin-bottom: 20px; height: 100%; }
-    .card-body { display: flex; flex-direction: column; }
-    .card-text { flex-grow: 1; line-height: 1.6; }
-    .card-text strong { color: #333; }
-    .card-footer { background: #fff; border-top: none; padding-top: 0; }
+    .btn { border-radius: var(--radius-sm); font-weight: 600; padding: 8px 16px; transition: all 0.2s; border: none; }
+    .btn-warning { background: var(--warning-color); color: white; }
+    .btn-warning:hover { background: #d97706; transform: translateY(-2px); }
+    .btn-success { background: var(--success-color); color: white; }
+    .btn-success:hover { background: #059669; transform: translateY(-2px); }
+    .btn-danger { background: var(--danger-color); color: white; }
+    .btn-danger:hover { background: #dc2626; transform: translateY(-2px); }
+    .btn-primary { background: var(--primary-color); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); }
+
+    .modal-content { border-radius: var(--radius-lg); border: none; box-shadow: var(--shadow-lg); }
+    .modal-header { border-bottom: 1px solid var(--border-color); padding: 20px 24px; }
+    .modal-footer { border-top: 1px solid var(--border-color); padding: 16px 24px; }
+    .form-control {
+        border-radius: var(--radius-sm); border: 1px solid var(--border-color);
+        padding: 12px 16px; font-size: 1rem;
+    }
+    .form-control:focus { border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
 </style>
 </head>
 <body>
 
 <div class="main-container">
-
     <div class="sidebar">
-        
-        <ul class="nav nav-pills flex-column mb-auto" style="padding-top: 10px;">
-            <li class="nav-item">
-                <a href="#eventos-activos" class="nav-link active" data-bs-toggle="tab">
-                    <i class="bi bi-calendar-check"></i> Eventos Activos
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="#historial" class="nav-link" data-bs-toggle="tab">
-                    <i class="bi bi-archive"></i> Historial
-                </a>
-            </li>
-            <li class="nav-item mt-3 pt-3 border-top border-secondary">
-                <a href="crear_evento.php" class="btn-agregar">
-                    <i class="bi bi-plus-circle-fill"></i> Agregar Nuevo Evento
-                </a>
-            </li>
+        <h4 class="mb-4 fw-bold px-3" style="color: #fff;"><i class="bi bi-grid-fill me-2"></i>Dashboard</h4>
+        <ul class="nav flex-column mb-auto">
+            <li class="nav-item"><a href="#activos" class="nav-link active" data-bs-toggle="tab"><i class="bi bi-calendar-event"></i> Activos</a></li>
+            <li class="nav-item"><a href="#historial" class="nav-link" data-bs-toggle="tab"><i class="bi bi-clock-history"></i> Historial</a></li>
         </ul>
+        <div class="mt-4 pt-4 border-top border-secondary">
+            <a href="crear_evento.php" class="btn-agregar"><i class="bi bi-plus-lg me-2"></i>Nuevo Evento</a>
+        </div>
     </div>
 
     <div class="content">
-        
-        <h2>Gestión de Eventos</h2>
-
-        <div class="tab-content mt-3" id="eventosTabContent">
-
-            <div class="tab-pane fade show active" id="eventos-activos" role="tabpanel">
-                <div class="row" id="lista-eventos-activos">
-                    <?php if($eventos_activos && $eventos_activos->num_rows > 0) {
-                        while($e = $eventos_activos->fetch_assoc()) { 
-                        // Formatear fechas de venta y cierre
-                        $fecha_venta = date('M d, Y - h:i A', strtotime($e['inicio_venta']));
-                        $fecha_cierre = date('M d, Y - h:i A', strtotime($e['cierre_venta']));
-                        $tipo_escenario = ($e['tipo']==1 ? 'Escenario completo (420)' : 'Escenario pasarela (540)');
-                        
-                        // Necesitamos buscar las funciones para este evento
-                        $funciones_evento = [];
-                        $stmt_func = $conn->prepare("SELECT fecha_hora FROM funciones WHERE id_evento = ? ORDER BY fecha_hora ASC");
-                        $stmt_func->bind_param("i", $e['id_evento']);
-                        $stmt_func->execute();
-                        $res_func = $stmt_func->get_result();
-                        while($f = $res_func->fetch_assoc()){
-                            $funciones_evento[] = date('M d, Y - h:i A', strtotime($f['fecha_hora']));
-                        }
-                        $stmt_func->close();
-
-                        ?>
-                        
-                        <div class="col-lg-4 col-md-6 mb-4" id="evento-card-<?= $e['id_evento'] ?>">
-                            <div class="card shadow-sm">
-                                <?php 
-                                    $imgMostrar = '';
-                                    if (!empty($e['imagen'])) {
-                                        // Ajustar ruta relativa para mostrar desde esta carpeta
-                                        $ruta_relativa = '../' . $e['imagen'];
-                                        if (file_exists(__DIR__ . '/' . $ruta_relativa)) {
-                                            $imgMostrar = $ruta_relativa;
-                                        }
-                                    }
-                                    if ($imgMostrar) echo "<img src='" . htmlspecialchars($imgMostrar, ENT_QUOTES, 'UTF-8') . "' class='card-img-top'>";
-                                    else echo "<div class='card-img-top bg-secondary d-flex align-items-center justify-content-center text-white'><i class='bi bi-image fs-1'></i></div>";
-                                ?>
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="activos">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>Eventos Activos</h2>
+                </div>
+                <div class="row g-4">
+                    <?php if($eventos_activos && $eventos_activos->num_rows > 0):
+                        while($e = $eventos_activos->fetch_assoc()):
+                            $img = '';
+                            if(!empty($e['imagen'])) {
+                                $rutas = [$e['imagen'], '../'.$e['imagen'], 'evt_interfaz/'.$e['imagen']];
+                                foreach($rutas as $r) { if(file_exists(__DIR__.'/'.$r)) { $img = $r; break; } }
+                            }
+                    ?>
+                        <div class="col-xl-4 col-lg-6">
+                            <div class="card h-100">
+                                <?php if($img): ?><img src="<?= htmlspecialchars($img) ?>" class="card-img-top" alt="Portada">
+                                <?php else: ?><div class="card-img-top bg-secondary d-flex align-items-center justify-content-center text-white"><i class="bi bi-image fs-1"></i></div><?php endif; ?>
                                 <div class="card-body">
                                     <h5 class="card-title"><?= htmlspecialchars($e['titulo']) ?></h5>
-                                    <p class="card-text">
-                                        <strong>Funciones:</strong><br>
-                                        <?php 
-                                            if(empty($funciones_evento)){
-                                                echo "<small class='text-danger'>No hay funciones asignadas.</small><br>";
-                                            } else {
-                                                foreach($funciones_evento as $fecha_func){
-                                                    echo "<small>• {$fecha_func}</small><br>";
-                                                }
-                                            }
-                                        ?>
-                                        <strong>Venta:</strong> <?= $fecha_venta ?><br>
-                                        <strong>Cierre:</strong> <?= $fecha_cierre ?><br>
-                                        <strong>Tipo:</strong> <?= $tipo_escenario ?> asientos
-                                    </p>
-                                </div>
-                                <div class="card-footer d-flex justify-content-between">
-                                    <a href="editar_evento.php?id=<?= $e['id_evento'] ?>" class="btn btn-warning btn-sm">Editar</a>
-                                    <button type="button" class="btn btn-success btn-sm" onclick="prepararFinalizar(<?= $e['id_evento'] ?>, '<?= htmlspecialchars(addslashes($e['titulo'])) ?>')">Finalizar</button>
-                                    <button type="button" class="btn btn-danger btn-sm" onclick="prepararBorrado(<?= $e['id_evento'] ?>, '<?= htmlspecialchars(addslashes($e['titulo'])) ?>')">Borrar</button>
-                                </div>
-                            </div>
-                        </div>
-                    <?php } } else { echo "<p class='text-muted'>No hay eventos activos programados.</p>"; } ?>
-                </div>
-            </div>
-
-            <div class="tab-pane fade" id="historial" role="tabpanel">
-                <div class="row mt-3">
-                    <?php if($eventos_finalizados && $eventos_finalizados->num_rows > 0) {
-                        while($e = $eventos_finalizados->fetch_assoc()) { 
-                        // Formatear fechas
-                        $fecha_cierre_hist = date('M d, Y - h:i A', strtotime($e['cierre_venta']));
-                        $tipo_escenario_hist = ($e['tipo']==1 ? 'Escenario completo (420)' : 'Escenario pasarela (540)');
-                        
-                        // Buscar la última función para mostrarla (opcional)
-                        $ultima_funcion_hist = "N/A";
-                        $stmt_uf = $conn->prepare("SELECT MAX(fecha_hora) as ultima FROM funciones WHERE id_evento = ?");
-                        $stmt_uf->bind_param("i", $e['id_evento']);
-                        $stmt_uf->execute();
-                        $res_uf = $stmt_uf->get_result();
-                        if($row_uf = $res_uf->fetch_assoc()){
-                            if($row_uf['ultima']){
-                                $ultima_funcion_hist = date('M d, Y - h:i A', strtotime($row_uf['ultima']));
-                            }
-                        }
-                        $stmt_uf->close();
-                        
-                        ?>
-                        
-                        <div class="col-lg-4 col-md-6 mb-4" id="evento-card-<?= $e['id_evento'] ?>">
-                            <div class="card shadow-sm bg-light">
-                                <?php 
-                                    $imgMostrar = '';
-                                    if (!empty($e['imagen'])) {
-                                        $ruta_relativa = '../' . $e['imagen'];
-                                        if (file_exists(__DIR__ . '/' . $ruta_relativa)) {
-                                            $imgMostrar = $ruta_relativa;
+                                    <div class="card-text">
+                                        <p class="mb-2"><i class="bi bi-calendar-check me-2 text-muted"></i><strong>Inicio:</strong> <?= date('d M, Y - h:i A', strtotime($e['inicio_venta'])) ?></p>
+                                        <p class="mb-3"><i class="bi bi-calendar-x me-2 text-muted"></i><strong>Cierre:</strong> <?= date('d M, Y - h:i A', strtotime($e['cierre_venta'])) ?></p>
+                                        <?php
+                                        $sf = $conn->prepare("SELECT fecha_hora FROM funciones WHERE id_evento = ? ORDER BY fecha_hora ASC LIMIT 3");
+                                        $sf->bind_param("i", $e['id_evento']); $sf->execute(); $rf = $sf->get_result();
+                                        if($rf->num_rows > 0) {
+                                            echo "<small class='text-muted d-block mb-1 fw-bold'>Próximas funciones:</small><ul class='mb-0 ps-3 small text-secondary'>";
+                                            while($f = $rf->fetch_assoc()) echo "<li>".date('d/m/Y H:i', strtotime($f['fecha_hora']))."</li>";
+                                            echo "</ul>";
                                         }
-                                    }
-                                    if ($imgMostrar) echo "<img src='" . htmlspecialchars($imgMostrar, ENT_QUOTES, 'UTF-8') . "' class='card-img-top' style='opacity: 0.6;'>";
-                                    else echo "<div class='card-img-top bg-secondary d-flex align-items-center justify-content-center text-white' style='opacity: 0.6;'><i class='bi bi-image fs-1'></i></div>";
-                                ?>
-                                <div class="card-body">
-                                    <h5 class="card-title text-muted"><?= htmlspecialchars($e['titulo']) ?></h5>
-                                    <p class="card-text">
-                                        <strong>Última función:</strong> <?= $ultima_funcion_hist ?><br>
-                                        <strong>Cierre Venta:</strong> <?= $fecha_cierre_hist ?><br>
-                                        <strong>Tipo:</strong> <?= $tipo_escenario_hist ?> asientos
-                                    </p>
+                                        $sf->close();
+                                        ?>
+                                    </div>
                                 </div>
-                                <div class="card-footer d-flex justify-content-between">
-                                    <a href="editar_evento.php?id=<?= $e['id_evento'] ?>" class="btn btn-primary btn-sm">Reactivar</a>
-                                    <button type="button" class="btn btn-danger btn-sm" onclick="prepararBorrado(<?= $e['id_evento'] ?>, '<?= htmlspecialchars(addslashes($e['titulo'])) ?>')">Borrar</button>
+                                <div class="card-footer">
+                                    <a href="editar_evento.php?id=<?= $e['id_evento'] ?>" class="btn btn-warning btn-sm"><i class="bi bi-pencil-square me-1"></i>Editar</a>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-success btn-sm" onclick="prepararFinalizar(<?= $e['id_evento'] ?>, '<?= htmlspecialchars(addslashes($e['titulo'])) ?>')"><i class="bi bi-check-lg"></i></button>
+                                        <button class="btn btn-danger btn-sm" onclick="prepararBorrado(<?= $e['id_evento'] ?>, '<?= htmlspecialchars(addslashes($e['titulo'])) ?>')"><i class="bi bi-trash"></i></button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    <?php } } else { echo "<p class='text-muted'>Aún no hay eventos en el historial.</p>"; } ?>
+                    <?php endwhile; else: ?>
+                        <div class="col-12"><div class="alert alert-info rounded-3 shadow-sm"><i class="bi bi-info-circle me-2"></i>No hay eventos activos en este momento.</div></div>
+                    <?php endif; ?>
                 </div>
             </div>
-            
+
+            <div class="tab-pane fade" id="historial">
+                <h2 class="mb-4">Historial de Eventos</h2>
+                <div class="row g-4">
+                    <?php if($eventos_finalizados && $eventos_finalizados->num_rows > 0):
+                        while($e = $eventos_finalizados->fetch_assoc()):
+                            $img = '';
+                            if(!empty($e['imagen'])) {
+                                $rutas = [$e['imagen'], '../'.$e['imagen'], 'evt_interfaz/'.$e['imagen']];
+                                foreach($rutas as $r) { if(file_exists(__DIR__.'/'.$r)) { $img = $r; break; } }
+                            }
+                    ?>
+                        <div class="col-xl-4 col-lg-6">
+                            <div class="card h-100 bg-light border">
+                                <?php if($img): ?><img src="<?= htmlspecialchars($img) ?>" class="card-img-top" style="filter: grayscale(1); opacity: 0.7" alt="Portada">
+                                <?php else: ?><div class="card-img-top bg-secondary d-flex align-items-center justify-content-center text-white" style="opacity:0.7"><i class="bi bi-image fs-1"></i></div><?php endif; ?>
+                                <div class="card-body">
+                                    <h5 class="card-title text-muted"><?= htmlspecialchars($e['titulo']) ?> <span class="badge bg-secondary align-middle" style="font-size: 0.6em">FINALIZADO</span></h5>
+                                    <p class="card-text text-muted small">
+                                        Cerró venta el: <strong><?= date('d M, Y', strtotime($e['cierre_venta'])) ?></strong>
+                                    </p>
+                                </div>
+                                <div class="card-footer justify-content-end gap-2">
+                                    <a href="editar_evento.php?id=<?= $e['id_evento'] ?>" class="btn btn-primary btn-sm"><i class="bi bi-arrow-counterclockwise me-1"></i>Reactivar</a>
+                                    <button class="btn btn-danger btn-sm" onclick="prepararBorrado(<?= $e['id_evento'] ?>, '<?= htmlspecialchars(addslashes($e['titulo'])) ?>')"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endwhile; else: ?>
+                        <div class="col-12"><p class="text-muted">El historial está vacío.</p></div>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="modalFinalizar" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-warning">
-                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Finalizar Evento</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p>¿Finalizar <strong><span id="nombreEventoFinalizar"></span></strong>?</p>
-                <div class="alert alert-warning small">
-                    <i class="bi bi-info-circle-fill"></i> Esto moverá el evento al historial y <strong>eliminará permanentemente</strong> todos los boletos generados y sus códigos QR para liberar espacio.
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" id="btnConfirmarFinalizar" class="btn btn-warning">Sí, Finalizar y Limpiar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="modalBorrar" tabindex="-1" data-bs-backdrop="static">
-    <div class="modal-dialog">
-        <div class="modal-content border-danger">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title"><i class="bi bi-shield-lock-fill me-2"></i>Borrado Seguro Requerido</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-danger fw-bold">ESTA ACCIÓN ES DESTRUCTIVA E IRREVERSIBLE.</p>
-                <p>Para eliminar el evento <strong><span id="nombreEventoBorrar"></span></strong>, ingrese sus credenciales.</p>
-                <div class="form-floating mb-2">
-                    <input type="text" class="form-control" id="auth_user" placeholder="Usuario" autocomplete="off">
-                    <label>Usuario Administrador</label>
-                </div>
-                <div class="form-floating mb-3">
-                    <input type="password" class="form-control" id="auth_pin" placeholder="PIN" autocomplete="new-password">
-                    <label>PIN de Seguridad</label>
-                </div>
-                <div id="borrar-error-msg" class="text-danger small fw-bold"></div>
-            </div>
-            <div class="modal-footer bg-light">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" id="btnConfirmarBorrado" class="btn btn-danger px-4"><i class="bi bi-trash-fill me-2"></i>AUTORIZAR BORRADO</button>
-            </div>
-        </div>
-    </div>
-</div>
+<div class="modal fade" id="modalFinalizar" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header bg-warning-subtle"><h5 class="modal-title fw-bold text-warning-emphasis"><i class="bi bi-exclamation-triangle-fill me-2"></i>Finalizar Evento</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p class="fs-5">¿Finalizar <strong><span id="nombreFin"></span></strong>?</p><div class="alert alert-warning d-flex align-items-center"><i class="bi bi-info-circle-fill fs-4 me-3"></i><div>Esto moverá el evento al historial y <strong>eliminará permanentemente</strong> los boletos y QRs generados.</div></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="button" id="btnConfFin" class="btn btn-warning fw-bold px-4">Sí, Finalizar</button></div></div></div></div>
+<div class="modal fade" id="modalBorrar" tabindex="-1" data-bs-backdrop="static"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header bg-danger text-white"><h5 class="modal-title fw-bold"><i class="bi bi-shield-lock-fill me-2"></i>Borrado Seguro</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body"><p class="text-danger fw-bold mb-3"><i class="bi bi-x-octagon-fill me-1"></i> ESTA ACCIÓN ES IRREVERSIBLE.</p><p>Para eliminar <strong><span id="nombreBorrar"></span></strong>, ingresa tus credenciales:</p><div class="form-floating mb-2"><input type="text" id="auth_user" class="form-control" placeholder="U"><label>Usuario</label></div><div class="form-floating mb-3"><input type="password" id="auth_pin" class="form-control" placeholder="P"><label>PIN</label></div><div id="borrarMsg" class="text-danger fw-bold small"></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="button" id="btnConfBorrar" class="btn btn-danger fw-bold px-4">AUTORIZAR BORRADO</button></div></div></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-const modalBorrar = new bootstrap.Modal(document.getElementById('modalBorrar'));
-const modalFinalizar = new bootstrap.Modal(document.getElementById('modalFinalizar'));
-
-function prepararFinalizar(id, nombre) {
-    document.getElementById('nombreEventoFinalizar').textContent = nombre;
-    document.getElementById('btnConfirmarFinalizar').onclick = () => ejecutarAccion('finalizar', id, null, modalFinalizar);
-    modalFinalizar.show();
+const mFin = new bootstrap.Modal('#modalFinalizar'), mBorrar = new bootstrap.Modal('#modalBorrar');
+function prepararFinalizar(id, n) {
+    document.getElementById('nombreFin').textContent = n;
+    document.getElementById('btnConfFin').onclick = () => exec('finalizar', id, {}, mFin);
+    mFin.show();
 }
-
-function prepararBorrado(id, nombre) {
-    document.getElementById('nombreEventoBorrar').textContent = nombre;
-    document.getElementById('auth_user').value = '';
-    document.getElementById('auth_pin').value = '';
-    document.getElementById('borrar-error-msg').textContent = '';
-    
-    document.getElementById('btnConfirmarBorrado').onclick = () => {
-        const user = document.getElementById('auth_user').value.trim();
-        const pin = document.getElementById('auth_pin').value.trim();
-        if(!user || !pin) {
-            document.getElementById('borrar-error-msg').textContent = 'Ingrese Usuario y PIN.';
-            return;
-        }
-        ejecutarAccion('borrar', id, { auth_user: user, auth_pin: pin }, modalBorrar, 'borrar-error-msg');
+function prepararBorrado(id, n) {
+    document.getElementById('nombreBorrar').textContent = n;
+    document.getElementById('auth_user').value = ''; document.getElementById('auth_pin').value = '';
+    document.getElementById('borrarMsg').textContent = '';
+    document.getElementById('btnConfBorrar').onclick = () => {
+        const u = document.getElementById('auth_user').value.trim(), p = document.getElementById('auth_pin').value.trim();
+        if(!u || !p) { document.getElementById('borrarMsg').textContent = 'Ingresa usuario y PIN.'; return; }
+        exec('borrar', id, {auth_user: u, auth_pin: p}, mBorrar, 'borrarMsg');
     };
-    modalBorrar.show();
+    mBorrar.show();
 }
-
-function ejecutarAccion(accion, id, extras, modal, errorDivId = null) {
-    const modalEl = modal._element;
-    const btn = modalEl.querySelector('.modal-footer button:last-child');
-    const txtOriginal = btn.innerHTML;
-    
-    btn.disabled = true; 
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
-    if(errorDivId) document.getElementById(errorDivId).textContent = '';
-
-    const formData = new FormData();
-    formData.append('accion', accion);
-    formData.append('id_evento', id);
-    if(extras) { for(const key in extras) formData.append(key, extras[key]); }
-
-    fetch('index.php', { method: 'POST', body: formData })
-    .then(r => r.json())
-    .then(data => {
-        if(data.status === 'success') {
-            // Sincronizar otras pestañas si están abiertas
-            localStorage.setItem('evento_actualizado', accion + '_' + id + '_' + Date.now());
+function exec(act, id, data, modal, errId=null) {
+    const btn = modal._element.querySelector('.modal-footer button:last-child'), txt = btn.innerHTML;
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Procesando...';
+    const fd = new FormData(); fd.append('accion', act); fd.append('id_evento', id);
+    for(let k in data) fd.append(k, data[k]);
+    fetch('', {method: 'POST', body: fd}).then(r=>r.json()).then(d => {
+        if(d.status==='success') {
+            localStorage.setItem('evt_upd', Date.now());
             window.location.reload();
         } else {
-            if(errorDivId) document.getElementById(errorDivId).textContent = data.message;
-            else alert(data.message);
-            btn.disabled = false; 
-            btn.innerHTML = txtOriginal;
+            if(errId) document.getElementById(errId).textContent = d.message; else alert(d.message);
+            btn.disabled = false; btn.innerHTML = txt;
         }
-    })
-    .catch(e => {
-        console.error(e);
-        alert('Error de conexión con el servidor.');
-        btn.disabled = false; 
-        btn.innerHTML = txtOriginal;
-    });
+    }).catch(() => { alert('Error de conexión'); btn.disabled = false; btn.innerHTML = txt; });
 }
-
-// Listener para recargar si otra pestaña hizo cambios
-window.addEventListener('storage', function(e) {
-    if (e.key === 'evento_actualizado') {
-        console.log('Cambio detectado externamente, recargando...');
-        window.location.reload();
-    }
-});
+window.addEventListener('storage', e => { if(e.key==='evt_upd') window.location.reload(); });
 </script>
 </body>
 </html>
