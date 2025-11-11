@@ -1,162 +1,168 @@
 <?php
-include "conexion.php";
+// --- ACTIVAR DEPURACIÓN (Eliminar en producción) ---
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+include "../conexion.php"; 
+
+// Verificar conexión
+if ($conn->connect_error) { die("Error de conexión: " . $conn->connect_error); }
 
 $errores = [];
 
-// ... (Bloques 1, 2 y 3 de recepción de datos y validación permanecen igual) ...
-// 1. Recibir datos principales
-$titulo = trim($_POST['titulo']);
-$inicio_venta = $_POST['inicio_venta'];
-$cierre_venta = $_POST['cierre_venta'];
-$descripcion = trim($_POST['descripcion']);
-$tipo = $_POST['tipo'];
+// ==================================================================
+// 1. RECIBIR Y VALIDAR DATOS BÁSICOS
+// ==================================================================
+$titulo = isset($_POST['titulo']) ? trim($_POST['titulo']) : '';
+$descripcion = isset($_POST['descripcion']) ? trim($_POST['descripcion']) : '';
+$tipo = isset($_POST['tipo']) ? $_POST['tipo'] : '';
+$inicio_venta_str = isset($_POST['inicio_venta']) ? $_POST['inicio_venta'] : '';
+$cierre_venta_str = isset($_POST['cierre_venta']) ? $_POST['cierre_venta'] : '';
 
-// 2. Lógica de imagen
-$imagen_ruta = "";
-if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] == 0) {
-    $ext = pathinfo($_FILES['imagen']['name'], PATHINFO_EXTENSION);
-    if (!is_dir("imagenes")) { mkdir("imagenes", 0755, true); }
-    $nombreArchivo = "evento_" . time() . "." . $ext;
-    if (move_uploaded_file($_FILES['imagen']['tmp_name'], "imagenes/" . $nombreArchivo)) {
-        $imagen_ruta = "imagenes/" . $nombreArchivo;
-    } else {
-        $errores[] = "Error al mover la imagen.";
-    }
-} else {
-    $errores[] = "Debe subir una imagen.";
-}
+if (empty($titulo)) $errores[] = "El título es obligatorio.";
+if (empty($tipo)) $errores[] = "Debe seleccionar un tipo de escenario.";
 
-// 3. Validaciones
+// Validar Funciones
 if (!isset($_POST['funciones']) || !is_array($_POST['funciones']) || empty($_POST['funciones'])) {
     $errores[] = "Debe añadir al menos una función.";
-}
-if (!isset($_POST['precios']) || !is_array($_POST['precios']) || empty($_POST['precios'])) {
-    $errores[] = "No se recibieron los precios por defecto.";
+} else {
+    $funciones = $_POST['funciones'];
+    sort($funciones); // Asegurar orden cronológico para validaciones
 }
 
+// Validar Precios
+if (!isset($_POST['precios']) || !is_array($_POST['precios'])) {
+    $errores[] = "Faltan los precios base.";
+}
+
+// ==================================================================
+// 2. VALIDACIÓN RIGUROSA DE FECHAS Y HORAS
+// ==================================================================
+if (empty($errores)) {
+    try {
+        $inicio_venta = new DateTime($inicio_venta_str);
+        $cierre_venta = new DateTime($cierre_venta_str);
+        $primera_funcion = new DateTime($funciones[0]);
+        $ultima_funcion = new DateTime($funciones[count($funciones) - 1]);
+
+        if ($inicio_venta >= $primera_funcion) {
+            $errores[] = "El inicio de venta debe ser ANTES de la primera función (" . $primera_funcion->format('d/m/Y H:i') . ").";
+        }
+        if ($cierre_venta <= $inicio_venta) {
+            $errores[] = "El cierre de venta debe ser posterior al inicio de venta.";
+        }
+    } catch (Exception $e) {
+        $errores[] = "Formato de fecha inválido.";
+    }
+}
+
+// ==================================================================
+// 3. PROCESAR IMAGEN
+// ==================================================================
+$imagen_ruta = "";
+if (empty($errores)) {
+    if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] == 0) {
+        $ext = strtolower(pathinfo($_FILES['imagen']['name'], PATHINFO_EXTENSION));
+        if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])) {
+            if (!is_dir("../evt_interfaz/imagenes")) mkdir("../evt_interfaz/imagenes", 0755, true);
+            $nombreArchivo = "evt_" . time() . "." . $ext;
+            // Guardar en la carpeta de interfaz para que sea accesible desde el front
+            $ruta_fisica = "../evt_interfaz/imagenes/" . $nombreArchivo;
+            $ruta_bd = "imagenes/" . $nombreArchivo; // Ruta relativa para la BD
+            
+            if (move_uploaded_file($_FILES['imagen']['tmp_name'], $ruta_fisica)) {
+                $imagen_ruta = $ruta_bd;
+            } else {
+                $errores[] = "Error al mover la imagen al servidor.";
+            }
+        } else {
+            $errores[] = "Formato de imagen no válido (solo JPG, PNG, GIF).";
+        }
+    } else {
+        $errores[] = "Debe seleccionar una imagen.";
+    }
+}
+
+// ==================================================================
+// 4. SI HAY ERRORES, MOSTRAR Y DETENER
+// ==================================================================
 if (!empty($errores)) {
-    foreach ($errores as $e) echo "<p style='color:red;'>❌ $e</p>";
-    echo "<a href='crear_evento.php'>Volver a intentar</a>";
+    if (!empty($imagen_ruta) && file_exists("../evt_interfaz/" . $imagen_ruta)) { unlink("../evt_interfaz/" . $imagen_ruta); }
+    
+    echo "<div style='font-family:sans-serif; padding:20px; background:#fff0f0; border-left:5px solid red; max-width:600px; margin:20px auto; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.1);'>";
+    echo "<h3 style='color:#dc3545; margin-top:0;'>Error al crear evento</h3><ul style='color:#b02a37; padding-left:20px;'>";
+    foreach ($errores as $e) { echo "<li style='margin-bottom:5px;'>" . htmlspecialchars($e) . "</li>"; }
+    echo "</ul><button onclick='history.back()' style='padding:10px 20px; background:#6c757d; color:white; border:none; border-radius:5px; cursor:pointer;'>Volver</button></div>";
     exit;
 }
 
-// 4. Insertar EVENTO
-$stmt_evento = $conn->prepare("INSERT INTO evento (titulo, inicio_venta, cierre_venta, descripcion, imagen, tipo, finalizado) VALUES (?, ?, ?, ?, ?, ?, 0)");
-$stmt_evento->bind_param("sssssi", $titulo, $inicio_venta, $cierre_venta, $descripcion, $imagen_ruta, $tipo);
+// ==================================================================
+// 5. INSERTAR EN BASE DE DATOS (TRANSACCIÓN)
+// ==================================================================
+$conn->begin_transaction();
+try {
+    $stmt = $conn->prepare("INSERT INTO evento (titulo, descripcion, imagen, tipo, inicio_venta, cierre_venta, finalizado) VALUES (?, ?, ?, ?, ?, ?, 0)");
+    $ini_mysql = $inicio_venta->format('Y-m-d H:i:s');
+    $fin_mysql = $cierre_venta->format('Y-m-d H:i:s');
+    $stmt->bind_param("sssiss", $titulo, $descripcion, $imagen_ruta, $tipo, $ini_mysql, $fin_mysql);
+    if (!$stmt->execute()) { throw new Exception("Error al guardar evento: " . $stmt->error); }
+    $id_nuevo = $conn->insert_id;
+    $stmt->close();
 
-if ($stmt_evento->execute()) {
-    $id_evento_nuevo = $conn->insert_id;
-
-    // 5. Insertar FUNCIONES
-    $stmt_funcion = $conn->prepare("INSERT INTO funciones (id_evento, fecha_hora) VALUES (?, ?)");
-    foreach ($_POST['funciones'] as $fecha_hora) {
-        $stmt_funcion->bind_param("is", $id_evento_nuevo, $fecha_hora);
-        $stmt_funcion->execute();
+    $stmt_f = $conn->prepare("INSERT INTO funciones (id_evento, fecha_hora) VALUES (?, ?)");
+    foreach ($funciones as $fh) {
+        $stmt_f->bind_param("is", $id_nuevo, $fh);
+        if (!$stmt_f->execute()) { throw new Exception("Error al guardar función."); }
     }
-    $stmt_funcion->close();
+    $stmt_f->close();
 
-    // 6. Insertar CATEGORÍAS
-    $precios_base = $_POST['precios'];
-    $colores_default = ["General" => "#808080", "Discapacitado" => "#007BFF"];
-    $stmt_cat = $conn->prepare("INSERT INTO categorias (id_evento, nombre_categoria, precio, color) VALUES (?, ?, ?, ?)");
-    
-    $cat_error = '';
-    if ($stmt_cat) {
-        foreach ($precios_base as $nombre => $precio) {
-            $color = $colores_default[$nombre] ?? '#000000';
-            $stmt_cat->bind_param("isds", $id_evento_nuevo, $nombre, $precio, $color);
-            if (!$stmt_cat->execute()) {
-                $cat_error = $stmt_cat->error;
-                break; 
-            }
-        }
-        $stmt_cat->close();
-    } else {
-        $cat_error = $conn->error;
+    $colores = ['General' => '#808080', 'Discapacitado' => '#2563eb'];
+    $stmt_c = $conn->prepare("INSERT INTO categorias (id_evento, nombre_categoria, precio, color) VALUES (?, ?, ?, ?)");
+    foreach ($_POST['precios'] as $nombre => $precio) {
+        $color = $colores[$nombre] ?? '#000000'; $precio_float = floatval($precio);
+        $stmt_c->bind_param("isds", $id_nuevo, $nombre, $precio_float, $color);
+        if (!$stmt_c->execute()) { throw new Exception("Error al guardar categoría."); }
     }
+    $stmt_c->close();
 
-    // 7. Pantalla de confirmación y redirección OFFLINE
-    ?>
-    <!DOCTYPE html>
+    $conn->commit();
+
+    // ==================================================================
+    // 6. REDIRECCIÓN CON ÉXITO (ESTILO NUEVO)
+    // ==================================================================
+    echo '<!DOCTYPE html>
     <html lang="es">
     <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Procesando...</title>
-        <style>
-            body {
-                font-family: sans-serif;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-                margin: 0;
-                background-color: #f4f4f4;
-            }
-            .confirm-box {
-                background: white;
-                padding: 30px;
-                border-radius: 10px;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-                text-align: center;
-                max-width: 400px;
-                width: 90%;
-            }
-            .icon {
-                font-size: 60px;
-                margin-bottom: 20px;
-            }
-            .success { color: #28a745; }
-            .warning { color: #ffc107; }
-            h2 { margin: 0 0 15px; color: #333; }
-            p { color: #666; margin-bottom: 25px; }
-            .loader {
-                border: 4px solid #f3f3f3;
-                border-top: 4px solid #3498db;
-                border-radius: 50%;
-                width: 30px;
-                height: 30px;
-                animation: spin 1s linear infinite;
-                margin: 0 auto;
-            }
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-        </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procesando...</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     </head>
-    <body>
-        <div class="confirm-box">
-            <?php if (empty($cat_error)): ?>
-                <div class="icon success">✅</div>
-                <h2>¡Evento Creado!</h2>
-                <p>Todo se ha guardado correctamente.</p>
-            <?php else: ?>
-                <div class="icon warning">⚠️</div>
-                <h2>Creado con Advertencias</h2>
-                <p>Error en categorías: <?= htmlspecialchars($cat_error) ?></p>
-            <?php endif; ?>
-            
-            <div class="loader"></div>
-            <p style="margin-top: 15px; font-size: 0.9em;">Redirigiendo...</p>
+    <body class="bg-light d-flex align-items-center justify-content-center vh-100">
+        <div class="card shadow-lg p-5 text-center border-0" style="max-width:450px; border-radius:16px;">
+            <div class="mb-4">
+                <i class="bi bi-check-circle-fill text-success" style="font-size: 5rem;"></i>
+            </div>
+            <h2 class="mb-3 fw-bold text-success">¡Evento Creado!</h2>
+            <p class="text-muted mb-4">El evento ha sido guardado correctamente.</p>
+            <div class="d-flex justify-content-center align-items-center gap-2 text-primary">
+                <div class="spinner-border spinner-border-sm" role="status"></div>
+                <span>Redirigiendo al dashboard...</span>
+            </div>
         </div>
-
         <script>
-            // Redirigir después de 2.5 segundos
-            setTimeout(function() {
-                window.location.href = 'index.php';
-            }, 2500);
+            localStorage.setItem("evt_upd", Date.now()); // Sincronizar pestañas
+            setTimeout(() => { window.location.href = "index.php"; }, 2000);
         </script>
     </body>
-    </html>
-    <?php
+    </html>';
+    exit;
 
-} else {
-    echo "<h3>Error Fatal</h3>";
-    echo "<p>No se pudo crear el evento: " . $stmt_evento->error . "</p>";
-    echo "<a href='crear_evento.php'>Volver</a>";
+} catch (Exception $e) {
+    $conn->rollback();
+    if (!empty($imagen_ruta) && file_exists("../evt_interfaz/" . $imagen_ruta)) { unlink("../evt_interfaz/" . $imagen_ruta); }
+    die("<div style='color:red; padding:20px; text-align:center;'><h1>Error Fatal</h1><p>" . $e->getMessage() . "</p><a href='javascript:history.back()'>Volver</a></div>");
 }
-
-$stmt_evento->close();
-$conn->close();
 ?>
