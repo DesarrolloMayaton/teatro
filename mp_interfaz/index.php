@@ -111,29 +111,76 @@ $conn->close();
 
     /* === ASIENTOS === */
     .seat {
-        width: 42px; height: 42px; background: #e2e8f0; color: var(--text-primary);
-        border-radius: 8px; font-size: 12px; font-weight: 700;
+        width: 48px; height: 48px; background: #e2e8f0; color: var(--text-primary);
+        border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
         display: flex; align-items: center; justify-content: center;
-        border: 2px solid transparent; cursor: pointer; user-select: none;
-        transition: transform 0.1s, box-shadow 0.1s;
+        border: 2px solid transparent; cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        padding: 2px; box-sizing: border-box; text-align: center; line-height: 1;
+        will-change: transform; box-shadow: var(--shadow-sm);
     }
-    .seat:hover { transform: scale(1.25); z-index: 10; box-shadow: var(--shadow-md); border-color: rgba(0,0,0,0.15); }
+    .seat:hover { 
+        transform: translateY(-2px) scale(1.05); 
+        box-shadow: var(--shadow-md); 
+        border-color: var(--primary-color); 
+    }
     
-    .row-wrapper { display: flex; align-items: center; justify-content: center; margin-bottom: 10px; gap: 15px; }
-    .row-label {
-        width: 35px; font-weight: 800; color: var(--text-secondary); text-align: center;
-        cursor: pointer; padding: 6px 0; border-radius: 8px; transition: all 0.2s;
+    .seat-row-wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 10px;
     }
-    .row-label:hover { background: var(--primary-color); color: white; transform: scale(1.1); }
-    .seats-group { display: flex; gap: 6px; }
-    .aisle { width: 35px; }
 
-    .pasarela-vertical {
-        position: absolute; width: 100px; background: linear-gradient(to bottom, var(--text-primary), #334155);
-        left: 50%; transform: translateX(-50%); top: 0; bottom: 0; border-radius: var(--radius-md);
-        display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.15);
-        font-weight: 900; letter-spacing: 12px; writing-mode: vertical-rl; text-orientation: upright;
-        pointer-events: none; z-index: 0;
+    .seats-block {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .pasillo {
+        width: 32px;
+    }
+
+    .row-label {
+        width: 48px; text-align: center; font-weight: 700; font-size: 1.1rem;
+        color: var(--text-secondary); border-radius: var(--radius-sm);
+        padding: 8px 0; cursor: pointer; transition: all 0.2s ease; user-select: none;
+    }
+    .row-label:hover { 
+        background-color: var(--bg-primary); 
+        color: var(--primary-color); 
+        transform: scale(1.05); 
+    }
+    .seats-group { display: flex; gap: 8px; }
+    .aisle { width: 32px; }
+
+    .pasarela-container {
+        position: relative;
+        width: 100px;
+        flex-shrink: 0;
+    }
+
+    .pasarela {
+        width: 100px;
+        background: linear-gradient(180deg, var(--text-primary) 0%, #334155 100%);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-md);
+        position: absolute;
+        top: 0;
+        left: 0;
+        box-shadow: var(--shadow-md);
+    }
+
+    .pasarela-text {
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        font-weight: 700;
+        letter-spacing: 6px;
+        font-size: 1rem;
     }
 
     /* === SIDEBAR === */
@@ -215,18 +262,18 @@ $conn->close();
                 <div style="position: relative; margin: 0 auto; width: fit-content;">
                     
                     <?php if ($evento_info['tipo'] == 2): /* PASARELA */ ?>
-                        <div class="pasarela-vertical">PASARELA</div>
+                        <div style="position: relative; display: flex; flex-direction: column;">
                         <?php for ($f=1; $f<=10; $f++): $nom="PB".$f; $n=1; ?>
-                        <div class="row-wrapper">
+                        <div class="seat-row-wrapper">
                             <div class="row-label" data-row="<?= $nom ?>"><?= $nom ?></div>
-                            <div class="seats-group">
+                            <div class="seats-block">
                                 <?php for($i=1;$i<=6;$i++): $na=$nom.'-'.$n++; $ic=$mapa_guardado[$na]??0; ?>
                                 <div class="seat" style="background-color:<?= $colores_por_id[$ic]??'#e2e8f0' ?>" 
                                      data-id="<?= $na ?>" data-cat="<?= $ic ?>"><?= $na ?></div>
                                 <?php endfor; ?>
                             </div>
-                            <div style="width: 120px; flex-shrink:0;"></div>
-                            <div class="seats-group">
+                            <div style="width: 140px; flex-shrink:0;"></div>
+                            <div class="seats-block">
                                 <?php for($i=1;$i<=6;$i++): $na=$nom.'-'.$n++; $ic=$mapa_guardado[$na]??0; ?>
                                 <div class="seat" style="background-color:<?= $colores_por_id[$ic]??'#e2e8f0' ?>" 
                                      data-id="<?= $na ?>" data-cat="<?= $ic ?>"><?= $na ?></div>
@@ -235,13 +282,19 @@ $conn->close();
                             <div class="row-label" data-row="<?= $nom ?>"><?= $nom ?></div>
                         </div>
                         <?php endfor; ?>
-                        <div style="height: 60px;"></div>
+                        
+                        <!-- Pasarela posicionada absolutamente sobre todas las filas -->
+                        <div class="pasarela" style="position: absolute; width: 100px; height: <?= (48 + 10) * 10 ?>px; top: 0; left: 50%; transform: translateX(-50%); background: linear-gradient(180deg, var(--text-primary) 0%, #334155 100%); color: #fff; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-md); box-shadow: var(--shadow-md);">
+                            <span class="pasarela-text">PASARELA</span>
+                        </div>
+                        </div>
+                        <hr style="margin-top: 20px; margin-bottom: 20px; border-width: 2px;">
                     <?php endif; ?>
 
                     <?php foreach (range('A','O') as $fila): $n=1; ?>
-                    <div class="row-wrapper">
+                    <div class="seat-row-wrapper">
                         <div class="row-label" data-row="<?= $fila ?>"><?= $fila ?></div>
-                        <div class="seats-group">
+                        <div class="seats-block">
                             <?php 
                             for($i=0;$i<6;$i++): $na=$fila.$n++; $ic=$mapa_guardado[$na]??0;
                                 echo "<div class='seat' style='background-color:".($colores_por_id[$ic]??'#e2e8f0')."' data-id='$na' data-cat='$ic'>$na</div>";
@@ -260,9 +313,9 @@ $conn->close();
                     </div>
                     <?php endforeach; ?>
                     
-                    <div class="row-wrapper">
+                    <div class="seat-row-wrapper">
                         <div class="row-label" data-row="P">P</div>
-                        <div class="seats-group">
+                        <div class="seats-block">
                             <?php $n=1; for($i=0;$i<30;$i++): $na='P'.$n++; $ic=$mapa_guardado[$na]??0; ?>
                             <div class="seat" style="background-color:<?= $colores_por_id[$ic]??'#e2e8f0' ?>" data-id="<?= $na ?>" data-cat="<?= $ic ?>"><?= $na ?></div>
                             <?php endfor; ?>
