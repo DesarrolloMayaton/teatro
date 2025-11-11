@@ -143,7 +143,7 @@ function aplicarDescuento() {
 
 // Calcular descuento para un item
 function calcularDescuentoItem(item) {
-    if (!descuentoSeleccionado) return 0;
+    if (!descuentoSeleccionado || !item.descuentoAplicado) return 0;
 
     // Si el descuento es para una categoría específica, verificar
     if (descuentoSeleccionado.id_categoria && 
@@ -210,6 +210,15 @@ function removerDelCarrito(asientoId) {
         seatElement.classList.remove('selected');
     }
 
+    // Si el carrito queda vacío, resetear descuento
+    if (carrito.length === 0) {
+        descuentoSeleccionado = null;
+        const selectDescuento = document.getElementById('selectDescuento');
+        if (selectDescuento) selectDescuento.value = '';
+        const descuentoInfo = document.getElementById('descuentoInfo');
+        if (descuentoInfo) descuentoInfo.textContent = '';
+    }
+
     actualizarCarrito();
 }
 
@@ -223,8 +232,21 @@ function actualizarCarrito() {
         carritoContainer.innerHTML = '<div class="carrito-vacio">No hay asientos seleccionados</div>';
         totalElement.textContent = '$0.00';
         btnPagar.disabled = true;
+        
+        // Resetear descuento cuando el carrito está vacío
+        descuentoSeleccionado = null;
+        const selectDescuento = document.getElementById('selectDescuento');
+        if (selectDescuento) selectDescuento.value = '';
+        const descuentoInfo = document.getElementById('descuentoInfo');
+        if (descuentoInfo) descuentoInfo.textContent = '';
+        
+        // Mostrar botones de acciones cuando no hay asientos seleccionados
+        mostrarBotonesAcciones(true);
         return;
     }
+    
+    // Ocultar botones de acciones cuando hay asientos seleccionados
+    mostrarBotonesAcciones(false);
 
     let html = '';
     let subtotal = 0;
@@ -240,11 +262,11 @@ function actualizarCarrito() {
         html += `
             <div class="carrito-item">
                 <div class="asiento-info">
-                    <strong>${item.asiento}</strong><br>
-                    <small>${item.categoria}</small><br>
-                    <span class="text-success">$${item.precio.toFixed(2)}</span>
-                    ${descuentoItem > 0 ? `<br><small class="text-danger">-$${descuentoItem.toFixed(2)}</small>` : ''}
-                    ${descuentoItem > 0 ? `<br><strong class="text-primary">$${precioFinal.toFixed(2)}</strong>` : ''}
+                    <strong>${item.asiento}</strong>
+                    <small style="display: block;">${item.categoria}</small>
+                    <span class="text-success" style="font-size: 0.9rem;">$${item.precio.toFixed(2)}</span>
+                    ${descuentoItem > 0 ? `<small class="text-danger" style="display: block;">-$${descuentoItem.toFixed(2)}</small>` : ''}
+                    ${descuentoItem > 0 ? `<strong class="text-primary" style="font-size: 0.9rem;">$${precioFinal.toFixed(2)}</strong>` : ''}
                 </div>
                 <button class="btn-remove" onclick="removerDelCarrito('${item.asiento}')">
                     <i class="bi bi-x"></i>
@@ -632,3 +654,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // Inicializar estadísticas
     actualizarEstadisticas();
 });
+
+// Función para mostrar/ocultar botones de acciones según el estado del carrito
+function mostrarBotonesAcciones(mostrar) {
+    // Seleccionar los botones que queremos ocultar cuando hay asientos en el carrito
+    const btnEscanerQR = document.querySelector('.acciones-rapidas .btn-primary');
+    const btnCancelarBoleto = document.querySelector('.acciones-rapidas .btn-danger');
+    const btnCategorias = document.querySelector('.acciones-rapidas .btn-warning');
+    
+    if (mostrar) {
+        // Mostrar los botones
+        if (btnEscanerQR) btnEscanerQR.style.display = '';
+        if (btnCancelarBoleto) btnCancelarBoleto.style.display = '';
+        if (btnCategorias) btnCategorias.style.display = '';
+    } else {
+        // Ocultar los botones
+        if (btnEscanerQR) btnEscanerQR.style.display = 'none';
+        if (btnCancelarBoleto) btnCancelarBoleto.style.display = 'none';
+        if (btnCategorias) btnCategorias.style.display = 'none';
+    }
+}

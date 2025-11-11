@@ -98,6 +98,7 @@ $conn->close();
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="css/carrito.css">
+<link rel="stylesheet" href="css/descuentos-modal.css">
 <link rel="stylesheet" href="css/notifications.css">
 <link rel="stylesheet" href="css/animations.css">
 <link rel="stylesheet" href="css/menu-mejoras.css">
@@ -798,7 +799,7 @@ hr {
 
 /* Contenedor de items del carrito con scroll */
 .carrito-items-container {
-  max-height: 250px;
+  max-height: 400px;
   overflow-y: auto;
   overflow-x: hidden;
   margin-bottom: 16px;
@@ -1892,6 +1893,8 @@ hr {
 
 <script src="js/notifications.js"></script>
 <script src="js/carrito.js?v=5"></script>
+<script src="js/carrito-patch.js"></script>
+<script src="js/descuentos-modal.js"></script>
 <script src="js/escaner_qr.js"></script>
 <script src="js/menu-mejoras.js?v=1"></script>
 <script src="js/seleccion-multiple.js?v=1"></script>
