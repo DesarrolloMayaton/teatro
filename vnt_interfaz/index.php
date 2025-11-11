@@ -1830,6 +1830,64 @@ hr {
         // Re-escalar el mapa después de cambiar la visibilidad
         setTimeout(escalarMapa, 100);
     }
+    
+    // ==================================================================
+    // ACTUALIZACIÓN AUTOMÁTICA DEL SELECTOR DE EVENTOS
+    // ==================================================================
+    
+    // Función para actualizar el selector de eventos sin recargar la página
+    async function actualizarSelectorEventos() {
+        try {
+            const response = await fetch('obtener_eventos.php');
+            const data = await response.json();
+            
+            if (data.success) {
+                const selectEvento = document.querySelector('select[name="id_evento"]');
+                if (!selectEvento) return;
+                
+                const eventoActual = selectEvento.value;
+                const eventosActuales = Array.from(selectEvento.options).map(opt => opt.value);
+                const eventosNuevos = data.eventos.map(e => e.id_evento.toString());
+                
+                // Verificar si hay cambios
+                const hayNuevos = eventosNuevos.some(id => !eventosActuales.includes(id));
+                const hayEliminados = eventosActuales.some(id => id && !eventosNuevos.includes(id));
+                
+                if (hayNuevos || hayEliminados) {
+                    // Reconstruir el selector
+                    selectEvento.innerHTML = '<option value="">Seleccionar evento...</option>';
+                    
+                    data.eventos.forEach(evento => {
+                        const option = document.createElement('option');
+                        option.value = evento.id_evento;
+                        option.textContent = `${evento.titulo} • ${evento.tipo == 1 ? 'Teatro 420' : 'Pasarela 540'}`;
+                        if (evento.id_evento.toString() === eventoActual) {
+                            option.selected = true;
+                        }
+                        selectEvento.appendChild(option);
+                    });
+                    
+                    // Mostrar notificación si hay eventos nuevos
+                    if (hayNuevos && typeof notify !== 'undefined') {
+                        notify.success('Nuevos eventos disponibles');
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error al actualizar eventos:', error);
+        }
+    }
+    
+    // Escuchar cambios en localStorage (cuando se crea un evento desde otra pestaña)
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'evt_upd') {
+            console.log('Evento creado detectado, actualizando selector...');
+            actualizarSelectorEventos();
+        }
+    });
+    
+    // Polling cada 30 segundos para detectar cambios (por si acaso)
+    setInterval(actualizarSelectorEventos, 30000);
 </script>
 
 <script src="js/notifications.js"></script>

@@ -119,12 +119,76 @@ try {
 
     $colores = ['General' => '#808080', 'Discapacitado' => '#2563eb'];
     $stmt_c = $conn->prepare("INSERT INTO categorias (id_evento, nombre_categoria, precio, color) VALUES (?, ?, ?, ?)");
+    $id_categoria_general = null;
     foreach ($_POST['precios'] as $nombre => $precio) {
         $color = $colores[$nombre] ?? '#000000'; $precio_float = floatval($precio);
         $stmt_c->bind_param("isds", $id_nuevo, $nombre, $precio_float, $color);
         if (!$stmt_c->execute()) { throw new Exception("Error al guardar categoría."); }
+        // Guardar el ID de la categoría General
+        if ($nombre === 'General') {
+            $id_categoria_general = $conn->insert_id;
+        }
     }
     $stmt_c->close();
+
+    // ==================================================================
+    // 7. CREAR MAPA JSON CON TODOS LOS ASIENTOS ASIGNADOS A "GENERAL"
+    // ==================================================================
+    if ($id_categoria_general) {
+        $mapa_asientos = [];
+        
+        // Generar todos los asientos según el tipo de escenario
+        if ($tipo == 2) {
+            // PASARELA 540: PB + Teatro
+            // Filas PB (10 filas, 12 asientos cada una)
+            for ($fila = 1; $fila <= 10; $fila++) {
+                for ($asiento = 1; $asiento <= 12; $asiento++) {
+                    $nombre_asiento = "PB" . $fila . "-" . $asiento;
+                    $mapa_asientos[$nombre_asiento] = $id_categoria_general;
+                }
+            }
+            
+            // Filas A-O (15 filas, 26 asientos cada una)
+            $letras = range('A', 'O');
+            foreach ($letras as $letra) {
+                for ($asiento = 1; $asiento <= 26; $asiento++) {
+                    $nombre_asiento = $letra . $asiento;
+                    $mapa_asientos[$nombre_asiento] = $id_categoria_general;
+                }
+            }
+            
+            // Fila P (30 asientos)
+            for ($asiento = 1; $asiento <= 30; $asiento++) {
+                $nombre_asiento = "P" . $asiento;
+                $mapa_asientos[$nombre_asiento] = $id_categoria_general;
+            }
+        } elseif ($tipo == 1) {
+            // TEATRO 420: Solo filas A-O + P
+            // Filas A-O (15 filas, 26 asientos cada una)
+            $letras = range('A', 'O');
+            foreach ($letras as $letra) {
+                for ($asiento = 1; $asiento <= 26; $asiento++) {
+                    $nombre_asiento = $letra . $asiento;
+                    $mapa_asientos[$nombre_asiento] = $id_categoria_general;
+                }
+            }
+            
+            // Fila P (30 asientos)
+            for ($asiento = 1; $asiento <= 30; $asiento++) {
+                $nombre_asiento = "P" . $asiento;
+                $mapa_asientos[$nombre_asiento] = $id_categoria_general;
+            }
+        }
+        
+        // Guardar el mapa JSON en la base de datos
+        $mapa_json = json_encode($mapa_asientos);
+        $stmt_mapa = $conn->prepare("UPDATE evento SET mapa_json = ? WHERE id_evento = ?");
+        $stmt_mapa->bind_param("si", $mapa_json, $id_nuevo);
+        if (!$stmt_mapa->execute()) {
+            throw new Exception("Error al guardar el mapa de asientos.");
+        }
+        $stmt_mapa->close();
+    }
 
     $conn->commit();
 
