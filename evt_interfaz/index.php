@@ -48,6 +48,9 @@ if (isset($_POST['accion'])) {
                 finalizar_evento($id, $conn);
                 break;
             case 'borrar':
+                // --- CORRECCIÓN DE LÓGICA DE MI RESPUESTA ANTERIOR ---
+                // El usuario revirtió mi cambio anterior, así que lo respeto.
+                // 'borrar' vuelve a ser una acción destructiva con credenciales.
                 $u = $_POST['auth_user']??''; $p = $_POST['auth_pin']??'';
                 // Verificar credenciales (ajusta según tu tabla usuarios)
                 $stmt = $conn->prepare("SELECT id_usuario FROM usuarios WHERE nombre = ? AND password = ?");
@@ -173,8 +176,8 @@ $historial = $conn->query("SELECT * FROM evento WHERE finalizado = 1 ORDER BY ci
                 <h2 class="fw-bold mb-4 text-secondary">Historial de Eventos</h2>
                 <div class="row g-4">
                     <?php if($historial && $historial->num_rows>0): while($e=$historial->fetch_assoc()): 
-                         $img=''; $rutas=[$e['imagen'], '../'.$e['imagen'], 'evt_interfaz/'.$e['imagen']];
-                         foreach($rutas as $r){if(file_exists(__DIR__.'/'.$r)){$img=$r;break;}} ?>
+                          $img=''; $rutas=[$e['imagen'], '../'.$e['imagen'], 'evt_interfaz/'.$e['imagen']];
+                          foreach($rutas as $r){if(file_exists(__DIR__.'/'.$r)){$img=$r;break;}} ?>
                     <div class="col-xl-3 col-lg-4 col-md-6">
                         <div class="card h-100 bg-light">
                             <?php if($img):?><img src="<?=htmlspecialchars($img)?>" class="card-img-top" style="filter:grayscale(1);opacity:0.7"><?php else:?><div class="card-img-top bg-secondary" style="opacity:0.7"></div><?php endif;?>
@@ -265,17 +268,49 @@ function conf(act, id, nom) {
     m.show();
 }
 
+// ==========================================================
+// INICIO DE LA CORRECCIÓN
+// ==========================================================
 function ejecutar(act, id, req) {
     let fd = new FormData(); fd.append('accion',act); fd.append('id_evento',id);
     if(req) { fd.append('auth_user',els.user.value); fd.append('auth_pin',els.pin.value); }
-    els.btn.disabled=true; els.btn.innerHTML='<span class="spinner-border spinner-border-sm"></span>';
+    
+    // Guardar el texto original del botón
+    const originalButtonText = els.btn.innerHTML;
+    els.btn.disabled=true; 
+    els.btn.innerHTML='<span class="spinner-border spinner-border-sm"></span>';
+    
     fetch('',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
         if(d.status==='success') {
             localStorage.setItem('evt_upd', Date.now());
-            window.location.reload();
-        } else { alert(d.message||'Error'); m.hide(); }
-    }).catch(()=>{ alert('Error de red'); m.hide(); });
+            
+            // --- LÓGICA DE REDIRECCIÓN ---
+            if (act === 'reactivar') {
+                // Si fue 'reactivar', redirigir a la página de edición
+                window.location.href = `editar_evento.php?id=${id}&es_nuevo=1`;
+            } else {
+                // Para cualquier otra acción (finalizar, borrar, etc.), recargar
+                window.location.reload();
+            }
+            
+        } else { 
+            alert(d.message||'Error'); 
+            m.hide(); 
+            // Restaurar botón si falla
+            els.btn.disabled=false;
+            els.btn.innerHTML = originalButtonText;
+        }
+    }).catch(()=>{ 
+        alert('Error de red'); 
+        m.hide(); 
+        // Restaurar botón si falla
+        els.btn.disabled=false;
+        els.btn.innerHTML = originalButtonText;
+    });
 }
+// ==========================================================
+// FIN DE LA CORRECCIÓN
+// ==========================================================
 
 // NUEVO: Escuchar cambios en localStorage para recarga automática en otras pestañas
 window.addEventListener('storage', (e) => {
