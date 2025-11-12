@@ -10,7 +10,7 @@ $TABLE_PROMOCIONES = 'promociones';
 $TABLE_ASIENTOS = 'asientos';
 
 // ---------- CONEXIÓN ----------
-include_once _DIR_ . '/../../evt_interfaz/conexion.php';
+include_once __DIR__ . '/../../evt_interfaz/conexion.php';
 
 /** Ejecuta SELECT y devuelve array assoc (mysqli o PDO) */
 function exec_query($sql) {
