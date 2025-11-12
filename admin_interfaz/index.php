@@ -85,7 +85,7 @@
 <body>
 
     <nav class="menu-admin" id="menuAdmin">
-        <a class="menu-item" href="inicio.php" target="contentFrame">
+        <a class="menu-item" href="inicio/inicio.php" target="contentFrame">
             <i class="bi bi-house-door"></i> Inicio
         </a>
     
@@ -105,7 +105,7 @@
     <div class="contenido-admin">
         <header>Panel de Administración</header>
 
-        <iframe class="content-frame" name="contentFrame" id="contentFrame" src="inicio.php">
+        <iframe class="content-frame" name="contentFrame" id="contentFrame" src="inicio/inicio.php">
             Tu navegador no soporta iframes.
         </iframe>
     </div>
@@ -123,7 +123,7 @@
         });
 
         // Activar el link de "Inicio" por defecto al cargar la página
-        document.querySelector('nav.menu-admin a.menu-item[href="inicio.php"]').classList.add('active');
+        document.querySelector('nav.menu-admin a.menu-item[href="inicio/inicio.php"]').classList.add('active');
     </script>
 
 </body>
