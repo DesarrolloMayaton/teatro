@@ -14,14 +14,14 @@ if ($id_evento <= 0) {
 $check_column = $conn->query("SHOW COLUMNS FROM boletos LIKE 'id_funcion'");
 $has_id_funcion = ($check_column && $check_column->num_rows > 0);
 
-// Obtener asientos vendidos
+// Obtener asientos vendidos (solo los activos, estatus = 1)
 if ($has_id_funcion && $id_funcion > 0) {
     // Si existe id_funcion y se proporcionó, filtrar por función
     $stmt = $conn->prepare("
         SELECT a.codigo_asiento 
         FROM boletos b
         INNER JOIN asientos a ON b.id_asiento = a.id_asiento
-        WHERE b.id_evento = ? AND b.id_funcion = ?
+        WHERE b.id_evento = ? AND b.id_funcion = ? AND b.estatus = 1
     ");
     $stmt->bind_param("ii", $id_evento, $id_funcion);
 } else {
@@ -30,7 +30,7 @@ if ($has_id_funcion && $id_funcion > 0) {
         SELECT a.codigo_asiento 
         FROM boletos b
         INNER JOIN asientos a ON b.id_asiento = a.id_asiento
-        WHERE b.id_evento = ?
+        WHERE b.id_evento = ? AND b.estatus = 1
     ");
     $stmt->bind_param("i", $id_evento);
 }

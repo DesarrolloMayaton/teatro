@@ -1,3 +1,32 @@
+<?php
+session_start();
+
+// Verificar que hay sesión activa
+if (!isset($_SESSION['usuario_id'])) {
+    die('<html><body style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; background: #f4f7f6; color: #e74c3c; font-size: 1.2em;">
+    <div style="text-align: center;">
+        <i class="bi bi-lock-fill" style="font-size: 3em;"></i>
+        <p>Acceso denegado. Debe iniciar sesión.</p>
+    </div>
+    </body></html>');
+}
+
+// Verificar acceso al panel de administración
+// Si es admin de rol, acceso directo
+// Si es empleado, debe haber verificado con contraseña del admin
+if ($_SESSION['usuario_rol'] !== 'admin') {
+    // Es empleado, verificar que haya ingresado contraseña del admin
+    if (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado']) {
+        die('<html><body style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; background: #f4f7f6; color: #e74c3c; font-size: 1.2em;">
+        <div style="text-align: center;">
+            <i class="bi bi-shield-lock-fill" style="font-size: 3em;"></i>
+            <p>Acceso denegado. Requiere verificación de administrador.</p>
+            <button onclick="window.parent.location.href=\'/teatro/index.php\'" style="margin-top: 20px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1em;">Volver al Sistema</button>
+        </div>
+        </body></html>');
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>

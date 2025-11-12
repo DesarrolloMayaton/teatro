@@ -17,7 +17,7 @@ function convertirTexto($texto) {
 
 $codigo_unico = $_GET['codigo'];
 
-// Obtener información del boleto
+// Obtener información del boleto (solo boletos activos con estatus = 1)
 $stmt = $conn->prepare("
     SELECT 
         b.codigo_unico,
@@ -30,7 +30,7 @@ $stmt = $conn->prepare("
     INNER JOIN asientos a ON b.id_asiento = a.id_asiento
     INNER JOIN evento e ON b.id_evento = e.id_evento
     INNER JOIN categorias c ON b.id_categoria = c.id_categoria
-    WHERE b.codigo_unico = ?
+    WHERE b.codigo_unico = ? AND b.estatus = 1
 ");
 
 $stmt->bind_param("s", $codigo_unico);

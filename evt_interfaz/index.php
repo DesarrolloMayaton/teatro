@@ -2,25 +2,22 @@
 include "../conexion.php";
 
 // ==================================================================
-// CONFIGURACIÓN DE BASES DE DATOS
-// ==================================================================
-define('DB_MAIN', 'trt_25');
-define('DB_HIST', 'trt_historico');
-
-// ==================================================================
-// FUNCIONES DE GESTIÓN (HISTORIAL Y REACTIVACIÓN)
+// FUNCIONES DE GESTIÓN
 // ==================================================================
 
-function mover_a_historial($id_evento, $conn) {
-    // 1. Copiar a historial
-    $tablas = ['evento', 'funciones', 'categorias', 'promociones', 'boletos'];
-    foreach ($tablas as $tabla) {
-        $conn->query("INSERT IGNORE INTO " . DB_HIST . ".$tabla SELECT * FROM " . DB_MAIN . ".$tabla WHERE id_evento = $id_evento");
-    }
-    $conn->query("UPDATE " . DB_HIST . ".evento SET finalizado=1 WHERE id_evento = $id_evento");
+function finalizar_evento($id_evento, $conn) {
+    // Marcar evento como finalizado
+    $conn->query("UPDATE evento SET finalizado = 1 WHERE id_evento = $id_evento");
+}
 
-    // 2. Borrar QR físicos
-    $res_qrs = $conn->query("SELECT qr_path FROM " . DB_MAIN . ".boletos WHERE id_evento = $id_evento");
+function reactivar_evento($id_evento, $conn) {
+    // Reactivar evento (cambiar finalizado a 0)
+    $conn->query("UPDATE evento SET finalizado = 0, inicio_venta = NOW(), cierre_venta = NOW() + INTERVAL 30 DAY WHERE id_evento = $id_evento");
+}
+
+function borrar_evento($id_evento, $conn) {
+    // Borrar QR físicos
+    $res_qrs = $conn->query("SELECT qr_path FROM boletos WHERE id_evento = $id_evento");
     if ($res_qrs) {
         while ($row = $res_qrs->fetch_assoc()) {
             if (!empty($row['qr_path'])) {
@@ -30,42 +27,12 @@ function mover_a_historial($id_evento, $conn) {
         }
     }
 
-    // 3. Eliminar de principal
-    $conn->query("DELETE FROM " . DB_MAIN . ".boletos WHERE id_evento = $id_evento");
-    $conn->query("DELETE FROM " . DB_MAIN . ".promociones WHERE id_evento = $id_evento");
-    $conn->query("DELETE FROM " . DB_MAIN . ".categorias WHERE id_evento = $id_evento");
-    $conn->query("DELETE FROM " . DB_MAIN . ".funciones WHERE id_evento = $id_evento");
-    $conn->query("DELETE FROM " . DB_MAIN . ".evento WHERE id_evento = $id_evento");
-}
-
-function reactivar_copia($id_historial, $conn) {
-    $res = $conn->query("SELECT * FROM " . DB_HIST . ".evento WHERE id_evento = $id_historial");
-    if ($evt = $res->fetch_assoc()) {
-        // Verificación anti-duplicados
-        $check = $conn->prepare("SELECT id_evento FROM " . DB_MAIN . ".evento WHERE titulo = ? AND finalizado = 0");
-        $check->bind_param("s", $evt['titulo']); $check->execute(); $check->store_result();
-        if ($check->num_rows > 0) throw new Exception("Ya existe un evento activo con ese título.");
-        $check->close();
-
-        // Insertar nuevo (fechas futuras por defecto)
-        $stmt = $conn->prepare("INSERT INTO " . DB_MAIN . ".evento (titulo, descripcion, imagen, tipo, inicio_venta, cierre_venta, finalizado, mapa_json) VALUES (?, ?, ?, ?, NOW() + INTERVAL 1 DAY, NOW() + INTERVAL 30 DAY, 0, ?)");
-        $stmt->bind_param("sssis", $evt['titulo'], $evt['descripcion'], $evt['imagen'], $evt['tipo'], $evt['mapa_json']);
-        
-        if ($stmt->execute()) {
-            $nuevo_id = $conn->insert_id;
-            $stmt->close();
-            // Copiar categorías
-            $res_cat = $conn->query("SELECT * FROM " . DB_HIST . ".categorias WHERE id_evento = $id_historial");
-            $stmt_cat = $conn->prepare("INSERT INTO " . DB_MAIN . ".categorias (id_evento, nombre_categoria, precio, color) VALUES (?, ?, ?, ?)");
-            while ($cat = $res_cat->fetch_assoc()) {
-                $stmt_cat->bind_param("isds", $nuevo_id, $cat['nombre_categoria'], $cat['precio'], $cat['color']);
-                $stmt_cat->execute();
-            }
-            $stmt_cat->close();
-            return $nuevo_id;
-        }
-    }
-    return false;
+    // Eliminar registros relacionados
+    $conn->query("DELETE FROM boletos WHERE id_evento = $id_evento");
+    $conn->query("DELETE FROM promociones WHERE id_evento = $id_evento");
+    $conn->query("DELETE FROM categorias WHERE id_evento = $id_evento");
+    $conn->query("DELETE FROM funciones WHERE id_evento = $id_evento");
+    $conn->query("DELETE FROM evento WHERE id_evento = $id_evento");
 }
 
 // ==================================================================
@@ -78,24 +45,24 @@ if (isset($_POST['accion'])) {
     try {
         switch($_POST['accion']) {
             case 'finalizar':
-                mover_a_historial($id, $conn);
+                finalizar_evento($id, $conn);
                 break;
             case 'borrar':
                 $u = $_POST['auth_user']??''; $p = $_POST['auth_pin']??'';
-                if($conn->query("SELECT id_usuario FROM ".DB_MAIN.".usuario WHERE nombre='$u' AND pin='$p'")->num_rows===0) throw new Exception("Credenciales incorrectas");
-                mover_a_historial($id, $conn);
+                // Verificar credenciales (ajusta según tu tabla usuarios)
+                $stmt = $conn->prepare("SELECT id_usuario FROM usuarios WHERE nombre = ? AND password = ?");
+                $stmt->bind_param("ss", $u, $p);
+                $stmt->execute();
+                $stmt->store_result();
+                if($stmt->num_rows === 0) throw new Exception("Credenciales incorrectas");
+                $stmt->close();
+                borrar_evento($id, $conn);
                 break;
             case 'reactivar':
-                $nid = reactivar_copia($id, $conn);
-                if($nid) { $conn->commit(); echo json_encode(['status'=>'success', 'new_id'=>$nid]); exit; }
-                else throw new Exception("Error al reactivar.");
+                reactivar_evento($id, $conn);
                 break;
             case 'borrar_permanente':
-                $conn->query("DELETE FROM ".DB_HIST.".boletos WHERE id_evento=$id");
-                $conn->query("DELETE FROM ".DB_HIST.".promociones WHERE id_evento=$id");
-                $conn->query("DELETE FROM ".DB_HIST.".categorias WHERE id_evento=$id");
-                $conn->query("DELETE FROM ".DB_HIST.".funciones WHERE id_evento=$id");
-                $conn->query("DELETE FROM ".DB_HIST.".evento WHERE id_evento=$id");
+                borrar_evento($id, $conn);
                 break;
         }
         $conn->commit();
@@ -110,12 +77,12 @@ if (isset($_POST['accion'])) {
 // ==================================================================
 // CARGA DE DATOS
 // ==================================================================
-// Auto-mover vencidos
-$rv = $conn->query("SELECT e.id_evento FROM ".DB_MAIN.".evento e LEFT JOIN (SELECT id_evento, MAX(fecha_hora) as ult FROM ".DB_MAIN.".funciones GROUP BY id_evento) lf ON e.id_evento = lf.id_evento WHERE e.finalizado=0 AND ((lf.ult IS NOT NULL AND lf.ult < NOW()) OR (lf.ult IS NULL AND e.cierre_venta < NOW()))");
-if($rv){ while($r=$rv->fetch_assoc()){ mover_a_historial($r['id_evento'], $conn); }}
+// Auto-finalizar eventos vencidos
+$rv = $conn->query("SELECT e.id_evento FROM evento e LEFT JOIN (SELECT id_evento, MAX(fecha_hora) as ult FROM funciones GROUP BY id_evento) lf ON e.id_evento = lf.id_evento WHERE e.finalizado=0 AND ((lf.ult IS NOT NULL AND lf.ult < NOW()) OR (lf.ult IS NULL AND e.cierre_venta < NOW()))");
+if($rv){ while($r=$rv->fetch_assoc()){ finalizar_evento($r['id_evento'], $conn); }}
 
-$activos = $conn->query("SELECT * FROM ".DB_MAIN.".evento ORDER BY inicio_venta DESC");
-$historial = $conn->query("SELECT * FROM ".DB_HIST.".evento ORDER BY cierre_venta DESC");
+$activos = $conn->query("SELECT * FROM evento WHERE finalizado = 0 ORDER BY inicio_venta DESC");
+$historial = $conn->query("SELECT * FROM evento WHERE finalizado = 1 ORDER BY cierre_venta DESC");
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -304,10 +271,8 @@ function ejecutar(act, id, req) {
     els.btn.disabled=true; els.btn.innerHTML='<span class="spinner-border spinner-border-sm"></span>';
     fetch('',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
         if(d.status==='success') {
-            // NUEVO: Guardar marca de tiempo en localStorage para que otras pestañas se recarguen
             localStorage.setItem('evt_upd', Date.now());
-            if(act==='reactivar' && d.new_id) window.location.href='editar_evento.php?id='+d.new_id+'&es_nuevo=1';
-            else window.location.reload();
+            window.location.reload();
         } else { alert(d.message||'Error'); m.hide(); }
     }).catch(()=>{ alert('Error de red'); m.hide(); });
 }

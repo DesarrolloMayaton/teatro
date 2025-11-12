@@ -2,9 +2,11 @@
 let html5QrCode = null;
 let modalEscaner = null;
 let modalBoletoInfo = null;
+let modoCancelacion = false; // Variable para controlar el modo de cancelación
 
 // Abrir el escáner QR
 function abrirEscanerQR() {
+    modoCancelacion = false; // Modo normal
     modalEscaner = new bootstrap.Modal(document.getElementById('modalEscanerQR'));
     modalEscaner.show();
     
@@ -16,6 +18,7 @@ function abrirEscanerQR() {
     // Detener escáner cuando se cierre el modal
     document.getElementById('modalEscanerQR').addEventListener('hidden.bs.modal', function () {
         detenerEscaner();
+        modoCancelacion = false; // Resetear modo
     }, { once: true });
 }
 
@@ -75,8 +78,20 @@ function onScanSuccess(decodedText, decodedResult) {
     // Cerrar modal del escáner
     modalEscaner.hide();
     
-    // Buscar información del boleto
-    buscarBoleto(decodedText);
+    // Verificar si estamos en modo cancelación
+    if (modoCancelacion) {
+        // Abrir modal de cancelación y llenar el código
+        setTimeout(() => {
+            const modalCancelar = new bootstrap.Modal(document.getElementById('modalCancelarBoleto'));
+            modalCancelar.show();
+            document.getElementById('inputCodigoBoleto').value = decodedText;
+            // Disparar el evento input para buscar el boleto
+            document.getElementById('inputCodigoBoleto').dispatchEvent(new Event('input'));
+        }, 300);
+    } else {
+        // Modo normal: buscar información del boleto
+        buscarBoleto(decodedText);
+    }
 }
 
 // Manejo de errores del escáner (se ejecuta constantemente, no mostrar)

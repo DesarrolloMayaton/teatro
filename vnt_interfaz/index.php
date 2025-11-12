@@ -98,6 +98,7 @@ $conn->close();
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="css/carrito.css">
+<link rel="stylesheet" href="css/descuentos-modal.css">
 <link rel="stylesheet" href="css/notifications.css">
 <link rel="stylesheet" href="css/animations.css">
 <link rel="stylesheet" href="css/menu-mejoras.css">
@@ -798,7 +799,7 @@ hr {
 
 /* Contenedor de items del carrito con scroll */
 .carrito-items-container {
-  max-height: 250px;
+  max-height: 400px;
   overflow-y: auto;
   overflow-x: hidden;
   margin-bottom: 16px;
@@ -1346,18 +1347,13 @@ hr {
                 <i class="bi bi-qr-code-scan"></i> Escanear Boleto QR
             </button>
             
-            <div class="row g-2 mb-2">
-                <div class="col-6">
-                    <button class="btn btn-info w-100" onclick="verAsientosVendidos()">
-                        <i class="bi bi-eye"></i> Ver Vendidos
-                    </button>
-                </div>
-                <div class="col-6">
-                    <button class="btn btn-warning w-100" onclick="verCategorias()">
-                        <i class="bi bi-palette"></i> Categorías
-                    </button>
-                </div>
-            </div>
+            <button class="btn btn-danger w-100 mb-2" onclick="abrirCancelarBoleto()">
+                <i class="bi bi-x-circle"></i> Cancelar/Devolver Boleto
+            </button>
+            
+            <button class="btn btn-warning w-100 mb-2" onclick="verCategorias()">
+                <i class="bi bi-palette"></i> Categorías
+            </button>
             
             <!-- Selección Múltiple -->
             <div class="alert alert-info p-2 mb-2" style="font-size: 0.85rem;">
@@ -1497,6 +1493,57 @@ hr {
     </div>
   </div>
 </div>
+
+<!-- Modal Cancelar/Devolver Boleto -->
+<div class="modal fade" id="modalCancelarBoleto" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title">
+          <i class="bi bi-x-circle"></i> Cancelar/Devolver Boleto
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning">
+          <i class="bi bi-exclamation-triangle"></i>
+          <strong>Atención:</strong> Esta acción cancelará el boleto y liberará el asiento para nueva venta.
+        </div>
+        
+        <div class="mb-3">
+          <label for="inputCodigoBoleto" class="form-label">
+            <i class="bi bi-ticket-perforated"></i> Código del Boleto
+          </label>
+          <input type="text" class="form-control" id="inputCodigoBoleto" placeholder="Ingrese el código del boleto" autocomplete="off">
+          <small class="text-muted">Puede escanear el código QR o ingresarlo manualmente</small>
+        </div>
+        
+        <button class="btn btn-outline-primary w-100 mb-3" onclick="escanearParaCancelar()">
+          <i class="bi bi-qr-code-scan"></i> Escanear Código QR
+        </button>
+        
+        <div id="infoBoletoACancelar" style="display: none;">
+          <hr>
+          <h6 class="mb-3">Información del Boleto:</h6>
+          <div class="card bg-light">
+            <div class="card-body">
+              <p class="mb-2"><strong>Asiento:</strong> <span id="cancelarAsiento"></span></p>
+              <p class="mb-2"><strong>Categoría:</strong> <span id="cancelarCategoria"></span></p>
+              <p class="mb-2"><strong>Precio:</strong> <span id="cancelarPrecio" class="text-success"></span></p>
+              <p class="mb-0"><strong>Fecha de compra:</strong> <span id="cancelarFecha"></span></p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-danger" id="btnConfirmarCancelacion" onclick="confirmarCancelacion()" disabled>
+          <i class="bi bi-trash"></i> Confirmar Cancelación
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
@@ -1507,6 +1554,9 @@ hr {
     // --- MODIFICADO: Pasamos el ID real de "General" a JavaScript ---
     const DEFAULT_CAT_ID = <?= $id_categoria_general ?? 0 ?>;
     
+    // Variable global para almacenar datos del boleto a cancelar
+    let boletoACancelar = null;
+    
     // Función para cambiar evento con indicador de carga
     function cambiarEvento(select) {
         const idEvento = select.value;
@@ -1516,6 +1566,209 @@ hr {
         if (loading) loading.style.display = 'block';
         
         select.form.submit();
+    }
+    
+    // Función para abrir el modal de cancelar boleto
+    function abrirCancelarBoleto() {
+        const modal = new bootstrap.Modal(document.getElementById('modalCancelarBoleto'));
+        document.getElementById('inputCodigoBoleto').value = '';
+        document.getElementById('infoBoletoACancelar').style.display = 'none';
+        document.getElementById('btnConfirmarCancelacion').disabled = true;
+        boletoACancelar = null;
+        modal.show();
+    }
+    
+    // Función para buscar boleto por código (con debounce para evitar múltiples llamadas)
+    let timeoutBusqueda = null;
+    document.getElementById('inputCodigoBoleto')?.addEventListener('input', function(e) {
+        const codigo = e.target.value.trim();
+        
+        // Limpiar timeout anterior
+        if (timeoutBusqueda) {
+            clearTimeout(timeoutBusqueda);
+        }
+        
+        if (codigo.length >= 8) {
+            // Esperar 500ms antes de buscar (debounce)
+            timeoutBusqueda = setTimeout(() => {
+                console.log('Buscando boleto con código:', codigo);
+                buscarBoletoPorCodigo(codigo);
+            }, 500);
+        } else {
+            document.getElementById('infoBoletoACancelar').style.display = 'none';
+            document.getElementById('btnConfirmarCancelacion').disabled = true;
+            boletoACancelar = null;
+        }
+    });
+    
+    // Función para buscar boleto en la base de datos
+    function buscarBoletoPorCodigo(codigo) {
+        console.log('Enviando petición para buscar boleto:', codigo);
+        
+        fetch('buscar_boleto.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'codigo=' + encodeURIComponent(codigo) + '&id_evento=<?= $id_evento_seleccionado ?>'
+        })
+        .then(response => {
+            console.log('Respuesta recibida:', response.status);
+            return response.text();
+        })
+        .then(text => {
+            console.log('Texto de respuesta:', text);
+            try {
+                const data = JSON.parse(text);
+                console.log('Datos parseados:', data);
+                
+                if (data.success) {
+                    mostrarInfoBoletoParaCancelar(data.boleto);
+                } else {
+                    document.getElementById('infoBoletoACancelar').style.display = 'none';
+                    document.getElementById('btnConfirmarCancelacion').disabled = true;
+                    boletoACancelar = null;
+                    if (data.message && typeof notify !== 'undefined') {
+                        notify.error(data.message);
+                    }
+                }
+            } catch (e) {
+                console.error('Error al parsear JSON:', e);
+                console.error('Texto recibido:', text);
+                if (typeof notify !== 'undefined') {
+                    notify.error('Error al procesar la respuesta del servidor');
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error en la petición:', error);
+            if (typeof notify !== 'undefined') {
+                notify.error('Error al buscar el boleto');
+            }
+        });
+    }
+    
+    // Función para mostrar información del boleto para cancelar
+    function mostrarInfoBoletoParaCancelar(boleto) {
+        boletoACancelar = boleto;
+        document.getElementById('cancelarAsiento').textContent = boleto.asiento;
+        document.getElementById('cancelarCategoria').textContent = boleto.categoria;
+        document.getElementById('cancelarPrecio').textContent = '$' + parseFloat(boleto.precio).toFixed(2);
+        document.getElementById('cancelarFecha').textContent = boleto.fecha_compra;
+        document.getElementById('infoBoletoACancelar').style.display = 'block';
+        document.getElementById('btnConfirmarCancelacion').disabled = false;
+    }
+    
+    // Función para confirmar la cancelación
+    function confirmarCancelacion() {
+        if (!boletoACancelar) {
+            if (typeof notify !== 'undefined') {
+                notify.error('No hay boleto seleccionado');
+            }
+            return;
+        }
+        
+        if (!confirm('¿Está seguro de que desea cancelar este boleto? Esta acción no se puede deshacer.')) {
+            return;
+        }
+        
+        const btnConfirmar = document.getElementById('btnConfirmarCancelacion');
+        btnConfirmar.disabled = true;
+        btnConfirmar.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Cancelando...';
+        
+        fetch('cancelar_boleto.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'id_boleto=' + encodeURIComponent(boletoACancelar.id_boleto)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (typeof notify !== 'undefined') {
+                    notify.success('Boleto cancelado exitosamente');
+                }
+                
+                // Cerrar el modal
+                bootstrap.Modal.getInstance(document.getElementById('modalCancelarBoleto')).hide();
+                
+                // Liberar el asiento visualmente
+                const asientoId = boletoACancelar.asiento;
+                
+                // Remover del set de asientos vendidos
+                if (typeof asientosVendidos !== 'undefined') {
+                    asientosVendidos.delete(asientoId);
+                }
+                
+                // Buscar el elemento del asiento en el DOM y quitarle la clase 'vendido'
+                const seatElement = document.querySelector(`.seat[data-asiento-id="${asientoId}"]`);
+                if (seatElement) {
+                    seatElement.classList.remove('vendido');
+                    seatElement.style.pointerEvents = 'auto';
+                    seatElement.style.cursor = 'pointer';
+                    console.log('Asiento liberado visualmente:', asientoId);
+                }
+                
+                // Recargar los asientos vendidos para asegurar sincronización
+                setTimeout(() => {
+                    if (typeof cargarAsientosVendidos === 'function') {
+                        cargarAsientosVendidos();
+                        console.log('Asientos vendidos recargados desde el servidor');
+                    }
+                }, 300);
+                
+                // Resetear el formulario
+                document.getElementById('inputCodigoBoleto').value = '';
+                document.getElementById('infoBoletoACancelar').style.display = 'none';
+                boletoACancelar = null;
+            } else {
+                if (typeof notify !== 'undefined') {
+                    notify.error(data.message || 'Error al cancelar el boleto');
+                }
+                btnConfirmar.disabled = false;
+                btnConfirmar.innerHTML = '<i class="bi bi-trash"></i> Confirmar Cancelación';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            if (typeof notify !== 'undefined') {
+                notify.error('Error al cancelar el boleto');
+            }
+            btnConfirmar.disabled = false;
+            btnConfirmar.innerHTML = '<i class="bi bi-trash"></i> Confirmar Cancelación';
+        });
+    }
+    
+    // Función para escanear QR para cancelar
+    function escanearParaCancelar() {
+        // Cerrar el modal de cancelación
+        const modalCancelar = bootstrap.Modal.getInstance(document.getElementById('modalCancelarBoleto'));
+        if (modalCancelar) {
+            modalCancelar.hide();
+        }
+        
+        // Esperar a que se cierre el modal antes de abrir el escáner
+        setTimeout(() => {
+            // Configurar el escáner para modo cancelación
+            window.modoCancelacion = true;
+            
+            // Abrir el modal del escáner
+            const modalEscaner = new bootstrap.Modal(document.getElementById('modalEscanerQR'));
+            modalEscaner.show();
+            
+            // Iniciar escáner cuando el modal se muestre completamente
+            document.getElementById('modalEscanerQR').addEventListener('shown.bs.modal', function () {
+                if (typeof iniciarEscaner === 'function') {
+                    iniciarEscaner();
+                }
+            }, { once: true });
+            
+            // Resetear modo cuando se cierre el modal
+            document.getElementById('modalEscanerQR').addEventListener('hidden.bs.modal', function () {
+                window.modoCancelacion = false;
+            }, { once: true });
+        }, 300);
     }
     
     // Función para escalar el mapa de asientos automáticamente (optimizada)
@@ -1578,10 +1831,70 @@ hr {
         // Re-escalar el mapa después de cambiar la visibilidad
         setTimeout(escalarMapa, 100);
     }
+    
+    // ==================================================================
+    // ACTUALIZACIÓN AUTOMÁTICA DEL SELECTOR DE EVENTOS
+    // ==================================================================
+    
+    // Función para actualizar el selector de eventos sin recargar la página
+    async function actualizarSelectorEventos() {
+        try {
+            const response = await fetch('obtener_eventos.php');
+            const data = await response.json();
+            
+            if (data.success) {
+                const selectEvento = document.querySelector('select[name="id_evento"]');
+                if (!selectEvento) return;
+                
+                const eventoActual = selectEvento.value;
+                const eventosActuales = Array.from(selectEvento.options).map(opt => opt.value);
+                const eventosNuevos = data.eventos.map(e => e.id_evento.toString());
+                
+                // Verificar si hay cambios
+                const hayNuevos = eventosNuevos.some(id => !eventosActuales.includes(id));
+                const hayEliminados = eventosActuales.some(id => id && !eventosNuevos.includes(id));
+                
+                if (hayNuevos || hayEliminados) {
+                    // Reconstruir el selector
+                    selectEvento.innerHTML = '<option value="">Seleccionar evento...</option>';
+                    
+                    data.eventos.forEach(evento => {
+                        const option = document.createElement('option');
+                        option.value = evento.id_evento;
+                        option.textContent = `${evento.titulo} • ${evento.tipo == 1 ? 'Teatro 420' : 'Pasarela 540'}`;
+                        if (evento.id_evento.toString() === eventoActual) {
+                            option.selected = true;
+                        }
+                        selectEvento.appendChild(option);
+                    });
+                    
+                    // Mostrar notificación si hay eventos nuevos
+                    if (hayNuevos && typeof notify !== 'undefined') {
+                        notify.success('Nuevos eventos disponibles');
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error al actualizar eventos:', error);
+        }
+    }
+    
+    // Escuchar cambios en localStorage (cuando se crea un evento desde otra pestaña)
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'evt_upd') {
+            console.log('Evento creado detectado, actualizando selector...');
+            actualizarSelectorEventos();
+        }
+    });
+    
+    // Polling cada 30 segundos para detectar cambios (por si acaso)
+    setInterval(actualizarSelectorEventos, 30000);
 </script>
 
 <script src="js/notifications.js"></script>
 <script src="js/carrito.js?v=5"></script>
+<script src="js/carrito-patch.js"></script>
+<script src="js/descuentos-modal.js"></script>
 <script src="js/escaner_qr.js"></script>
 <script src="js/menu-mejoras.js?v=1"></script>
 <script src="js/seleccion-multiple.js?v=1"></script>

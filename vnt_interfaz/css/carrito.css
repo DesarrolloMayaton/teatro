@@ -33,9 +33,9 @@
 .carrito-item {
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 14px 16px;
-  margin-bottom: 10px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 6px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -64,22 +64,23 @@
   flex-grow: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  line-height: 1.3;
 }
 
 .carrito-item .asiento-nombre {
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: #0f172a;
 }
 
 .carrito-item .asiento-categoria {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: #64748b;
 }
 
 .carrito-item .asiento-precio {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: #10b981;
 }
@@ -88,14 +89,14 @@
   background: #ef4444;
   color: white;
   border: none;
-  border-radius: 8px;
-  width: 32px;
-  height: 32px;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px;
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
