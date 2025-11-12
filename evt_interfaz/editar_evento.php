@@ -112,7 +112,9 @@ $defaultCierre = $es_nuevo ? '' : date('Y-m-d H:i', strtotime($evento['cierre_ve
     .btn-secondary { background: #fff; color: var(--text-primary); border: 1px solid var(--border-color); } .btn-secondary:hover { background: var(--bg-primary); }
     .btn-danger { background: var(--danger-color); color: white; } .btn-danger:hover { background: #dc2626; }
     .input-error { border-color: var(--danger-color) !important; background: #fef2f2 !important; }
-    .tooltip-error { color: var(--danger-color); font-size: 0.9em; margin-top: 5px; display: none; font-weight: 600; }
+    .tooltip-error { color: var(--danger-color); font-size: 0.9em; margin-top: 5px; display: none; font-weight: 600; align-items: center; gap: 5px; }
+    /* Estilo de error copiado de crear_evento.php */
+    .tooltip-error::before { content: "\F659"; font-family: "bootstrap-icons"; }
     #lista-funciones-container { background: var(--bg-primary); border: 2px dashed var(--border-color); border-radius: var(--radius-sm); padding: 15px; min-height: 80px; display: flex; flex-wrap: wrap; gap: 10px; }
     .funcion-item { background: #fff; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--primary-color); color: var(--primary-color); font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow-sm); }
     .funcion-item button { background: none; border: none; color: var(--danger-color); font-size: 1.1rem; line-height: 1; padding: 0; cursor: pointer; opacity: 0.6; }
@@ -195,7 +197,7 @@ $defaultCierre = $es_nuevo ? '' : date('Y-m-d H:i', strtotime($evento['cierre_ve
                     <button type="button" id="btnCancelarAbajo" class="btn btn-outline-danger py-3 fs-5 col-4">Cancelar</button>
                 <?php endif; ?>
                 <button type="submit" id="bSub" class="btn btn-primary py-3 fs-5 shadow-sm <?= $es_nuevo ? 'col-8' : 'w-100' ?>" disabled>
-                    <i class="bi bi-check2-circle me-2"></i> Confirmar Reactivación
+                    <i class="bi bi-check2-circle me-2"></i> <?= $es_nuevo ? 'Confirmar Reactivación' : 'Actualizar Evento' ?>
                 </button>
             </div>
         </form>
@@ -211,48 +213,101 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const els={add:document.getElementById('fAdd'),sub:document.getElementById('bSub'),list:document.getElementById('lista-funciones-container'),hid:document.getElementById('hidFunc'),no:document.getElementById('noFunc'),ttF:document.getElementById('ttFunc'),ttI:document.getElementById('ttIni'),ttE:document.getElementById('ttFin'),ini:document.getElementById('ini'),fin:document.getElementById('fin')};
     
-    // Configuración Flatpickr (Forzamos fechas futuras si es reactivación)
-    const minDateConfig = <?= $es_nuevo ? '"today"' : 'null' ?>;
-    const fpD=flatpickr("#fDate",{minDate:minDateConfig, onChange:check}), fpT=flatpickr("#fTime",{enableTime:true,noCalendar:true,dateFormat:"H:i",time_24hr:true,minuteIncrement:15,onChange:check});
-    const fpI=flatpickr("#ini",{enableTime:true,minDate:minDateConfig,onChange:val}), fpE=flatpickr("#fin",{enableTime:true,minDate:minDateConfig,onChange:val});
+    // ==================================================================
+    // INICIO: LÓGICA DE VALIDACIÓN COPIADA DE "crear_evento.php"
+    // ==================================================================
+
+    // Configuración dinámica
+    const fpD=flatpickr("#fDate",{minDate:"today",onChange:function(s,d){
+        // Si la fecha es hoy, la hora mínima es 5 mins en el futuro
+        if(d === new Date().toISOString().split('T')[0]) fpT.set('minTime', new Date().setMinutes(new Date().getMinutes()+5));
+        else fpT.set('minTime', null);
+        check();
+    }});
+    const fpT=flatpickr("#fTime",{enableTime:true,noCalendar:true,dateFormat:"H:i",time_24hr:true,minuteIncrement:15,onChange:check});
+    
+    // 'minDate: now' fuerza que el inicio de venta sea siempre futuro (copiado de crear_evento)
+    const fpI=flatpickr("#ini",{enableTime:true,minDate:now,onChange:val}), fpE=flatpickr("#fin",{enableTime:true,minDate:now,onChange:val});
 
     function check(){els.add.disabled=!(fpD.selectedDates.length&&fpT.selectedDates.length);}
     els.add.onclick=()=>{
         let dt=new Date(fpD.input.value+'T'+fpT.input.value);
-        if(funcs.some(d=>d.getTime()===dt.getTime())) return alert("Duplicada");
+        // Validación para asegurar que la función es futura
+        if(dt<=new Date(now.getTime()+6e4)) return alert("La fecha y hora de la función deben ser futuras.");
+        if(funcs.some(d=>d.getTime()===dt.getTime())) return alert("Esta función ya existe.");
         funcs.push(dt); funcs.sort((a,b)=>a-b); fpD.clear(); fpT.clear(); check(); upd();
     };
+
     function upd(){
         els.list.innerHTML=''; els.hid.innerHTML='';
-        if(!funcs.length){ els.list.appendChild(els.no); fpI.set('maxDate',null); if(<?= $es_nuevo?1:0 ?>) fpE.clear(); }
+        if(!funcs.length){ 
+            els.list.appendChild(els.no); 
+            fpI.set('maxDate',null); 
+            fpE.set('minDate',now); 
+            // Limpiamos fechas si es reactivación y no hay funciones
+            if(<?= $es_nuevo?1:0 ?>) {
+                fpI.clear();
+                fpE.clear();
+            }
+        }
         else{
             funcs.forEach((d,i)=>{
                 els.list.innerHTML+=`<div class="funcion-item"><i class="bi bi-calendar-event"></i> ${d.toLocaleString('es-ES',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}<button type="button" onclick="del(${i})">×</button></div>`;
                 els.hid.innerHTML+=`<input type="hidden" name="funciones[]" value="${d.getFullYear()}-${(d.getMonth()+1+'').padStart(2,'0')}-${(d.getDate()+'').padStart(2,'0')} ${(d.getHours()+'').padStart(2,'0')}:${(d.getMinutes()+'').padStart(2,'0')}:00">`;
             });
-            fpI.set('maxDate',new Date(funcs[0].getTime()-6e4));
-            const minFin = new Date(funcs[funcs.length-1].getTime()+72e5);
-            fpE.set('minDate',minFin);
-            if(!fpE.selectedDates.length || fpE.selectedDates[0] < minFin) fpE.setDate(minFin,true);
+            // Ajuste automático de fechas
+            fpI.set('maxDate', new Date(funcs[0].getTime() - 60000)); // 1 min antes
+            const cierreAuto = new Date(funcs[funcs.length-1].getTime() + 7200000); // +2 horas
+            fpE.set('minDate', cierreAuto);
+            
+            // Auto-llenar cierre SÓLO si es reactivación (es_nuevo) O si la fecha actual de cierre es inválida
+            if(<?= $es_nuevo?1:0 ?> || !fpE.selectedDates.length || fpE.selectedDates[0] < cierreAuto) {
+                fpE.setDate(cierreAuto, true); // <--- ESTO LLENA EL CIERRE AUTOMÁTICAMENTE
+            }
         }
         val();
     }
     window.del=i=>{funcs.splice(i,1);upd();};
+
     function val(){
         let ok=true; [els.ttF,els.ttI,els.ttE].forEach(e=>e.style.display='none'); document.querySelectorAll('.input-error').forEach(e=>e.classList.remove('input-error'));
+        
         if(!document.getElementById('tit').value.trim()) ok=false;
-        if(!funcs.length){ err(els.ttF,null,'Falta función.'); ok=false; }
-        if(!fpI.selectedDates.length){ if(funcs.length) {err(els.ttI,els.ini,'Requerido.'); ok=false;} }
-        else if(funcs.length&&fpI.selectedDates[0]>=funcs[0]){ err(els.ttI,els.ini,'Debe ser antes de 1ª función.'); ok=false; }
-        if(!fpE.selectedDates.length){ if(funcs.length) {err(els.ttE,els.fin,'Requerido.'); ok=false;} }
+        if(!funcs.length){ err(els.ttF,null,'Añade al menos una función.'); ok=false; }
+        
+        if(!fpI.selectedDates.length){ if(funcs.length) err(els.ttI,els.ini,'Requerido.'); ok=false; }
+        else if(funcs.length&&fpI.selectedDates[0]>=funcs[0]){ err(els.ttI,els.ini,'Debe ser antes de la 1ª función.'); ok=false; }
+        
+        if(!fpE.selectedDates.length){ if(funcs.length) err(els.ttE,els.fin,'Requerido.'); ok=false; }
         else if(fpI.selectedDates.length&&fpE.selectedDates[0]<=fpI.selectedDates[0]){ err(els.ttE,els.fin,'Debe ser posterior al inicio.'); ok=false; }
-        els.sub.disabled=!ok; return ok;
+        
+        // Validación de descripción (adaptada de crear_evento)
+        if(!document.getElementById('desc').value.trim()) ok=false;
+        
+        // La validación de 'img' no se copia porque es opcional en 'editar'
+        // La validación de 'tipo' no se copia porque siempre está seleccionado
+
+        els.sub.disabled=!ok; 
+        
+        // Cambiar texto del botón según el contexto
+        els.sub.innerHTML = `<i class="bi bi-check2-circle me-2"></i> ${ok ? (<?= $es_nuevo?1:0 ?> ? 'Confirmar Reactivación' : 'Actualizar Evento') : 'Completa los campos'}`;
+        
+        return ok;
     }
-    function err(t,i,m){ t.innerHTML='<i class="bi bi-exclamation-circle-fill me-1"></i> '+m; t.style.display='flex'; if(i) i.classList.add('input-error'); }
+    // Función de error copiada de crear_evento.php (usa textContent)
+    function err(t,i,m){ t.textContent=m; t.style.display='flex'; if(i) i.classList.add('input-error'); }
     
+    // Listeners para validar en tiempo real
     ['tit','desc','img','tipo'].forEach(id=>document.getElementById(id).addEventListener(id==='img'||id==='tipo'?'change':'input',val));
     document.getElementById('fEdit').addEventListener('submit',e=>{if(!val()){e.preventDefault();alert("Corrige errores.");}});
-    upd();
+    
+    // Llamada inicial para cargar funciones existentes y validar
+    upd(); 
+
+    // ==================================================================
+    // FIN: LÓGICA DE VALIDACIÓN COPIADA
+    // ==================================================================
+
 
     // --- LÓGICA DE CANCELACIÓN (SOLO SI ES NUEVO) ---
     const btnCancelTop = document.getElementById('btnCancelarReactivacion');
