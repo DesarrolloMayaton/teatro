@@ -25,7 +25,7 @@ if (empty($codigos)) {
 // Crear placeholders para la consulta
 $placeholders = implode(',', array_fill(0, count($codigos), '?'));
 
-// Obtener información de todos los boletos
+// Obtener información de todos los boletos activos (estatus = 1)
 $stmt = $conn->prepare("
     SELECT 
         b.codigo_unico,
@@ -38,7 +38,7 @@ $stmt = $conn->prepare("
     INNER JOIN asientos a ON b.id_asiento = a.id_asiento
     INNER JOIN evento e ON b.id_evento = e.id_evento
     INNER JOIN categorias c ON b.id_categoria = c.id_categoria
-    WHERE b.codigo_unico IN ($placeholders)
+    WHERE b.codigo_unico IN ($placeholders) AND b.estatus = 1
     ORDER BY a.codigo_asiento
 ");
 

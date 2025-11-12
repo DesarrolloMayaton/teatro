@@ -248,12 +248,16 @@ if ($resultado && $resultado->num_rows > 0) {
             border-radius: 16px;
             overflow: hidden;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            background: rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .hero-imagen img {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
             transition: transform 0.4s ease;
         }
 
@@ -421,12 +425,16 @@ if ($resultado && $resultado->num_rows > 0) {
             height: 380px;
             overflow: hidden;
             position: relative;
+            background: rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .evento-card-imagen img {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
             transition: transform 0.4s ease;
         }
 
