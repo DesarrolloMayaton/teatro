@@ -1752,22 +1752,14 @@ hr {
         setTimeout(() => {
             // Configurar el escáner para modo cancelación
             window.modoCancelacion = true;
+            console.log('Modo cancelación activado:', window.modoCancelacion);
             
-            // Abrir el modal del escáner
-            const modalEscaner = new bootstrap.Modal(document.getElementById('modalEscanerQR'));
-            modalEscaner.show();
-            
-            // Iniciar escáner cuando el modal se muestre completamente
-            document.getElementById('modalEscanerQR').addEventListener('shown.bs.modal', function () {
-                if (typeof iniciarEscaner === 'function') {
-                    iniciarEscaner();
-                }
-            }, { once: true });
-            
-            // Resetear modo cuando se cierre el modal
-            document.getElementById('modalEscanerQR').addEventListener('hidden.bs.modal', function () {
-                window.modoCancelacion = false;
-            }, { once: true });
+            // Usar la función existente para abrir el escáner
+            if (typeof abrirEscanerQR === 'function') {
+                abrirEscanerQR();
+            } else {
+                console.error('abrirEscanerQR no está definida');
+            }
         }, 300);
     }
     
