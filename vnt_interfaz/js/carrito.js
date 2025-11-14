@@ -301,13 +301,250 @@ function actualizarCarrito() {
     actualizarEstadisticas();
 }
 
-// Procesar pago
-async function procesarPago() {
+// Procesar pago - Abre modal para seleccionar tipo de boleto
+function procesarPago() {
     if (carrito.length === 0) {
         notify.warning('No hay asientos en el carrito');
         return;
     }
 
+    // Abrir modal para seleccionar tipo de boleto
+    abrirModalTipoBoleto();
+}
+
+// Abrir modal para seleccionar tipo de boleto
+function abrirModalTipoBoleto() {
+    const modalHTML = `
+        <div class="modal fade" id="modalTipoBoleto" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-ticket-perforated"></i> Tipo de Boleto
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info mb-3">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Selecciona el tipo de boleto para cada asiento</strong><br>
+                            <small>Esta información es necesaria para los reportes. Las cortesías son gratuitas.</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-tag"></i> Aplicar a todos:
+                            </label>
+                            <div class="btn-group w-100" role="group">
+                                <button type="button" class="btn btn-outline-primary" onclick="aplicarTipoATodos('adulto')">
+                                    Adulto
+                                </button>
+                                <button type="button" class="btn btn-outline-info" onclick="aplicarTipoATodos('nino')">
+                                    Niño
+                                </button>
+                                <button type="button" class="btn btn-outline-warning" onclick="aplicarTipoATodos('adulto_mayor')">
+                                    Adulto Mayor
+                                </button>
+                                <button type="button" class="btn btn-outline-success" onclick="aplicarTipoATodos('discapacitado')">
+                                    Discapacitado
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="aplicarTipoATodos('cortesia')">
+                                    Cortesía (Gratis)
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div id="listaBoletosTipo" class="lista-boletos-tipo">
+                            <!-- Se llenará dinámicamente -->
+                        </div>
+                        
+                        <div class="alert alert-warning mt-3" id="alertCortesia" style="display: none;">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <strong>Atención:</strong> Los boletos de cortesía tienen precio $0.00
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <div class="me-auto">
+                            <strong>Total a pagar: <span id="totalModalPago">$0.00</span></strong>
+                        </div>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-success btn-lg" onclick="confirmarYProcesarPago()">
+                            <i class="bi bi-credit-card"></i> Confirmar y Procesar Pago
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remover modal anterior si existe
+    const modalAnterior = document.getElementById('modalTipoBoleto');
+    if (modalAnterior) {
+        modalAnterior.remove();
+    }
+    
+    // Agregar modal al DOM
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Llenar lista de boletos
+    llenarListaBoletosTipo();
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('modalTipoBoleto'));
+    modal.show();
+    
+    // Limpiar al cerrar
+    document.getElementById('modalTipoBoleto').addEventListener('hidden.bs.modal', function () {
+        this.remove();
+    });
+}
+
+// Llenar lista de boletos con selectores de tipo
+function llenarListaBoletosTipo() {
+    const lista = document.getElementById('listaBoletosTipo');
+    if (!lista) return;
+    
+    let html = '';
+    
+    carrito.forEach((item, index) => {
+        const descuentoItem = calcularDescuentoItem(item);
+        let precioBase = item.precio - descuentoItem;
+        
+        // Inicializar tipo de boleto si no existe
+        if (!item.tipo_boleto) {
+            item.tipo_boleto = 'adulto';
+        }
+        
+        // Si es cortesía, el precio es 0
+        const precioFinal = item.tipo_boleto === 'cortesia' ? 0 : precioBase;
+        
+        html += `
+            <div class="boleto-tipo-item mb-3 p-3 border rounded" data-index="${index}">
+                <div class="row align-items-center">
+                    <div class="col-md-4">
+                        <div class="fw-bold fs-5">${item.asiento}</div>
+                        <small class="text-muted">${item.categoria}</small>
+                        <div class="mt-1">
+                            <span class="precio-display text-success fw-bold" data-precio-base="${precioBase.toFixed(2)}">$${precioFinal.toFixed(2)}</span>
+                            ${descuentoItem > 0 ? `<small class="text-danger d-block">Descuento: -$${descuentoItem.toFixed(2)}</small>` : ''}
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label small mb-1">Tipo de Boleto:</label>
+                        <select class="form-select tipo-boleto-select" data-index="${index}">
+                            <option value="adulto" ${item.tipo_boleto === 'adulto' ? 'selected' : ''}>
+                                Adulto
+                            </option>
+                            <option value="nino" ${item.tipo_boleto === 'nino' ? 'selected' : ''}>
+                                Niño
+                            </option>
+                            <option value="adulto_mayor" ${item.tipo_boleto === 'adulto_mayor' ? 'selected' : ''}>
+                                Adulto Mayor
+                            </option>
+                            <option value="discapacitado" ${item.tipo_boleto === 'discapacitado' ? 'selected' : ''}>
+                                Discapacitado
+                            </option>
+                            <option value="cortesia" ${item.tipo_boleto === 'cortesia' ? 'selected' : ''}>
+                                Cortesía (Gratis)
+                            </option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    lista.innerHTML = html;
+    
+    // Agregar event listeners a los selectores
+    document.querySelectorAll('.tipo-boleto-select').forEach(select => {
+        select.addEventListener('change', function() {
+            const index = parseInt(this.dataset.index);
+            if (carrito[index]) {
+                carrito[index].tipo_boleto = this.value;
+                actualizarPrecioEnModal(index);
+            }
+        });
+    });
+    
+    // Actualizar total inicial
+    actualizarTotalModal();
+}
+
+// Actualizar precio en el modal cuando cambia el tipo
+function actualizarPrecioEnModal(index) {
+    const item = carrito[index];
+    if (!item) return;
+    
+    const boletoItem = document.querySelector(`.boleto-tipo-item[data-index="${index}"]`);
+    if (!boletoItem) return;
+    
+    const precioDisplay = boletoItem.querySelector('.precio-display');
+    const precioBase = parseFloat(precioDisplay.dataset.precioBase);
+    
+    // Si es cortesía, precio = 0
+    const precioFinal = item.tipo_boleto === 'cortesia' ? 0 : precioBase;
+    
+    precioDisplay.textContent = '$' + precioFinal.toFixed(2);
+    
+    // Mostrar/ocultar alerta de cortesía
+    const alertCortesia = document.getElementById('alertCortesia');
+    const hayCortesia = carrito.some(i => i.tipo_boleto === 'cortesia');
+    if (alertCortesia) {
+        alertCortesia.style.display = hayCortesia ? 'block' : 'none';
+    }
+    
+    // Actualizar total
+    actualizarTotalModal();
+}
+
+// Actualizar total en el modal
+function actualizarTotalModal() {
+    let total = 0;
+    
+    carrito.forEach((item, index) => {
+        const descuentoItem = calcularDescuentoItem(item);
+        const precioBase = item.precio - descuentoItem;
+        
+        // Si es cortesía, no suma al total
+        if (item.tipo_boleto !== 'cortesia') {
+            total += precioBase;
+        }
+    });
+    
+    const totalElement = document.getElementById('totalModalPago');
+    if (totalElement) {
+        totalElement.textContent = '$' + total.toFixed(2);
+    }
+}
+
+// Aplicar tipo de boleto a todos
+function aplicarTipoATodos(tipo) {
+    carrito.forEach((item, index) => {
+        item.tipo_boleto = tipo;
+        actualizarPrecioEnModal(index);
+    });
+    
+    // Actualizar todos los selectores
+    document.querySelectorAll('.tipo-boleto-select').forEach(select => {
+        select.value = tipo;
+    });
+    
+    const tipoNombre = {
+        'adulto': 'Adulto',
+        'nino': 'Niño',
+        'adulto_mayor': 'Adulto Mayor',
+        'discapacitado': 'Discapacitado',
+        'cortesia': 'Cortesía (Gratis)'
+    };
+    
+    notify.success(`Tipo "${tipoNombre[tipo]}" aplicado a todos los boletos`);
+}
+
+// Confirmar y procesar pago
+async function confirmarYProcesarPago() {
     const urlParams = new URLSearchParams(window.location.search);
     const idEvento = urlParams.get('id_evento');
 
@@ -316,18 +553,25 @@ async function procesarPago() {
         return;
     }
 
+    // Cerrar modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('modalTipoBoleto'));
+    if (modal) {
+        modal.hide();
+    }
+
     const btnPagar = document.getElementById('btnPagar');
     btnPagar.disabled = true;
     btnPagar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
 
-    // Preparar datos con descuentos aplicados
+    // Preparar datos con descuentos y tipo de boleto
     const asientosConDescuento = carrito.map(item => {
         const descuentoItem = calcularDescuentoItem(item);
         return {
             ...item,
             descuento_aplicado: descuentoItem,
             precio_final: item.precio - descuentoItem,
-            id_promocion: descuentoSeleccionado ? descuentoSeleccionado.id_promocion : null
+            id_promocion: descuentoSeleccionado ? descuentoSeleccionado.id_promocion : null,
+            tipo_boleto: item.tipo_boleto || 'normal'
         };
     });
 
@@ -377,7 +621,7 @@ async function procesarPago() {
         notify.error('Error al procesar la compra: ' + error.message);
     } finally {
         btnPagar.disabled = false;
-        btnPagar.innerHTML = '<i class="bi bi-credit-card"></i> Pagar';
+        btnPagar.innerHTML = '<i class="bi bi-credit-card"></i> Procesar Pago';
     }
 }
 

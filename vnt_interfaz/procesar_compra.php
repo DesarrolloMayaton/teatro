@@ -20,6 +20,12 @@ register_shutdown_function(function() {
 
 header('Content-Type: application/json');
 
+// Iniciar sesión para obtener el usuario que está vendiendo
+session_start();
+
+// Obtener ID del usuario logueado
+$id_usuario_vendedor = isset($_SESSION['usuario_id']) ? (int)$_SESSION['usuario_id'] : null;
+
 try {
     require_once __DIR__ . '/vendor/autoload.php';
 } catch (Exception $e) {
@@ -91,6 +97,13 @@ try {
         $descuento_aplicado = isset($asiento_data['descuento_aplicado']) ? (float)$asiento_data['descuento_aplicado'] : 0;
         $precio_final = isset($asiento_data['precio_final']) ? (float)$asiento_data['precio_final'] : $precio;
         $id_promocion = isset($asiento_data['id_promocion']) ? (int)$asiento_data['id_promocion'] : null;
+        $tipo_boleto = isset($asiento_data['tipo_boleto']) ? $asiento_data['tipo_boleto'] : 'adulto';
+        
+        // Si es cortesía, el precio final es 0
+        if ($tipo_boleto === 'cortesia') {
+            $precio_final = 0.00;
+            $descuento_aplicado = $precio; // El descuento es el precio completo
+        }
         
         // Obtener o crear id_asiento de la tabla asientos
         $stmt = $conn->prepare("SELECT id_asiento FROM asientos WHERE codigo_asiento = ?");
@@ -152,18 +165,22 @@ try {
                         precio_base = ?,
                         descuento_aplicado = ?,
                         precio_final = ?,
+                        tipo_boleto = ?,
+                        id_usuario = ?,
                         fecha_compra = NOW(),
                         estatus = 1
                     WHERE id_boleto = ?
                 ");
                 
-                $stmt->bind_param("iisdddi", 
+                $stmt->bind_param("iisdddsii", 
                     $categoria_id,
                     $id_promocion,
                     $codigo_unico,
                     $precio,
                     $descuento_aplicado,
                     $precio_final,
+                    $tipo_boleto,
+                    $id_usuario_vendedor,
                     $boleto_existente['id_boleto']
                 );
             } else {
@@ -175,17 +192,21 @@ try {
                         precio_base = ?,
                         descuento_aplicado = ?,
                         precio_final = ?,
+                        tipo_boleto = ?,
+                        id_usuario = ?,
                         fecha_compra = NOW(),
                         estatus = 1
                     WHERE id_boleto = ?
                 ");
                 
-                $stmt->bind_param("isdddi", 
+                $stmt->bind_param("isdddsii", 
                     $categoria_id,
                     $codigo_unico,
                     $precio,
                     $descuento_aplicado,
                     $precio_final,
+                    $tipo_boleto,
+                    $id_usuario_vendedor,
                     $boleto_existente['id_boleto']
                 );
             }
@@ -206,12 +227,14 @@ try {
                         codigo_unico, 
                         precio_base, 
                         descuento_aplicado, 
-                        precio_final, 
+                        precio_final,
+                        tipo_boleto,
+                        id_usuario, 
                         estatus
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
                 ");
                 
-                $stmt->bind_param("iiiisddd", 
+                $stmt->bind_param("iiiisdddsi", 
                     $id_evento, 
                     $id_asiento, 
                     $categoria_id,
@@ -219,7 +242,9 @@ try {
                     $codigo_unico, 
                     $precio,
                     $descuento_aplicado, 
-                    $precio_final
+                    $precio_final,
+                    $tipo_boleto,
+                    $id_usuario_vendedor
                 );
             } else {
                 $stmt = $conn->prepare("
@@ -230,19 +255,23 @@ try {
                         codigo_unico, 
                         precio_base, 
                         descuento_aplicado, 
-                        precio_final, 
+                        precio_final,
+                        tipo_boleto,
+                        id_usuario, 
                         estatus
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
                 ");
                 
-                $stmt->bind_param("iiisddd", 
+                $stmt->bind_param("iiisdddsi", 
                     $id_evento, 
                     $id_asiento, 
                     $categoria_id, 
                     $codigo_unico, 
                     $precio,
                     $descuento_aplicado, 
-                    $precio_final
+                    $precio_final,
+                    $tipo_boleto,
+                    $id_usuario_vendedor
                 );
             }
             

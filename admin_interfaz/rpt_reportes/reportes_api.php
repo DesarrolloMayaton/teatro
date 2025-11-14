@@ -519,12 +519,14 @@ if ($action === 'export') {
                 b.descuento_aplicado,
                 b.precio_final,
                 p.nombre as promocion,
+                CONCAT(u.nombre, ' ', u.apellido) as vendedor,
                 " . ($has_fecha_compra ? "DATE(b.fecha_compra)" : "DATE(e.inicio_venta)") . " as fecha_venta
             FROM boletos b
             INNER JOIN evento e ON b.id_evento = e.id_evento
             LEFT JOIN categorias c ON b.id_categoria = c.id_categoria
             LEFT JOIN asientos a ON b.id_asiento = a.id_asiento
             LEFT JOIN promociones p ON b.id_promocion = p.id_promocion
+            LEFT JOIN usuarios u ON b.id_usuario = u.id_usuario
             WHERE $where_conditions
             ORDER BY fecha_venta DESC, e.titulo ASC
         ";
@@ -664,23 +666,25 @@ function generarPDF_TCPDF($rows, $resumen, $nombre_evento, $fecha_desde, $fecha_
         
         // Encabezados de tabla
         $pdf->SetFillColor(200, 200, 200);
-        $pdf->Cell(40, 6, 'Evento', 1, 0, 'L', true);
-        $pdf->Cell(30, 6, 'Categoría', 1, 0, 'L', true);
-        $pdf->Cell(25, 6, 'Asiento', 1, 0, 'C', true);
-        $pdf->Cell(30, 6, 'Código', 1, 0, 'L', true);
-        $pdf->Cell(25, 6, 'Precio Final', 1, 0, 'R', true);
-        $pdf->Cell(30, 6, 'Fecha', 1, 1, 'C', true);
+        $pdf->Cell(35, 6, 'Evento', 1, 0, 'L', true);
+        $pdf->Cell(25, 6, 'Categoría', 1, 0, 'L', true);
+        $pdf->Cell(18, 6, 'Asiento', 1, 0, 'C', true);
+        $pdf->Cell(25, 6, 'Código', 1, 0, 'L', true);
+        $pdf->Cell(22, 6, 'Precio', 1, 0, 'R', true);
+        $pdf->Cell(35, 6, 'Vendedor', 1, 0, 'L', true);
+        $pdf->Cell(20, 6, 'Fecha', 1, 1, 'C', true);
         
         $pdf->SetFillColor(245, 245, 245);
         $fill = false;
         
         foreach ($rows as $row) {
-            $pdf->Cell(40, 6, substr($row['evento'] ?? '', 0, 20), 1, 0, 'L', $fill);
-            $pdf->Cell(30, 6, substr($row['categoria'] ?? '—', 0, 15), 1, 0, 'L', $fill);
-            $pdf->Cell(25, 6, $row['asiento'] ?? '—', 1, 0, 'C', $fill);
-            $pdf->Cell(30, 6, substr($row['codigo_boleto'] ?? '', 0, 12), 1, 0, 'L', $fill);
-            $pdf->Cell(25, 6, '$' . number_format($row['precio_final'] ?? 0, 2), 1, 0, 'R', $fill);
-            $pdf->Cell(30, 6, $row['fecha_venta'] ?? '—', 1, 1, 'C', $fill);
+            $pdf->Cell(35, 6, substr($row['evento'] ?? '', 0, 18), 1, 0, 'L', $fill);
+            $pdf->Cell(25, 6, substr($row['categoria'] ?? '—', 0, 12), 1, 0, 'L', $fill);
+            $pdf->Cell(18, 6, $row['asiento'] ?? '—', 1, 0, 'C', $fill);
+            $pdf->Cell(25, 6, substr($row['codigo_boleto'] ?? '', 0, 10), 1, 0, 'L', $fill);
+            $pdf->Cell(22, 6, '$' . number_format($row['precio_final'] ?? 0, 2), 1, 0, 'R', $fill);
+            $pdf->Cell(35, 6, substr($row['vendedor'] ?? 'Sin asignar', 0, 18), 1, 0, 'L', $fill);
+            $pdf->Cell(20, 6, date('d/m/y', strtotime($row['fecha_venta'] ?? 'now')), 1, 1, 'C', $fill);
             $fill = !$fill;
         }
     } else {
@@ -990,6 +994,7 @@ function generarHTMLReporte($rows, $resumen, $nombre_evento, $fecha_desde, $fech
                 <th class="text-center">Asiento</th>
                 <th>Código Boleto</th>
                 <th class="text-right">Precio Final</th>
+                <th>Vendedor</th>
                 <th class="text-center">Fecha</th>
             </tr>
         </thead>
@@ -1007,18 +1012,19 @@ function generarHTMLReporte($rows, $resumen, $nombre_evento, $fecha_desde, $fech
                 <td class="text-center"><strong>' . htmlspecialchars($row['asiento'] ?? '—') . '</strong></td>
                 <td style="font-family: monospace; font-size: 9pt;">' . htmlspecialchars($row['codigo_boleto'] ?? '—') . '</td>
                 <td class="text-right"><strong>$' . number_format($precio, 2) . '</strong></td>
+                <td>' . htmlspecialchars($row['vendedor'] ?? 'Sin asignar') . '</td>
                 <td class="text-center">' . (isset($row['fecha_venta']) ? date('d/m/Y', strtotime($row['fecha_venta'])) : '—') . '</td>
             </tr>';
         }
         
         // Fila de total
         $html .= '<tr style="background: #e7f1ff; font-weight: bold;">
-            <td colspan="4" class="text-right" style="padding: 15px;">TOTAL GENERAL:</td>
+            <td colspan="5" class="text-right" style="padding: 15px;">TOTAL GENERAL:</td>
             <td class="text-right" style="font-size: 12pt; color: #667eea; padding: 15px;">$' . number_format($total_general, 2) . '</td>
             <td></td>
         </tr>';
     } else {
-        $html .= '<tr><td colspan="6" class="empty-state">📭 No hay datos para mostrar en este período</td></tr>';
+        $html .= '<tr><td colspan="7" class="empty-state">📭 No hay datos para mostrar en este período</td></tr>';
     }
     
     $html .= '</tbody>
