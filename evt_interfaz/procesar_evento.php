@@ -1,10 +1,19 @@
 <?php
+session_start(); // <-- CAMBIO 1: Iniciar la sesión
+include "../conexion.php"; 
+
+// ==================================================================
+// VERIFICACIÓN DE SESIÓN (¡¡IMPORTANTE!!)
+// ==================================================================
+if (!isset($_SESSION['usuario_id']) || ($_SESSION['usuario_rol'] !== 'admin' && (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado']))) {
+    // No eres admin, no puedes procesar esto.
+    die('<div style="font-family: Arial; text-align: center; margin-top: 50px; color: red;"><h1>Acceso Denegado</h1><p>No tiene permiso para realizar esta acción.</p></div>');
+}
+
 // --- ACTIVAR DEPURACIÓN (Eliminar en producción) ---
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
-
-include "../conexion.php"; 
 
 // Verificar conexión
 if ($conn->connect_error) { die("Error de conexión: " . $conn->connect_error); }
@@ -218,7 +227,7 @@ try {
         </div>
         <script>
             localStorage.setItem("evt_upd", Date.now()); // Sincronizar pestañas
-            setTimeout(() => { window.location.href = "index.php"; }, 2000);
+            setTimeout(() => { window.location.href = "act_evento.php"; }, 2000); // <-- CAMBIO 2: Redirige a la lista de eventos
         </script>
     </body>
     </html>';

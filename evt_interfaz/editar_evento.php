@@ -1,5 +1,14 @@
 <?php
+session_start(); // <-- AÑADIDO
 include "../conexion.php";
+
+// ==================================================================
+// VERIFICACIÓN DE SESIÓN (AÑADIDO)
+// ==================================================================
+if (!isset($_SESSION['usuario_id']) || ($_SESSION['usuario_rol'] !== 'admin' && (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado']))) {
+    die('<div style="font-family: Arial; text-align: center; margin-top: 50px; color: red;"><h1>Acceso Denegado</h1><p>No tiene permiso para ver esta página.</p></div>');
+}
+
 $errores_php = [];
 
 // ==================================================================
@@ -8,10 +17,8 @@ $errores_php = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // --- CASO A: ACTUALIZAR EVENTO (Tu lógica existente) ---
     if (isset($_POST['accion']) && $_POST['accion'] == 'actualizar') {
-        // ... (Toda tu lógica de validación y actualización que ya funciona bien) ...
         $id_evento = $_POST['id_evento'];
         $titulo = trim($_POST['titulo']);
-        // ... (resto de variables) ...
         $inicio_venta = $_POST['inicio_venta'];
         $cierre_venta = $_POST['cierre_venta'];
         $descripcion = trim($_POST['descripcion']);
@@ -19,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $imagen_actual = $_POST['imagen_actual'];
         $imagen_ruta = $imagen_actual;
 
-        // Validaciones (resumidas para no repetir todo el bloque anterior, mantenlas igual)
+        // Validaciones
         if (empty($titulo)) $errores_php[] = "Falta título.";
         if (empty($inicio_venta) || empty($cierre_venta)) $errores_php[] = "Faltan fechas.";
         if (empty($_POST['funciones'])) $errores_php[] = "Faltan funciones.";
@@ -50,7 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt_f->close();
 
                 $conn->commit();
-                header('Location: index.php?status=success'); exit;
+                // --- REDIRECCIÓN CORREGIDA ---
+                header('Location: act_evento.php?status=success'); // <-- CORREGIDO
+                exit;
             } catch (Exception $e) { $conn->rollback(); $errores_php[] = "Error DB: " . $e->getMessage(); }
         }
     }
@@ -59,9 +68,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Esto borra el evento recién creado si el usuario se arrepiente
     if (isset($_POST['accion']) && $_POST['accion'] == 'cancelar_nuevo') {
         $id_borrar = $_POST['id_evento'];
-        // Borrado simple porque es nuevo y no tiene ventas ni boletos aún
+        
+        // --- BORRADO COMPLETO (CORREGIDO) ---
+        // Borra el borrador de reactivación de TODAS las tablas de producción
+        $conn->query("DELETE FROM boletos WHERE id_evento = $id_borrar");
+        $conn->query("DELETE FROM promociones WHERE id_evento = $id_borrar");
         $conn->query("DELETE FROM categorias WHERE id_evento = $id_borrar");
+        $conn->query("DELETE FROM funciones WHERE id_evento = $id_borrar"); // <-- AÑADIDO
         $conn->query("DELETE FROM evento WHERE id_evento = $id_borrar");
+        
         echo json_encode(['status' => 'success']);
         exit;
     }
@@ -73,11 +88,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $id_evento = $_GET['id'] ?? 0;
 $es_nuevo = isset($_GET['es_nuevo']) && $_GET['es_nuevo'] == 1; // DETECTAR SI ES NUEVO
 
-if (!$id_evento || !is_numeric($id_evento)) { header('Location: index.php'); exit; }
+// --- REDIRECCIÓN CORREGIDA ---
+if (!$id_evento || !is_numeric($id_evento)) { header('Location: act_evento.php'); exit; } // <-- CORREGIDO
 
 $res = $conn->query("SELECT * FROM evento WHERE id_evento = $id_evento");
 $evento = $res->fetch_assoc();
-if (!$evento) { header('Location: index.php'); exit; }
+
+// --- REDIRECCIÓN CORREGIDA ---
+if (!$evento) { header('Location: act_evento.php'); exit; } // <-- CORREGIDO
 
 $funciones_existentes = [];
 // Solo cargamos funciones si NO es una reactivación fresca
@@ -100,7 +118,7 @@ $defaultCierre = $es_nuevo ? '' : date('Y-m-d H:i', strtotime($evento['cierre_ve
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
-    /* ESTILOS UNIFICADOS */
+    /* ... (Tu CSS va aquí) ... */
     :root { --primary-color: #2563eb; --primary-dark: #1e40af; --success-color: #10b981; --danger-color: #ef4444; --warning-color: #f59e0b; --bg-primary: #f8fafc; --bg-secondary: #ffffff; --text-primary: #0f172a; --text-secondary: #64748b; --border-color: #e2e8f0; --radius-sm: 8px; --radius-lg: 16px; }
     body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, var(--bg-primary), #e2e8f0); color: var(--text-primary); padding: 30px 20px; min-height: 100vh; }
     .main-container { max-width: 850px; margin: 0 auto; }
@@ -113,7 +131,6 @@ $defaultCierre = $es_nuevo ? '' : date('Y-m-d H:i', strtotime($evento['cierre_ve
     .btn-danger { background: var(--danger-color); color: white; } .btn-danger:hover { background: #dc2626; }
     .input-error { border-color: var(--danger-color) !important; background: #fef2f2 !important; }
     .tooltip-error { color: var(--danger-color); font-size: 0.9em; margin-top: 5px; display: none; font-weight: 600; align-items: center; gap: 5px; }
-    /* Estilo de error copiado de crear_evento.php */
     .tooltip-error::before { content: "\F659"; font-family: "bootstrap-icons"; }
     #lista-funciones-container { background: var(--bg-primary); border: 2px dashed var(--border-color); border-radius: var(--radius-sm); padding: 15px; min-height: 80px; display: flex; flex-wrap: wrap; gap: 10px; }
     .funcion-item { background: #fff; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--primary-color); color: var(--primary-color); font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow-sm); }
@@ -131,8 +148,7 @@ $defaultCierre = $es_nuevo ? '' : date('Y-m-d H:i', strtotime($evento['cierre_ve
                 <i class="bi bi-x-circle-fill"></i> Cancelar Reactivación
             </button>
         <?php else: ?>
-            <a href="index.php" class="btn btn-secondary shadow-sm">
-                <i class="bi bi-arrow-left"></i> Volver al Dashboard
+            <a href="act_evento.php" class="btn btn-secondary shadow-sm"> <i class="bi bi-arrow-left"></i> Volver a Eventos Activos
             </a>
         <?php endif; ?>
     </div>
@@ -213,26 +229,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const els={add:document.getElementById('fAdd'),sub:document.getElementById('bSub'),list:document.getElementById('lista-funciones-container'),hid:document.getElementById('hidFunc'),no:document.getElementById('noFunc'),ttF:document.getElementById('ttFunc'),ttI:document.getElementById('ttIni'),ttE:document.getElementById('ttFin'),ini:document.getElementById('ini'),fin:document.getElementById('fin')};
     
-    // ==================================================================
-    // INICIO: LÓGICA DE VALIDACIÓN COPIADA DE "crear_evento.php"
-    // ==================================================================
-
     // Configuración dinámica
     const fpD=flatpickr("#fDate",{minDate:"today",onChange:function(s,d){
-        // Si la fecha es hoy, la hora mínima es 5 mins en el futuro
         if(d === new Date().toISOString().split('T')[0]) fpT.set('minTime', new Date().setMinutes(new Date().getMinutes()+5));
         else fpT.set('minTime', null);
         check();
     }});
     const fpT=flatpickr("#fTime",{enableTime:true,noCalendar:true,dateFormat:"H:i",time_24hr:true,minuteIncrement:15,onChange:check});
-    
-    // 'minDate: now' fuerza que el inicio de venta sea siempre futuro (copiado de crear_evento)
     const fpI=flatpickr("#ini",{enableTime:true,minDate:now,onChange:val}), fpE=flatpickr("#fin",{enableTime:true,minDate:now,onChange:val});
 
     function check(){els.add.disabled=!(fpD.selectedDates.length&&fpT.selectedDates.length);}
     els.add.onclick=()=>{
         let dt=new Date(fpD.input.value+'T'+fpT.input.value);
-        // Validación para asegurar que la función es futura
         if(dt<=new Date(now.getTime()+6e4)) return alert("La fecha y hora de la función deben ser futuras.");
         if(funcs.some(d=>d.getTime()===dt.getTime())) return alert("Esta función ya existe.");
         funcs.push(dt); funcs.sort((a,b)=>a-b); fpD.clear(); fpT.clear(); check(); upd();
@@ -244,7 +252,6 @@ document.addEventListener('DOMContentLoaded', () => {
             els.list.appendChild(els.no); 
             fpI.set('maxDate',null); 
             fpE.set('minDate',now); 
-            // Limpiamos fechas si es reactivación y no hay funciones
             if(<?= $es_nuevo?1:0 ?>) {
                 fpI.clear();
                 fpE.clear();
@@ -255,14 +262,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.list.innerHTML+=`<div class="funcion-item"><i class="bi bi-calendar-event"></i> ${d.toLocaleString('es-ES',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}<button type="button" onclick="del(${i})">×</button></div>`;
                 els.hid.innerHTML+=`<input type="hidden" name="funciones[]" value="${d.getFullYear()}-${(d.getMonth()+1+'').padStart(2,'0')}-${(d.getDate()+'').padStart(2,'0')} ${(d.getHours()+'').padStart(2,'0')}:${(d.getMinutes()+'').padStart(2,'0')}:00">`;
             });
-            // Ajuste automático de fechas
-            fpI.set('maxDate', new Date(funcs[0].getTime() - 60000)); // 1 min antes
-            const cierreAuto = new Date(funcs[funcs.length-1].getTime() + 7200000); // +2 horas
+            fpI.set('maxDate', new Date(funcs[0].getTime() - 60000));
+            const cierreAuto = new Date(funcs[funcs.length-1].getTime() + 7200000);
             fpE.set('minDate', cierreAuto);
             
-            // Auto-llenar cierre SÓLO si es reactivación (es_nuevo) O si la fecha actual de cierre es inválida
             if(<?= $es_nuevo?1:0 ?> || !fpE.selectedDates.length || fpE.selectedDates[0] < cierreAuto) {
-                fpE.setDate(cierreAuto, true); // <--- ESTO LLENA EL CIERRE AUTOMÁTICAMENTE
+                fpE.setDate(cierreAuto, true);
             }
         }
         val();
@@ -281,33 +286,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if(!fpE.selectedDates.length){ if(funcs.length) err(els.ttE,els.fin,'Requerido.'); ok=false; }
         else if(fpI.selectedDates.length&&fpE.selectedDates[0]<=fpI.selectedDates[0]){ err(els.ttE,els.fin,'Debe ser posterior al inicio.'); ok=false; }
         
-        // Validación de descripción (adaptada de crear_evento)
         if(!document.getElementById('desc').value.trim()) ok=false;
         
-        // La validación de 'img' no se copia porque es opcional en 'editar'
-        // La validación de 'tipo' no se copia porque siempre está seleccionado
-
         els.sub.disabled=!ok; 
-        
-        // Cambiar texto del botón según el contexto
         els.sub.innerHTML = `<i class="bi bi-check2-circle me-2"></i> ${ok ? (<?= $es_nuevo?1:0 ?> ? 'Confirmar Reactivación' : 'Actualizar Evento') : 'Completa los campos'}`;
         
         return ok;
     }
-    // Función de error copiada de crear_evento.php (usa textContent)
     function err(t,i,m){ t.textContent=m; t.style.display='flex'; if(i) i.classList.add('input-error'); }
     
-    // Listeners para validar en tiempo real
     ['tit','desc','img','tipo'].forEach(id=>document.getElementById(id).addEventListener(id==='img'||id==='tipo'?'change':'input',val));
     document.getElementById('fEdit').addEventListener('submit',e=>{if(!val()){e.preventDefault();alert("Corrige errores.");}});
     
-    // Llamada inicial para cargar funciones existentes y validar
     upd(); 
-
-    // ==================================================================
-    // FIN: LÓGICA DE VALIDACIÓN COPIADA
-    // ==================================================================
-
 
     // --- LÓGICA DE CANCELACIÓN (SOLO SI ES NUEVO) ---
     const btnCancelTop = document.getElementById('btnCancelarReactivacion');
@@ -321,7 +312,12 @@ document.addEventListener('DOMContentLoaded', () => {
             fd.append('id_evento', id);
             fetch('', {method:'POST', body:fd})
                 .then(r=>r.json())
-                .then(d=>{ if(d.status==='success') window.location.href='index.php'; })
+                .then(d=>{ 
+                    if(d.status==='success') {
+                        // --- REDIRECCIÓN CORREGIDA ---
+                        window.location.href='act_evento.php'; // <-- CORREGIDO
+                    }
+                })
                 .catch(()=>alert('Error de conexión'));
         }
     }
