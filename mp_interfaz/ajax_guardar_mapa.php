@@ -36,6 +36,8 @@ if ($data && isset($data['id_evento']) && isset($data['mapa'])) {
     if ($stmt->execute()) {
         $response['status'] = 'success';
         $response['message'] = 'Mapa guardado con éxito.';
+        $response['notify_change'] = true;
+        $response['id_evento'] = $id_evento;
     } else {
         $response['message'] = 'Error al guardar en la base de datos.';
     }

@@ -16,8 +16,28 @@ if ($id_evento_redirect) {
 // ==================================================================
 // --- FUNCIÓN DE AYUDA PARA REDIRIGIR CON MENSAJES ---
 // ==================================================================
-function redirigir($base_url, $status, $mensaje) {
+function redirigir($base_url, $status, $mensaje, $id_evento = null) {
     $conector = strpos($base_url, '?') === false ? '?' : '&';
+    
+    // Notificar cambio en categorías para actualización en tiempo real
+    if ($status === 'success' && $id_evento) {
+        echo "<!DOCTYPE html><html><head><title>Procesando...</title></head><body>";
+        echo "<script>
+            // Notificar cambio en categorías
+            localStorage.setItem('categorias_actualizadas', JSON.stringify({
+                id_evento: " . intval($id_evento) . ",
+                timestamp: Date.now()
+            }));
+            
+            // Redirigir
+            setTimeout(function() {
+                window.location.href = '" . $base_url . $conector . "status=$status&msg=" . urlencode($mensaje) . "';
+            }, 100);
+        </script>";
+        echo "<p>Procesando cambios...</p></body></html>";
+        exit;
+    }
+    
     header("Location: " . $base_url . $conector . "status=$status&msg=" . urlencode($mensaje));
     exit;
 }
@@ -87,7 +107,7 @@ else {
                 $stmt->bind_param("isds", $id_evento_redirect, $nombre_categoria, $precio, $color);
                 $stmt->execute(); $stmt->close();
                 
-                redirigir($redirect_url, 'success', 'Categoría creada con éxito.');
+                redirigir($redirect_url, 'success', 'Categoría creada con éxito.', $id_evento_redirect);
                 break;
 
             case 'actualizar':
@@ -106,7 +126,7 @@ else {
                 $stmt->bind_param("sdsii", $nombre_categoria, $precio, $color, $id_categoria, $id_evento_redirect);
                 $stmt->execute(); $stmt->close();
                 
-                redirigir($redirect_url, 'success', 'Categoría actualizada.');
+                redirigir($redirect_url, 'success', 'Categoría actualizada.', $id_evento_redirect);
                 break;
                 
             case 'borrar':
@@ -117,7 +137,7 @@ else {
                 $stmt->bind_param("ii", $id_categoria, $id_evento_redirect);
                 $stmt->execute(); $stmt->close();
                 
-                redirigir($redirect_url, 'success', 'Categoría eliminada.');
+                redirigir($redirect_url, 'success', 'Categoría eliminada.', $id_evento_redirect);
                 break;
 
             default:

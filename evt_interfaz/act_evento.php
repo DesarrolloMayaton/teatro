@@ -27,12 +27,12 @@ function reactivar_evento($id_evento, $conn) {
  * @throws Exception Si alguna de las operaciones SQL falla.
  */
 function borrar_evento($id_evento, $conn) {
-    // 1. COPIA de 'trt_25' a 'trt_historico_evento'
-    if (!$conn->query("INSERT INTO trt_historico_evento.evento SELECT * FROM trt_25.evento WHERE id_evento = $id_evento")) { throw new Exception("Error al archivar evento: " . $conn->error); }
-    if (!$conn->query("INSERT INTO trt_historico_evento.funciones SELECT * FROM trt_25.funciones WHERE id_evento = $id_evento")) { throw new Exception("Error al archivar funciones: " . $conn->error); }
-    if (!$conn->query("INSERT INTO trt_historico_evento.categorias SELECT * FROM trt_25.categorias WHERE id_evento = $id_evento")) { throw new Exception("Error al archivar categorías: " . $conn->error); }
-    if (!$conn->query("INSERT INTO trt_historico_evento.promociones SELECT * FROM trt_25.promociones WHERE id_evento = $id_evento")) { throw new Exception("Error al archivar promociones: " . $conn->error); }
-    if (!$conn->query("INSERT INTO trt_historico_evento.boletos SELECT * FROM trt_25.boletos WHERE id_evento = $id_evento")) { throw new Exception("Error al archivar boletos: " . $conn->error); }
+    // 1. COPIA de 'trt_25' a 'trt_historico_evento' (usando INSERT IGNORE para evitar duplicados)
+    if (!$conn->query("INSERT IGNORE INTO trt_historico_evento.evento SELECT * FROM trt_25.evento WHERE id_evento = $id_evento")) { throw new Exception("Error al archivar evento: " . $conn->error); }
+    if (!$conn->query("INSERT IGNORE INTO trt_historico_evento.funciones SELECT * FROM trt_25.funciones WHERE id_evento = $id_evento")) { throw new Exception("Error al archivar funciones: " . $conn->error); }
+    if (!$conn->query("INSERT IGNORE INTO trt_historico_evento.categorias SELECT * FROM trt_25.categorias WHERE id_evento = $id_evento")) { throw new Exception("Error al archivar categorías: " . $conn->error); }
+    if (!$conn->query("INSERT IGNORE INTO trt_historico_evento.promociones SELECT * FROM trt_25.promociones WHERE id_evento = $id_evento")) { throw new Exception("Error al archivar promociones: " . $conn->error); }
+    if (!$conn->query("INSERT IGNORE INTO trt_historico_evento.boletos SELECT * FROM trt_25.boletos WHERE id_evento = $id_evento")) { throw new Exception("Error al archivar boletos: " . $conn->error); }
     
     // 2. BORRA de 'trt_25' (producción)
     $conn->query("DELETE FROM trt_25.boletos WHERE id_evento = $id_evento");

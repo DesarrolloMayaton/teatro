@@ -57,8 +57,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt_f->close();
 
                 $conn->commit();
-                // --- REDIRECCIÓN CORREGIDA ---
-                header('Location: act_evento.php?status=success'); // <-- CORREGIDO
+                
+                // Notificar actualización a otras pestañas usando una página intermedia
+                ?>
+                <!DOCTYPE html>
+                <html>
+                <head><title>Actualizando...</title></head>
+                <body>
+                <script>
+                    // Notificar a la ventana padre si existe
+                    if (window.opener) {
+                        window.opener.postMessage({type: 'evento_actualizado', id_evento: <?= $id_evento ?>}, '*');
+                    }
+                    
+                    // Guardar en localStorage para notificar a otras pestañas
+                    localStorage.setItem('evento_actualizado', JSON.stringify({
+                        id_evento: <?= $id_evento ?>,
+                        timestamp: Date.now()
+                    }));
+                    
+                    // Redirigir después de notificar
+                    setTimeout(function() {
+                        window.location.href = 'act_evento.php?status=success';
+                    }, 100);
+                </script>
+                <p>Actualizando evento...</p>
+                </body>
+                </html>
+                <?php
                 exit;
             } catch (Exception $e) { $conn->rollback(); $errores_php[] = "Error DB: " . $e->getMessage(); }
         }

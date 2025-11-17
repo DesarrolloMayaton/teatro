@@ -253,7 +253,20 @@ if($action==='create'){
         );
 
         $stmt->execute();
-        respond(true, ['id_promocion'=>$stmt->insert_id]);
+        $id_promo = $stmt->insert_id;
+        
+        // Notificar cambio en descuentos
+        if ($f['id_evento']) {
+            echo json_encode([
+                'ok' => true,
+                'id_promocion' => $id_promo,
+                'notify_change' => true,
+                'id_evento' => $f['id_evento']
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        
+        respond(true, ['id_promocion'=>$id_promo]);
 
     }elseif($pdo){
         $st = $pdo->prepare($sql);
@@ -342,6 +355,17 @@ if($action==='update'){
             $id
         );
         $stmt->execute();
+        
+        // Notificar cambio en descuentos
+        if ($f['id_evento']) {
+            echo json_encode([
+                'ok' => true,
+                'notify_change' => true,
+                'id_evento' => $f['id_evento']
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        
         respond(true);
 
     }elseif($pdo){
@@ -362,6 +386,17 @@ if($action==='update'){
             $f['activo'],
             $id
         ]);
+        
+        // Notificar cambio en descuentos
+        if ($f['id_evento']) {
+            echo json_encode([
+                'ok' => true,
+                'notify_change' => true,
+                'id_evento' => $f['id_evento']
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        
         respond(true);
     }else{
         respond(false,['error'=>'No DB connection']);

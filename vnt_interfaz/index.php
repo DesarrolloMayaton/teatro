@@ -1455,7 +1455,7 @@ hr {
             <li class="list-group-item d-flex align-items-center gap-3">
               <span class="palette-color d-inline-block" style="width: 24px; height: 24px; border-radius: 8px; background-color:<?= htmlspecialchars($c['color']) ?>; border: 2px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></span>
               <span style="flex: 1; font-size: 1rem; font-weight: 500;"><?= htmlspecialchars($c['nombre_categoria']) ?></span>
-              <span class="badge bg-success fs-6">${<?= number_format($c['precio'],2) ?></span>
+              <span class="badge bg-success fs-6">$<?= number_format($c['precio'],2) ?></span>
             </li>
           <?php endforeach; ?>
         </ul>
@@ -1827,63 +1827,11 @@ hr {
     // ==================================================================
     // ACTUALIZACIÓN AUTOMÁTICA DEL SELECTOR DE EVENTOS
     // ==================================================================
-    
-    // Función para actualizar el selector de eventos sin recargar la página
-    async function actualizarSelectorEventos() {
-        try {
-            const response = await fetch('obtener_eventos.php');
-            const data = await response.json();
-            
-            if (data.success) {
-                const selectEvento = document.querySelector('select[name="id_evento"]');
-                if (!selectEvento) return;
-                
-                const eventoActual = selectEvento.value;
-                const eventosActuales = Array.from(selectEvento.options).map(opt => opt.value);
-                const eventosNuevos = data.eventos.map(e => e.id_evento.toString());
-                
-                // Verificar si hay cambios
-                const hayNuevos = eventosNuevos.some(id => !eventosActuales.includes(id));
-                const hayEliminados = eventosActuales.some(id => id && !eventosNuevos.includes(id));
-                
-                if (hayNuevos || hayEliminados) {
-                    // Reconstruir el selector
-                    selectEvento.innerHTML = '<option value="">Seleccionar evento...</option>';
-                    
-                    data.eventos.forEach(evento => {
-                        const option = document.createElement('option');
-                        option.value = evento.id_evento;
-                        option.textContent = `${evento.titulo} • ${evento.tipo == 1 ? 'Teatro 420' : 'Pasarela 540'}`;
-                        if (evento.id_evento.toString() === eventoActual) {
-                            option.selected = true;
-                        }
-                        selectEvento.appendChild(option);
-                    });
-                    
-                    // Mostrar notificación si hay eventos nuevos
-                    if (hayNuevos && typeof notify !== 'undefined') {
-                        notify.success('Nuevos eventos disponibles');
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Error al actualizar eventos:', error);
-        }
-    }
-    
-    // Escuchar cambios en localStorage (cuando se crea un evento desde otra pestaña)
-    window.addEventListener('storage', (e) => {
-        if (e.key === 'evt_upd') {
-            console.log('Evento creado detectado, actualizando selector...');
-            actualizarSelectorEventos();
-        }
-    });
-    
-    // Polling cada 30 segundos para detectar cambios (por si acaso)
-    setInterval(actualizarSelectorEventos, 30000);
+    // La lógica de sincronización está en js/evento-sync.js
 </script>
 
 <script src="js/notifications.js"></script>
+<script src="js/evento-sync.js"></script>
 <script src="js/carrito.js?v=5"></script>
 <script src="js/carrito-patch.js"></script>
 <script src="js/descuentos-modal.js"></script>
