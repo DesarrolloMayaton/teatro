@@ -516,6 +516,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify({ id_evento: eventId, mapa: mapaArray })
                 });
                 const data = await res.json();
+                
+                // Notificar cambio si hay id_evento
+                if (data.notify_change && data.id_evento) {
+                    localStorage.setItem('mapa_actualizado', JSON.stringify({
+                        id_evento: data.id_evento,
+                        timestamp: Date.now()
+                    }));
+                }
+                
                 showToast(data.status === 'success' ? 'Mapa guardado exitosamente' : 'Error: ' + data.message, 
                           data.status === 'success' ? 'success' : 'danger');
             } catch (e) {
@@ -580,6 +589,27 @@ document.addEventListener('DOMContentLoaded', () => {
                  .onfinish = () => toast.remove();
         }, 3000);
     }
+    
+    // --- ESCUCHAR CAMBIOS EN CATEGORÍAS ---
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'categorias_actualizadas' && e.newValue) {
+            try {
+                const data = JSON.parse(e.newValue);
+                const eventoActual = document.getElementById('current_event_id')?.value;
+                
+                console.log('Categorías actualizadas:', data.id_evento, 'Evento actual:', eventoActual);
+                
+                if (data.id_evento == eventoActual && eventoActual) {
+                    showToast('Las categorías han sido actualizadas, recargando...', 'info');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
+            } catch (error) {
+                console.error('Error al procesar categorias_actualizadas:', error);
+            }
+        }
+    });
 });
 </script>
 </body>

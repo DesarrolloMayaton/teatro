@@ -1,29 +1,26 @@
 <?php
 header('Content-Type: application/json');
-
 include "../conexion.php";
 
 try {
-    // Obtener todos los eventos activos
-    $query = "SELECT id_evento, titulo, tipo FROM evento WHERE finalizado = 0 ORDER BY titulo ASC";
-    $result = $conn->query($query);
+    $res_eventos = $conn->query("SELECT id_evento, titulo, tipo FROM evento WHERE finalizado = 0 ORDER BY titulo ASC");
     
-    $eventos = [];
-    if ($result) {
-        while ($row = $result->fetch_assoc()) {
-            $eventos[] = [
-                'id_evento' => (int)$row['id_evento'],
-                'titulo' => $row['titulo'],
-                'tipo' => (int)$row['tipo']
-            ];
+    if ($res_eventos) {
+        $eventos = [];
+        while ($row = $res_eventos->fetch_assoc()) {
+            $eventos[] = $row;
         }
+        
+        echo json_encode([
+            'success' => true,
+            'eventos' => $eventos
+        ]);
+    } else {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Error al obtener eventos'
+        ]);
     }
-    
-    echo json_encode([
-        'success' => true,
-        'eventos' => $eventos
-    ]);
-    
 } catch (Exception $e) {
     echo json_encode([
         'success' => false,

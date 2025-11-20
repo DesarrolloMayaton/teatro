@@ -509,6 +509,15 @@ async function guardar(e) {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Guardando...';
     try {
         const data = await api(action, payload, state.editingId);
+        
+        // Notificar cambio si hay id_evento
+        if (data.notify_change && data.id_evento) {
+            localStorage.setItem('descuentos_actualizados', JSON.stringify({
+                id_evento: data.id_evento,
+                timestamp: Date.now()
+            }));
+        }
+        
         await cargarDatos(); 
         limpiarForm(); 
         Swal.fire({

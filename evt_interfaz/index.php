@@ -1,286 +1,199 @@
 <?php
-include "../conexion.php";
+session_start();
+include "../conexion.php"; // Incluir conexión para verificar usuarios
 
-// ==================================================================
-// FUNCIONES DE GESTIÓN
-// ==================================================================
-
-function finalizar_evento($id_evento, $conn) {
-    // Marcar evento como finalizado
-    $conn->query("UPDATE evento SET finalizado = 1 WHERE id_evento = $id_evento");
+// Verificar que hay sesión activa
+if (!isset($_SESSION['usuario_id'])) {
+    die('<html><head><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"></head><body style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; background: #f4f7f6; color: #e74c3c; font-size: 1.2em;">
+    <div style="text-align: center;">
+        <i class="bi bi-lock-fill" style="font-size: 3em;"></i>
+        <p>Acceso denegado. Debe iniciar sesión.</p>
+    </div>
+    </body></html>');
 }
 
-function reactivar_evento($id_evento, $conn) {
-    // Reactivar evento (cambiar finalizado a 0)
-    $conn->query("UPDATE evento SET finalizado = 0, inicio_venta = NOW(), cierre_venta = NOW() + INTERVAL 30 DAY WHERE id_evento = $id_evento");
-}
-
-function borrar_evento($id_evento, $conn) {
-    // Borrar QR físicos
-    $res_qrs = $conn->query("SELECT qr_path FROM boletos WHERE id_evento = $id_evento");
-    if ($res_qrs) {
-        while ($row = $res_qrs->fetch_assoc()) {
-            if (!empty($row['qr_path'])) {
-                $rutas = [__DIR__ . '/' . $row['qr_path'], __DIR__ . '/../' . $row['qr_path']];
-                foreach ($rutas as $r) { if (file_exists($r)) { @unlink($r); break; } }
-            }
-        }
+// Verificar acceso al panel de administración
+if ($_SESSION['usuario_rol'] !== 'admin') {
+    if (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado']) {
+        die('<html><head><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"></head><body style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; background: #f4f7f6; color: #e74c3c; font-size: 1.2em;">
+        <div style="text-align: center;">
+            <i class="bi bi-shield-lock-fill" style="font-size: 3em;"></i>
+            <p>Acceso denegado. Requiere verificación de administrador.</p>
+            <button onclick="window.parent.location.href=\'/teatro/index.php\'" style="margin-top: 20px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1em;">Volver al Sistema</button>
+        </div>
+        </body></html>');
     }
-
-    // Eliminar registros relacionados
-    $conn->query("DELETE FROM boletos WHERE id_evento = $id_evento");
-    $conn->query("DELETE FROM promociones WHERE id_evento = $id_evento");
-    $conn->query("DELETE FROM categorias WHERE id_evento = $id_evento");
-    $conn->query("DELETE FROM funciones WHERE id_evento = $id_evento");
-    $conn->query("DELETE FROM evento WHERE id_evento = $id_evento");
 }
-
-// ==================================================================
-// PROCESADOR AJAX
-// ==================================================================
-if (isset($_POST['accion'])) {
-    header('Content-Type: application/json');
-    $id = $_POST['id_evento'] ?? 0;
-    $conn->begin_transaction();
-    try {
-        switch($_POST['accion']) {
-            case 'finalizar':
-                finalizar_evento($id, $conn);
-                break;
-            case 'borrar':
-                $u = $_POST['auth_user']??''; $p = $_POST['auth_pin']??'';
-                // Verificar credenciales (ajusta según tu tabla usuarios)
-                $stmt = $conn->prepare("SELECT id_usuario FROM usuarios WHERE nombre = ? AND password = ?");
-                $stmt->bind_param("ss", $u, $p);
-                $stmt->execute();
-                $stmt->store_result();
-                if($stmt->num_rows === 0) throw new Exception("Credenciales incorrectas");
-                $stmt->close();
-                borrar_evento($id, $conn);
-                break;
-            case 'reactivar':
-                reactivar_evento($id, $conn);
-                break;
-            case 'borrar_permanente':
-                borrar_evento($id, $conn);
-                break;
-        }
-        $conn->commit();
-        echo json_encode(['status'=>'success']);
-    } catch (Exception $e) {
-        $conn->rollback();
-        echo json_encode(['status'=>'error', 'message'=>$e->getMessage()]);
-    }
-    exit;
-}
-
-// ==================================================================
-// CARGA DE DATOS
-// ==================================================================
-// Auto-finalizar eventos vencidos
-$rv = $conn->query("SELECT e.id_evento FROM evento e LEFT JOIN (SELECT id_evento, MAX(fecha_hora) as ult FROM funciones GROUP BY id_evento) lf ON e.id_evento = lf.id_evento WHERE e.finalizado=0 AND ((lf.ult IS NOT NULL AND lf.ult < NOW()) OR (lf.ult IS NULL AND e.cierre_venta < NOW()))");
-if($rv){ while($r=$rv->fetch_assoc()){ finalizar_evento($r['id_evento'], $conn); }}
-
-$activos = $conn->query("SELECT * FROM evento WHERE finalizado = 0 ORDER BY inicio_venta DESC");
-$historial = $conn->query("SELECT * FROM evento WHERE finalizado = 1 ORDER BY cierre_venta DESC");
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Dashboard de Eventos</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<style>
-    :root {
-        --primary-color: #2563eb; --primary-dark: #1e40af;
-        --success-color: #10b981; --danger-color: #ef4444;
-        --warning-color: #f59e0b; --info-color: #3b82f6;
-        --bg-primary: #f8fafc; --bg-secondary: #ffffff;
-        --text-primary: #0f172a; --text-secondary: #64748b;
-        --border-color: #e2e8f0;
-        --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
-        --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
-        --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
-        --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
-    }
-    body { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); font-family: 'Inter', sans-serif; color: var(--text-primary); height: 100vh; overflow: hidden; }
-    .main-container { display: flex; height: 100vh; }
-    .sidebar { width: 280px; background: #1e293b; padding: 25px; color: #fff; display: flex; flex-direction: column; }
-    .nav-link { color: #94a3b8; padding: 12px 16px; border-radius: var(--radius-sm); margin-bottom: 5px; transition: all 0.2s; }
-    .nav-link:hover, .nav-link.active { background: rgba(255,255,255,0.1); color: #fff; }
-    .nav-link.active { background: var(--primary-color); }
-    .nav-link i { margin-right: 10px; font-size: 1.1em; }
-    .content { flex: 1; padding: 30px; overflow-y: auto; }
-    .card { border: none; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); transition: all 0.3s ease; background: var(--bg-secondary); }
-    .card:hover { transform: translateY(-5px); box-shadow: var(--shadow-md); }
-    .card-img-top { height: 180px; object-fit: cover; border-radius: var(--radius-md) var(--radius-md) 0 0; }
-    .btn { border-radius: var(--radius-sm); font-weight: 600; padding: 8px 16px; border: none; transition: all 0.2s; }
-    .btn-primary { background: var(--primary-color); color: white; } .btn-primary:hover { background: var(--primary-dark); }
-    .btn-success { background: var(--success-color); color: white; } .btn-success:hover { background: #059669; }
-    .btn-danger { background: var(--danger-color); color: white; } .btn-danger:hover { background: #dc2626; }
-    .btn-warning { background: var(--warning-color); color: white; } .btn-warning:hover { background: #d97706; }
-    .btn-dark { background: #334155; color: white; } .btn-dark:hover { background: #1e293b; }
-    .badge-finalizado { background: #64748b; color: white; padding: 4px 8px; border-radius: 20px; font-size: 0.7em; vertical-align: middle; }
-    /* Estilos Alerta Roja Modal */
-    .modal-danger-mode .modal-header { background-color: var(--danger-color); color: white; }
-    .modal-danger-mode .modal-content { border: 3px solid var(--danger-color); }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title></title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        nav.menu-admin {
+            width: 230px;
+            background-color: #1e293b; /* Color del menu.php */
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding-top: 10px;
+            box-shadow: 4px 0 12px rgba(0, 0, 0, 0.1);
+            flex-shrink: 0;
+        }
+        .menu-header {
+            padding: 10px 20px 20px 20px;
+            border-bottom: 1px solid #34495e;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .menu-header h4 {
+            color: white;
+            font-weight: 600;
+            margin: 0;
+            font-size: 1.2em;
+        }
+        .menu-header .btn-reload {
+            background: none;
+            border: 1px solid #566573;
+            color: #bdc3c7;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        nav.menu-admin a.menu-item {
+            display: flex;
+            align-items: center;
+            color: #bdc3c7; /* Color de texto más suave */
+            padding: 16px 20px;
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border-left: 4px solid transparent;
+        }
+        nav.menu-admin a.menu-item i {
+            font-size: 1.2em;
+            min-width: 30px;
+            margin-right: 12px;
+            opacity: 0.8;
+        }
+        nav.menu-admin a.menu-item:hover {
+            background-color: #2c3e50;
+            color: #fff;
+        }
+        nav.menu-admin a.menu-item.active {
+            background-color: #2563eb; /* Azul primario */
+            color: #fff;
+            border-left: 4px solid #fff;
+            font-weight: 600;
+        }
+        .menu-footer {
+            margin-top: auto;
+            padding: 20px;
+        }
+        .menu-footer .btn-success {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 12px;
+            background-color: #10b981;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 600;
+        }
+        header {
+            background-color: #ffffff;
+            color: #2c3e50;
+            padding: 12px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            flex-shrink: 0;
+            width: 100%;
+            border-bottom: 1px solid #e2e8f0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .contenido-admin {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        iframe.content-frame {
+            flex-grow: 1;
+            width: 100%;
+            height: 100%;
+            border: none;
+            background-color: #f8fafc; /* Color de fondo del content */
+        }
+    </style>
 </head>
 <body>
-<div class="main-container">
-    <div class="sidebar">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4 class="text-white fw-bold m-0"><i class="bi bi-grid-fill me-2"></i>Dashboard</h4>
-            <button onclick="window.location.reload()" class="btn btn-sm btn-outline-light" title="Actualizar Datos"><i class="bi bi-arrow-clockwise"></i></button>
-        </div>
 
-        <ul class="nav nav-pills flex-column mb-auto">
-            <li class="nav-item"><button class="nav-link active w-100 text-start" data-bs-toggle="pill" data-bs-target="#activos"><i class="bi bi-activity"></i> Activos</button></li>
-            <li class="nav-item"><button class="nav-link w-100 text-start" data-bs-toggle="pill" data-bs-target="#historial"><i class="bi bi-archive"></i> Historial</button></li>
-        </ul>
-        <a href="crear_evento.php" class="btn btn-success w-100 py-2 mt-4"><i class="bi bi-plus-lg me-2"></i>Nuevo Evento</a>
+    <nav class="menu-admin" id="menuAdmin">
+        <div class="menu-header">
+             <h4 class="m-0"><i class="bi bi-grid-fill me-2"></i>Dashboard</h4>
+             <button onclick="reloadFrame()" class="btn-reload" title="Actualizar Datos"><i class="bi bi-arrow-clockwise"></i></button>
+        </div>
+        
+        <a class="menu-item" href="act_evento.php" target="contentFrame">
+            <i class="bi bi-activity"></i> Activos
+        </a>
+    
+        <a class="menu-item" href="htr_eventos.php" target="contentFrame">
+            <i class="bi bi-archive"></i> Historial
+        </a>
+        
+        <div style="height: 1px; background: #34495e; margin: 10px 20px;"></div>
+
+        <a class="menu-item" href="crear_evento.php" target="contentFrame">
+            <i class="bi bi-plus-lg"></i> Nuevo Evento
+        </a>
+    </nav>
+
+    <div class="contenido-admin">
+        <header></header>
+
+        <iframe class="content-frame" name="contentFrame" id="contentFrame" src="act_evento.php">
+            Tu navegador no soporta iframes.
+        </iframe>
     </div>
 
-    <div class="content">
-        <div class="tab-content">
-            <div class="tab-pane fade show active" id="activos">
-                <h2 class="fw-bold mb-4 text-primary">Eventos Activos</h2>
-                <div class="row g-4">
-                    <?php if($activos && $activos->num_rows>0): while($e=$activos->fetch_assoc()): 
-                        $img=''; $rutas=[$e['imagen'], '../'.$e['imagen'], 'evt_interfaz/'.$e['imagen']];
-                        foreach($rutas as $r){if(file_exists(__DIR__.'/'.$r)){$img=$r;break;}} ?>
-                    <div class="col-xl-3 col-lg-4 col-md-6">
-                        <div class="card h-100">
-                            <?php if($img):?><img src="<?=htmlspecialchars($img)?>" class="card-img-top"><?php else:?><div class="card-img-top bg-secondary"></div><?php endif;?>
-                            <div class="card-body">
-                                <h5 class="card-title fw-bold"><?=htmlspecialchars($e['titulo'])?></h5>
-                                <p class="card-text small text-muted mb-0"><i class="bi bi-calendar2-event me-1"></i> Inicio: <?=date('d/m/y',strtotime($e['inicio_venta']))?></p>
-                            </div>
-                            <div class="card-footer bg-white border-0 pt-0 d-flex justify-content-between">
-                                <a href="editar_evento.php?id=<?=$e['id_evento']?>" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a>
-                                <div class="d-flex gap-1">
-                                    <button class="btn btn-warning btn-sm text-white" onclick="conf('finalizar',<?=$e['id_evento']?>,'<?=addslashes($e['titulo'])?>')"><i class="bi bi-archive"></i></button>
-                                    <button class="btn btn-danger btn-sm" onclick="conf('borrar',<?=$e['id_evento']?>,'<?=addslashes($e['titulo'])?>')"><i class="bi bi-trash"></i></button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endwhile; else: ?><div class="col-12"><div class="alert alert-info shadow-sm border-0">No hay eventos activos.</div></div><?php endif; ?>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="historial">
-                <h2 class="fw-bold mb-4 text-secondary">Historial de Eventos</h2>
-                <div class="row g-4">
-                    <?php if($historial && $historial->num_rows>0): while($e=$historial->fetch_assoc()): 
-                         $img=''; $rutas=[$e['imagen'], '../'.$e['imagen'], 'evt_interfaz/'.$e['imagen']];
-                         foreach($rutas as $r){if(file_exists(__DIR__.'/'.$r)){$img=$r;break;}} ?>
-                    <div class="col-xl-3 col-lg-4 col-md-6">
-                        <div class="card h-100 bg-light">
-                            <?php if($img):?><img src="<?=htmlspecialchars($img)?>" class="card-img-top" style="filter:grayscale(1);opacity:0.7"><?php else:?><div class="card-img-top bg-secondary" style="opacity:0.7"></div><?php endif;?>
-                            <div class="card-body">
-                                <h6 class="card-title text-muted"><?=htmlspecialchars($e['titulo'])?> <span class="badge-finalizado">ARCHIVADO</span></h6>
-                                <p class="small text-muted mb-0">Cerró: <?=date('d/m/y',strtotime($e['cierre_venta']))?></p>
-                            </div>
-                            <div class="card-footer bg-transparent border-0 pt-0 text-end">
-                                <button class="btn btn-primary btn-sm" onclick="conf('reactivar',<?=$e['id_evento']?>,'<?=addslashes($e['titulo'])?>')"><i class="bi bi-copy"></i> Reactivar</button>
-                                <button class="btn btn-dark btn-sm" onclick="conf('borrar_permanente',<?=$e['id_evento']?>,'<?=addslashes($e['titulo'])?>')"><i class="bi bi-x-lg"></i></button>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endwhile; else: ?><div class="col-12"><p class="text-muted">Historial vacío.</p></div><?php endif; ?>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+    <script>
+        // Script para manejar la clase 'active'
+        document.querySelectorAll('nav.menu-admin a.menu-item').forEach(link => {
+            link.addEventListener('click', function(e) {
+                document.querySelectorAll('nav.menu-admin a.menu-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                this.classList.add('active');
+            });
+        });
 
-<div class="modal fade" id="mConf" tabindex="-1" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg" id="mContent">
-            <div class="modal-header border-0" id="mHeader">
-                <h5 class="modal-title fw-bold" id="mTitle">Confirmar Acción</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" id="mClose"></button>
-            </div>
-            <div class="modal-body">
-                <p id="mMsg" class="fs-5 mb-3"></p>
-                <div id="mAuth" class="d-none bg-light p-3 rounded-3 mb-3 border">
-                    <label class="small fw-bold text-secondary mb-2">Credenciales de Administrador:</label>
-                    <input type="text" id="mUser" class="form-control mb-2" placeholder="Usuario">
-                    <input type="password" id="mPin" class="form-control" placeholder="PIN">
-                </div>
-                <div id="mWarn" class="alert alert-warning border-0 small d-flex align-items-center"><i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i><span id="mTxt"></span></div>
-            </div>
-            <div class="modal-footer border-0">
-                <button class="btn btn-light" data-bs-dismiss="modal" id="mCancel">Cancelar</button>
-                <button id="mBtn" class="btn px-4">Confirmar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-const m = new bootstrap.Modal('#mConf');
-const els = { cont:document.getElementById('mContent'), head:document.getElementById('mHeader'), title:document.getElementById('mTitle'), msg:document.getElementById('mMsg'), auth:document.getElementById('mAuth'), warn:document.getElementById('mWarn'), txt:document.getElementById('mTxt'), btn:document.getElementById('mBtn'), user:document.getElementById('mUser'), pin:document.getElementById('mPin'), close:document.getElementById('mClose'), cancel:document.getElementById('mCancel') };
-
-function resetModal() {
-    els.cont.parentNode.classList.remove('modal-danger-mode');
-    els.head.classList.remove('bg-danger', 'text-white');
-    els.btn.classList.remove('btn-danger', 'w-100', 'py-3', 'fs-5');
-    els.warn.className = 'alert alert-warning border-0 small d-flex align-items-center';
-    els.auth.classList.add('d-none'); els.user.value = ''; els.pin.value = '';
-    els.close.classList.remove('btn-close-white'); els.cancel.classList.remove('d-none');
-}
-
-function conf(act, id, nom) {
-    resetModal();
-    let t='', w='', c='btn-primary', req=false, isCritical=false;
-    switch(act) {
-        case 'finalizar': t='Finalizar Evento'; els.msg.innerHTML=`¿Mover <strong>${nom}</strong> al historial?`; w='El evento dejará de estar activo.'; c='btn-warning'; break;
-        case 'borrar': t='Archivar Evento'; els.msg.innerHTML=`¿Eliminar <strong>${nom}</strong> de activos?`; w='Se moverá al historial. Requiere autorización.'; c='btn-primary'; req=true; isCritical=true; break;
-        case 'reactivar': t='Reactivar Evento'; els.msg.innerHTML=`¿Crear copia de <strong>${nom}</strong>?`; w='Se creará un nuevo evento activo.'; c='btn-success'; break;
-        case 'borrar_permanente': t='Eliminación Total'; els.msg.innerHTML=`¿Borrar <strong>${nom}</strong> para siempre?`; w='IRREVERSIBLE.'; c='btn-dark'; isCritical=true; break;
-    }
-    els.title.textContent=t; els.txt.textContent=w; els.auth.classList.toggle('d-none',!req); els.btn.className=`btn fw-bold ${c}`;
-
-    els.btn.onclick = () => {
-        if(isCritical) {
-            if(req && (!els.user.value || !els.pin.value)) return alert('Faltan credenciales');
-            els.cont.parentNode.classList.add('modal-danger-mode');
-            els.head.classList.add('bg-danger', 'text-white');
-            els.close.classList.add('btn-close-white');
-            els.title.innerHTML = '<i class="bi bi-exclamation-octagon-fill me-2"></i>¡ADVERTENCIA FINAL!';
-            els.msg.innerHTML = `<h4 class="text-danger fw-bold text-center my-3">¿ESTÁS SEGURO?</h4><p class="text-center mb-0">Se eliminará <strong>${nom}</strong>.</p><p class="text-center fw-bold text-danger mt-2">¡DATOS IRRECUPERABLES!</p>`;
-            els.warn.className = 'alert alert-danger border-0 fw-bold text-center d-block';
-            els.txt.textContent = 'ACCIÓN DESTRUCTIVA.';
-            els.auth.classList.add('d-none'); els.cancel.classList.add('d-none');
-            els.btn.className = 'btn btn-danger fw-bold w-100 py-3 fs-5';
-            els.btn.innerHTML = '<i class="bi bi-trash3-fill me-2"></i>BORRAR DEFINITIVAMENTE';
-            els.btn.onclick = () => ejecutar(act, id, req);
-            isCritical = false; return;
+        // Activar el link de "Activos" por defecto
+        document.querySelector('nav.menu-admin a.menu-item[href="act_evento.php"]').classList.add('active');
+        
+        // Función para recargar el iframe
+        function reloadFrame() {
+            document.getElementById('contentFrame').src = document.getElementById('contentFrame').src;
         }
-        ejecutar(act, id, req);
-    };
-    m.show();
-}
+    </script>
 
-function ejecutar(act, id, req) {
-    let fd = new FormData(); fd.append('accion',act); fd.append('id_evento',id);
-    if(req) { fd.append('auth_user',els.user.value); fd.append('auth_pin',els.pin.value); }
-    els.btn.disabled=true; els.btn.innerHTML='<span class="spinner-border spinner-border-sm"></span>';
-    fetch('',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
-        if(d.status==='success') {
-            localStorage.setItem('evt_upd', Date.now());
-            window.location.reload();
-        } else { alert(d.message||'Error'); m.hide(); }
-    }).catch(()=>{ alert('Error de red'); m.hide(); });
-}
-
-// NUEVO: Escuchar cambios en localStorage para recarga automática en otras pestañas
-window.addEventListener('storage', (e) => {
-    if (e.key === 'evt_upd') window.location.reload();
-});
-</script>
 </body>
 </html>

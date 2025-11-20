@@ -3,6 +3,8 @@
 header('Content-Type: application/json');
 
 include "../conexion.php";
+session_start();
+require_once "../transacciones_helper.php";
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Método no permitido']);
@@ -54,6 +56,8 @@ try {
     
     // Confirmar transacción
     $conn->commit();
+
+    registrar_transaccion('boleto_cancelar', 'Canceló boleto ID ' . $id_boleto);
     
     echo json_encode([
         'success' => true,

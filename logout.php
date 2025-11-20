@@ -1,6 +1,9 @@
 <?php
 session_start();
 
+require_once 'transacciones_helper.php';
+registrar_transaccion('logout', 'Cierre de sesión');
+
 // Destruir todas las variables de sesión
 $_SESSION = array();
 

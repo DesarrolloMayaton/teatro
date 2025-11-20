@@ -8,6 +8,7 @@ if (isset($_SESSION['usuario_id'])) {
 }
 
 require_once 'conexion.php';
+require_once 'transacciones_helper.php';
 
 $error = '';
 
@@ -35,6 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['usuario_apellido'] = $usuario['apellido'];
                 $_SESSION['usuario_rol'] = $usuario['rol'];
                 $_SESSION['login_time'] = time();
+                registrar_transaccion('login', 'Inicio de sesión');
                 
                 header("Location: index.php");
                 exit();

@@ -10,6 +10,8 @@ if (!isset($_SESSION['usuario_id'])) {
     </div>
     </body></html>');
 }
+require_once '../transacciones_helper.php';
+registrar_transaccion('admin_panel', 'Ingreso al panel de administración');
 
 // Verificar acceso al panel de administración
 // Si es admin de rol, acceso directo
@@ -114,7 +116,7 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
 <body>
 
     <nav class="menu-admin" id="menuAdmin">
-        <a class="menu-item" href="inicio.php" target="contentFrame">
+        <a class="menu-item" href="inicio/inicio.php" target="contentFrame">
             <i class="bi bi-house-door"></i> Inicio
         </a>
     
@@ -129,12 +131,15 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
         <a class="menu-item" href="ctg_boletos/index.php" target="contentFrame">
             <i class="bi bi-tags"></i> Categorías
         </a>
+        <a class="menu-item" href="transacciones/index.php" target="contentFrame">
+            <i class="bi bi-clock-history"></i> Transacciones
+        </a>
     </nav>
 
     <div class="contenido-admin">
         <header>Panel de Administración</header>
 
-        <iframe class="content-frame" name="contentFrame" id="contentFrame" src="inicio.php">
+        <iframe class="content-frame" name="contentFrame" id="contentFrame" src="inicio/inicio.php">
             Tu navegador no soporta iframes.
         </iframe>
     </div>
@@ -152,7 +157,7 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
         });
 
         // Activar el link de "Inicio" por defecto al cargar la página
-        document.querySelector('nav.menu-admin a.menu-item[href="inicio.php"]').classList.add('active');
+        document.querySelector('nav.menu-admin a.menu-item[href="inicio/inicio.php"]').classList.add('active');
     </script>
 
 </body>

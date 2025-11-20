@@ -2,11 +2,17 @@
 let html5QrCode = null;
 let modalEscaner = null;
 let modalBoletoInfo = null;
-let modoCancelacion = false; // Variable para controlar el modo de cancelación
+window.modoCancelacion = false; // Variable global para controlar el modo de cancelación
 
 // Abrir el escáner QR
 function abrirEscanerQR() {
-    modoCancelacion = false; // Modo normal
+    // Solo resetear a modo normal si no está ya en modo cancelación
+    if (window.modoCancelacion !== true) {
+        window.modoCancelacion = false;
+    }
+    
+    console.log('Abriendo escáner, modo cancelación:', window.modoCancelacion);
+    
     modalEscaner = new bootstrap.Modal(document.getElementById('modalEscanerQR'));
     modalEscaner.show();
     
@@ -18,7 +24,7 @@ function abrirEscanerQR() {
     // Detener escáner cuando se cierre el modal
     document.getElementById('modalEscanerQR').addEventListener('hidden.bs.modal', function () {
         detenerEscaner();
-        modoCancelacion = false; // Resetear modo
+        window.modoCancelacion = false; // Resetear modo
     }, { once: true });
 }
 
@@ -28,7 +34,7 @@ function iniciarEscaner() {
     
     const config = {
         fps: 10,
-        qrbox: { width: 250, height: 250 },
+        qrbox: { width: "100%", height: "100%" },
         aspectRatio: 1.0
     };
     
@@ -71,6 +77,7 @@ function detenerEscaner() {
 // Cuando se escanea exitosamente
 function onScanSuccess(decodedText, decodedResult) {
     console.log(`Código escaneado: ${decodedText}`);
+    console.log(`Modo cancelación: ${window.modoCancelacion}`);
     
     // Detener el escáner
     detenerEscaner();
@@ -79,7 +86,7 @@ function onScanSuccess(decodedText, decodedResult) {
     modalEscaner.hide();
     
     // Verificar si estamos en modo cancelación
-    if (modoCancelacion) {
+    if (window.modoCancelacion === true) {
         // Abrir modal de cancelación y llenar el código
         setTimeout(() => {
             const modalCancelar = new bootstrap.Modal(document.getElementById('modalCancelarBoleto'));

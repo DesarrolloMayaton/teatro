@@ -433,7 +433,7 @@ function initTabs(){
       $$('.tab-content').forEach(c => c.classList.remove('active'));
       
       tab.classList.add('active');
-      $(#tab-${tabId}).classList.add('active');
+      $(`#tab-${tabId}`).classList.add('active');
       
       if(state.reporteActual){
         renderTab(tabId);
@@ -650,7 +650,7 @@ function exportarPDF(){
   state.eventos.forEach(e => {
     const opt = document.createElement('option');
     opt.value = e.id ?? '';
-    opt.textContent = ${e.nombre} — ${e.fecha||'s/f'};
+    opt.textContent = `${e.nombre} — ${e.fecha||'s/f'}`;
     sel.appendChild(opt);
   });
 

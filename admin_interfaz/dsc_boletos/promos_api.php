@@ -2,6 +2,9 @@
 header('Content-Type: application/json; charset=utf-8');
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
+session_start();
+require_once __DIR__ . '/../../transacciones_helper.php';
+
 // Conexión
 include_once __DIR__ . '/../../evt_interfaz/conexion.php';
 
@@ -253,7 +256,21 @@ if($action==='create'){
         );
 
         $stmt->execute();
-        respond(true, ['id_promocion'=>$stmt->insert_id]);
+        $id_promo = $stmt->insert_id;
+        registrar_transaccion('promocion_crear', 'Creó promoción ID ' . $id_promo . ' para evento ID ' . ($f['id_evento'] ?? 'global'));
+        
+        // Notificar cambio en descuentos
+        if ($f['id_evento']) {
+            echo json_encode([
+                'ok' => true,
+                'id_promocion' => $id_promo,
+                'notify_change' => true,
+                'id_evento' => $f['id_evento']
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        
+        respond(true, ['id_promocion'=>$id_promo]);
 
     }elseif($pdo){
         $st = $pdo->prepare($sql);
@@ -342,6 +359,18 @@ if($action==='update'){
             $id
         );
         $stmt->execute();
+        registrar_transaccion('promocion_actualizar', 'Actualizó promoción ID ' . $id);
+        
+        // Notificar cambio en descuentos
+        if ($f['id_evento']) {
+            echo json_encode([
+                'ok' => true,
+                'notify_change' => true,
+                'id_evento' => $f['id_evento']
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        
         respond(true);
 
     }elseif($pdo){
@@ -362,6 +391,17 @@ if($action==='update'){
             $f['activo'],
             $id
         ]);
+        
+        // Notificar cambio en descuentos
+        if ($f['id_evento']) {
+            echo json_encode([
+                'ok' => true,
+                'notify_change' => true,
+                'id_evento' => $f['id_evento']
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        
         respond(true);
     }else{
         respond(false,['error'=>'No DB connection']);
@@ -453,6 +493,7 @@ if($action==='delete'){
         $stmt = $mysqli->prepare("DELETE FROM promociones WHERE id_promocion=?");
         $stmt->bind_param("i",$id);
         $stmt->execute();
+        registrar_transaccion('promocion_eliminar', 'Eliminó promoción ID ' . $id);
         respond(true);
 
     }elseif($pdo){

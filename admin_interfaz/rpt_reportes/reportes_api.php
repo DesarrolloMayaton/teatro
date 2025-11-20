@@ -84,7 +84,7 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 // Conexión - capturar cualquier output
 try {
-    include_once _DIR_ . '/../../evt_interfaz/conexion.php';
+    include_once __DIR__ . '/../../evt_interfaz/conexion.php';
 } catch (Exception $e) {
     ob_clean();
     throw new Exception('Error al incluir archivo de conexión: ' . $e->getMessage());
@@ -519,12 +519,14 @@ if ($action === 'export') {
                 b.descuento_aplicado,
                 b.precio_final,
                 p.nombre as promocion,
+                CONCAT(u.nombre, ' ', u.apellido) as vendedor,
                 " . ($has_fecha_compra ? "DATE(b.fecha_compra)" : "DATE(e.inicio_venta)") . " as fecha_venta
             FROM boletos b
             INNER JOIN evento e ON b.id_evento = e.id_evento
             LEFT JOIN categorias c ON b.id_categoria = c.id_categoria
             LEFT JOIN asientos a ON b.id_asiento = a.id_asiento
             LEFT JOIN promociones p ON b.id_promocion = p.id_promocion
+            LEFT JOIN usuarios u ON b.id_usuario = u.id_usuario
             WHERE $where_conditions
             ORDER BY fecha_venta DESC, e.titulo ASC
         ";
@@ -573,7 +575,7 @@ if ($action === 'export') {
 // ======================= FUNCIÓN GENERAR PDF =======================
 function generarPDF($rows, $resumen, $nombre_evento, $fecha_desde, $fecha_hasta) {
     // Intentar usar TCPDF si está disponible
-    $tcpdf_path = _DIR_ . '/../../vendor/tecnickcom/tcpdf/tcpdf.php';
+    $tcpdf_path = __DIR__ . '/../../vendor/tecnickcom/tcpdf/tcpdf.php';
     if (file_exists($tcpdf_path)) {
         require_once($tcpdf_path);
         generarPDF_TCPDF($rows, $resumen, $nombre_evento, $fecha_desde, $fecha_hasta);
@@ -581,7 +583,7 @@ function generarPDF($rows, $resumen, $nombre_evento, $fecha_desde, $fecha_hasta)
     }
     
     // Intentar usar mPDF
-    $mpdf_path = _DIR_ . '/../../vendor/mpdf/mpdf/src/Mpdf.php';
+    $mpdf_path = __DIR__ . '/../../vendor/mpdf/mpdf/src/Mpdf.php';
     if (file_exists($mpdf_path)) {
         require_once($mpdf_path);
         generarPDF_mPDF($rows, $resumen, $nombre_evento, $fecha_desde, $fecha_hasta);
@@ -589,7 +591,7 @@ function generarPDF($rows, $resumen, $nombre_evento, $fecha_desde, $fecha_hasta)
     }
     
     // Intentar usar DomPDF
-    $dompdf_path = _DIR_ . '/../../vendor/dompdf/dompdf/autoload.inc.php';
+    $dompdf_path = __DIR__ . '/../../vendor/dompdf/dompdf/autoload.inc.php';
     if (file_exists($dompdf_path)) {
         require_once($dompdf_path);
         generarPDF_DomPDF($rows, $resumen, $nombre_evento, $fecha_desde, $fecha_hasta);
@@ -664,23 +666,25 @@ function generarPDF_TCPDF($rows, $resumen, $nombre_evento, $fecha_desde, $fecha_
         
         // Encabezados de tabla
         $pdf->SetFillColor(200, 200, 200);
-        $pdf->Cell(40, 6, 'Evento', 1, 0, 'L', true);
-        $pdf->Cell(30, 6, 'Categoría', 1, 0, 'L', true);
-        $pdf->Cell(25, 6, 'Asiento', 1, 0, 'C', true);
-        $pdf->Cell(30, 6, 'Código', 1, 0, 'L', true);
-        $pdf->Cell(25, 6, 'Precio Final', 1, 0, 'R', true);
-        $pdf->Cell(30, 6, 'Fecha', 1, 1, 'C', true);
+        $pdf->Cell(35, 6, 'Evento', 1, 0, 'L', true);
+        $pdf->Cell(25, 6, 'Categoría', 1, 0, 'L', true);
+        $pdf->Cell(18, 6, 'Asiento', 1, 0, 'C', true);
+        $pdf->Cell(25, 6, 'Código', 1, 0, 'L', true);
+        $pdf->Cell(22, 6, 'Precio', 1, 0, 'R', true);
+        $pdf->Cell(35, 6, 'Vendedor', 1, 0, 'L', true);
+        $pdf->Cell(20, 6, 'Fecha', 1, 1, 'C', true);
         
         $pdf->SetFillColor(245, 245, 245);
         $fill = false;
         
         foreach ($rows as $row) {
-            $pdf->Cell(40, 6, substr($row['evento'] ?? '', 0, 20), 1, 0, 'L', $fill);
-            $pdf->Cell(30, 6, substr($row['categoria'] ?? '—', 0, 15), 1, 0, 'L', $fill);
-            $pdf->Cell(25, 6, $row['asiento'] ?? '—', 1, 0, 'C', $fill);
-            $pdf->Cell(30, 6, substr($row['codigo_boleto'] ?? '', 0, 12), 1, 0, 'L', $fill);
-            $pdf->Cell(25, 6, '$' . number_format($row['precio_final'] ?? 0, 2), 1, 0, 'R', $fill);
-            $pdf->Cell(30, 6, $row['fecha_venta'] ?? '—', 1, 1, 'C', $fill);
+            $pdf->Cell(35, 6, substr($row['evento'] ?? '', 0, 18), 1, 0, 'L', $fill);
+            $pdf->Cell(25, 6, substr($row['categoria'] ?? '—', 0, 12), 1, 0, 'L', $fill);
+            $pdf->Cell(18, 6, $row['asiento'] ?? '—', 1, 0, 'C', $fill);
+            $pdf->Cell(25, 6, substr($row['codigo_boleto'] ?? '', 0, 10), 1, 0, 'L', $fill);
+            $pdf->Cell(22, 6, '$' . number_format($row['precio_final'] ?? 0, 2), 1, 0, 'R', $fill);
+            $pdf->Cell(35, 6, substr($row['vendedor'] ?? 'Sin asignar', 0, 18), 1, 0, 'L', $fill);
+            $pdf->Cell(20, 6, date('d/m/y', strtotime($row['fecha_venta'] ?? 'now')), 1, 1, 'C', $fill);
             $fill = !$fill;
         }
     } else {
@@ -710,76 +714,326 @@ function generarPDF_Simple($rows, $resumen, $nombre_evento, $fecha_desde, $fecha
 }
 
 function generarHTMLReporte($rows, $resumen, $nombre_evento, $fecha_desde, $fecha_hasta) {
-    // Crear contenido HTML para el PDF
+    // Crear contenido HTML para el PDF con diseño mejorado
     $html = '<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <title>Reporte de Ventas</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1 { text-align: center; color: #333; }
-        .resumen { background: #f5f5f5; padding: 15px; margin: 20px 0; border-radius: 5px; }
-        .resumen h2 { margin-top: 0; }
-        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        th { background: #3498db; color: white; padding: 10px; text-align: left; }
-        td { padding: 8px; border-bottom: 1px solid #ddd; }
-        tr:nth-child(even) { background: #f9f9f9; }
-        .total { font-weight: bold; text-align: right; }
+        @page {
+            margin: 15mm;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            color: #2c3e50;
+            line-height: 1.6;
+            font-size: 11pt;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px 30px;
+            margin: -15mm -15mm 20px -15mm;
+            border-radius: 0 0 15px 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 28pt;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+        
+        .header .subtitle {
+            font-size: 12pt;
+            opacity: 0.95;
+            font-weight: 300;
+        }
+        
+        .info-section {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            border-radius: 8px;
+        }
+        
+        .info-section p {
+            margin: 5px 0;
+            font-size: 10pt;
+        }
+        
+        .info-section strong {
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: all 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .stat-label {
+            font-size: 9pt;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        
+        .stat-value {
+            font-size: 20pt;
+            font-weight: 700;
+            color: #667eea;
+            line-height: 1.2;
+        }
+        
+        .stat-value.success {
+            color: #28a745;
+        }
+        
+        .stat-value.warning {
+            color: #ffc107;
+        }
+        
+        .stat-value.info {
+            color: #17a2b8;
+        }
+        
+        .section-title {
+            font-size: 16pt;
+            font-weight: 700;
+            color: #2c3e50;
+            margin: 30px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        table { 
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 20px 0;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        th { 
+            color: white;
+            padding: 14px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 10pt;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        td { 
+            padding: 12px;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 10pt;
+        }
+        
+        tr:last-child td {
+            border-bottom: none;
+        }
+        
+        tbody tr:nth-child(even) { 
+            background: #f8f9fa;
+        }
+        
+        tbody tr:hover {
+            background: #e7f1ff;
+        }
+        
+        .text-right {
+            text-align: right;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 9pt;
+            font-weight: 600;
+        }
+        
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .badge-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e9ecef;
+            text-align: center;
+            font-size: 9pt;
+            color: #6c757d;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-style: italic;
+        }
+        
+        @media print {
+            .header {
+                margin: 0;
+                page-break-after: avoid;
+            }
+            
+            .stat-card {
+                page-break-inside: avoid;
+            }
+            
+            table {
+                page-break-inside: auto;
+            }
+            
+            tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+            
+            thead {
+                display: table-header-group;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>REPORTE DE VENTAS</h1>
-    <p><strong>Evento:</strong> ' . htmlspecialchars($nombre_evento) . '</p>';
+    <div class="header">
+        <h1>REPORTE DE VENTAS</h1>
+        <div class="subtitle">Sistema de Gestión de Teatro</div>
+    </div>
+    
+    <div class="info-section">
+        <p><strong>Evento:</strong> ' . htmlspecialchars($nombre_evento) . '</p>';
     
     if ($fecha_desde) {
-        $html .= '<p><strong>Desde:</strong> ' . date('d/m/Y', strtotime($fecha_desde)) . '</p>';
+        $html .= '<p><strong>Período desde:</strong> ' . date('d/m/Y', strtotime($fecha_desde)) . '</p>';
     }
     if ($fecha_hasta) {
-        $html .= '<p><strong>Hasta:</strong> ' . date('d/m/Y', strtotime($fecha_hasta)) . '</p>';
+        $html .= '<p><strong>Período hasta:</strong> ' . date('d/m/Y', strtotime($fecha_hasta)) . '</p>';
     }
     
     $html .= '<p><strong>Fecha de generación:</strong> ' . date('d/m/Y H:i:s') . '</p>
-    
-    <div class="resumen">
-        <h2>Resumen</h2>
-        <p><strong>Total de boletos vendidos:</strong> ' . number_format($resumen['total_boletos'], 0) . '</p>
-        <p><strong>Total vendido:</strong> $' . number_format($resumen['total_vendido'], 2) . '</p>
-        <p><strong>Total descuentos:</strong> $' . number_format($resumen['total_descuentos'], 2) . '</p>
-        <p><strong>Promedio por boleto:</strong> $' . number_format($resumen['promedio_por_boleto'], 2) . '</p>
     </div>
     
-    <h2>Detalle de Ventas</h2>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-label">Boletos Vendidos</div>
+            <div class="stat-value success">' . number_format($resumen['total_boletos'], 0) . '</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">$' . number_format($resumen['total_vendido'], 2) . '</div>
+            <div class="stat-label">Total Vendido</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value warning">$' . number_format($resumen['total_descuentos'], 2) . '</div>
+            <div class="stat-label">Descuentos</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value info">$' . number_format($resumen['promedio_por_boleto'], 2) . '</div>
+            <div class="stat-label">Promedio/Boleto</div>
+        </div>
+    </div>
+    
+    <h2 class="section-title">Detalle de Ventas</h2>
     <table>
         <thead>
             <tr>
                 <th>Evento</th>
                 <th>Categoría</th>
-                <th>Asiento</th>
+                <th class="text-center">Asiento</th>
                 <th>Código Boleto</th>
-                <th>Precio Final</th>
-                <th>Fecha</th>
+                <th class="text-right">Precio Final</th>
+                <th>Vendedor</th>
+                <th class="text-center">Fecha</th>
             </tr>
         </thead>
         <tbody>';
     
     if (!empty($rows)) {
+        $total_general = 0;
         foreach ($rows as $row) {
+            $precio = $row['precio_final'] ?? 0;
+            $total_general += $precio;
+            
             $html .= '<tr>
-                <td>' . htmlspecialchars($row['evento'] ?? '—') . '</td>
-                <td>' . htmlspecialchars($row['categoria'] ?? '—') . '</td>
-                <td>' . htmlspecialchars($row['asiento'] ?? '—') . '</td>
-                <td>' . htmlspecialchars($row['codigo_boleto'] ?? '—') . '</td>
-                <td>$' . number_format($row['precio_final'] ?? 0, 2) . '</td>
-                <td>' . htmlspecialchars($row['fecha_venta'] ?? '—') . '</td>
+                <td><strong>' . htmlspecialchars(substr($row['evento'] ?? '—', 0, 30)) . '</strong></td>
+                <td><span class="badge badge-info">' . htmlspecialchars($row['categoria'] ?? '—') . '</span></td>
+                <td class="text-center"><strong>' . htmlspecialchars($row['asiento'] ?? '—') . '</strong></td>
+                <td style="font-family: monospace; font-size: 9pt;">' . htmlspecialchars($row['codigo_boleto'] ?? '—') . '</td>
+                <td class="text-right"><strong>$' . number_format($precio, 2) . '</strong></td>
+                <td>' . htmlspecialchars($row['vendedor'] ?? 'Sin asignar') . '</td>
+                <td class="text-center">' . (isset($row['fecha_venta']) ? date('d/m/Y', strtotime($row['fecha_venta'])) : '—') . '</td>
             </tr>';
         }
+        
+        // Fila de total
+        $html .= '<tr style="background: #e7f1ff; font-weight: bold;">
+            <td colspan="5" class="text-right" style="padding: 15px;">TOTAL GENERAL:</td>
+            <td class="text-right" style="font-size: 12pt; color: #667eea; padding: 15px;">$' . number_format($total_general, 2) . '</td>
+            <td></td>
+        </tr>';
     } else {
-        $html .= '<tr><td colspan="6" style="text-align:center;">No hay datos para mostrar</td></tr>';
+        $html .= '<tr><td colspan="7" class="empty-state">📭 No hay datos para mostrar en este período</td></tr>';
     }
     
     $html .= '</tbody>
     </table>
+    
+    <div class="footer">
+        <p>Reporte generado automáticamente por el Sistema de Gestión de Teatro</p>
+        <p>© ' . date('Y') . ' - Todos los derechos reservados</p>
+    </div>
 </body>
 </html>';
     
