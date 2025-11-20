@@ -1,10 +1,7 @@
 <?php
 session_start();
 include "../conexion.php";
-<<<<<<< HEAD
 require_once "../transacciones_helper.php";
-=======
->>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
 
 // ==================================================================
 // VERIFICACIÓN DE SESIÓN
@@ -155,19 +152,13 @@ if (isset($_POST['accion'])) {
             case 'reactivar':
                 $new_id = reactivar_evento($id, $conn);
                 $response['new_id'] = $new_id; // Añadir el new_id a la respuesta
-<<<<<<< HEAD
                 registrar_transaccion('evento_reactivar', 'Reactivó evento histórico ID ' . $id . ' como nuevo evento ID ' . $new_id);
-=======
->>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
                 break;
             
             case 'borrar_permanente':
                 // Esta acción ahora borra del histórico
                 borrar_de_historico($id, $conn);
-<<<<<<< HEAD
                 registrar_transaccion('evento_borrar_historico', 'Borró permanentemente evento histórico ID ' . $id);
-=======
->>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
                 break;
             
             case 'finalizar':

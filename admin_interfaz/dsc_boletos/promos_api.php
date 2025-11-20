@@ -257,10 +257,7 @@ if($action==='create'){
 
         $stmt->execute();
         $id_promo = $stmt->insert_id;
-<<<<<<< HEAD
         registrar_transaccion('promocion_crear', 'Creó promoción ID ' . $id_promo . ' para evento ID ' . ($f['id_evento'] ?? 'global'));
-=======
->>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
         
         // Notificar cambio en descuentos
         if ($f['id_evento']) {
@@ -362,10 +359,7 @@ if($action==='update'){
             $id
         );
         $stmt->execute();
-<<<<<<< HEAD
         registrar_transaccion('promocion_actualizar', 'Actualizó promoción ID ' . $id);
-=======
->>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
         
         // Notificar cambio en descuentos
         if ($f['id_evento']) {
