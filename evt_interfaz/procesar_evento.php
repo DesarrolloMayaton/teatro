@@ -1,7 +1,12 @@
 <?php
+<<<<<<< HEAD
 session_start();
 include "../conexion.php"; 
 require_once "../transacciones_helper.php";
+=======
+session_start(); // <-- CAMBIO 1: Iniciar la sesión
+include "../conexion.php"; 
+>>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
 
 // ==================================================================
 // VERIFICACIÓN DE SESIÓN (¡¡IMPORTANTE!!)

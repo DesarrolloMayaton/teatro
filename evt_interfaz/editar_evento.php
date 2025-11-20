@@ -1,7 +1,12 @@
 <?php
+<<<<<<< HEAD
 session_start();
 include "../conexion.php";
 require_once "../transacciones_helper.php";
+=======
+session_start(); // <-- AÑADIDO
+include "../conexion.php";
+>>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
 
 // ==================================================================
 // VERIFICACIÓN DE SESIÓN (AÑADIDO)
@@ -58,7 +63,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt_f->close();
 
                 $conn->commit();
+<<<<<<< HEAD
                 registrar_transaccion('evento_actualizar', 'Actualizó evento ID ' . $id_evento . ' - ' . $titulo);
+=======
+>>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
                 
                 // Notificar actualización a otras pestañas usando una página intermedia
                 ?>
@@ -104,7 +112,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn->query("DELETE FROM categorias WHERE id_evento = $id_borrar");
         $conn->query("DELETE FROM funciones WHERE id_evento = $id_borrar"); // <-- AÑADIDO
         $conn->query("DELETE FROM evento WHERE id_evento = $id_borrar");
+<<<<<<< HEAD
         registrar_transaccion('evento_cancelar_reactivacion', 'Canceló reactivación de evento ID ' . $id_borrar);
+=======
+>>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
         
         echo json_encode(['status' => 'success']);
         exit;

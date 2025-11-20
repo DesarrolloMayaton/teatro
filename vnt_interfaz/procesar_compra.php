@@ -22,7 +22,10 @@ header('Content-Type: application/json');
 
 // Iniciar sesión para obtener el usuario que está vendiendo
 session_start();
+<<<<<<< HEAD
 require_once __DIR__ . '/../transacciones_helper.php';
+=======
+>>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
 
 // Obtener ID del usuario logueado
 $id_usuario_vendedor = isset($_SESSION['usuario_id']) ? (int)$_SESSION['usuario_id'] : null;

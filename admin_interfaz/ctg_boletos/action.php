@@ -109,7 +109,11 @@ else {
                 $stmt = $conn->prepare("INSERT INTO categorias (id_evento, nombre_categoria, precio, color) VALUES (?, ?, ?, ?)");
                 $stmt->bind_param("isds", $id_evento_redirect, $nombre_categoria, $precio, $color);
                 $stmt->execute(); $stmt->close();
+<<<<<<< HEAD
                 registrar_transaccion('categoria_crear', 'Creó categoría: ' . $nombre_categoria);
+=======
+                
+>>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
                 redirigir($redirect_url, 'success', 'Categoría creada con éxito.', $id_evento_redirect);
                 break;
 
@@ -128,7 +132,11 @@ else {
                 $stmt = $conn->prepare("UPDATE categorias SET nombre_categoria = ?, precio = ?, color = ? WHERE id_categoria = ? AND id_evento = ?");
                 $stmt->bind_param("sdsii", $nombre_categoria, $precio, $color, $id_categoria, $id_evento_redirect);
                 $stmt->execute(); $stmt->close();
+<<<<<<< HEAD
                 registrar_transaccion('categoria_actualizar', 'Actualizó categoría: ' . $nombre_categoria);
+=======
+                
+>>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
                 redirigir($redirect_url, 'success', 'Categoría actualizada.', $id_evento_redirect);
                 break;
                 
@@ -139,7 +147,11 @@ else {
                 $stmt = $conn->prepare("DELETE FROM categorias WHERE id_categoria = ? AND id_evento = ?");
                 $stmt->bind_param("ii", $id_categoria, $id_evento_redirect);
                 $stmt->execute(); $stmt->close();
+<<<<<<< HEAD
                 registrar_transaccion('categoria_borrar', 'Eliminó categoría ID ' . $id_categoria);
+=======
+                
+>>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
                 redirigir($redirect_url, 'success', 'Categoría eliminada.', $id_evento_redirect);
                 break;
 

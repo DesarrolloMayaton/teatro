@@ -1,7 +1,10 @@
 <?php
 session_start();
 include "../conexion.php";
+<<<<<<< HEAD
 require_once "../transacciones_helper.php";
+=======
+>>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
 
 // ==================================================================
 // VERIFICACIÓN DE SESIÓN (para acceso directo)
@@ -56,7 +59,10 @@ if (isset($_POST['accion'])) {
             case 'finalizar':
                 // 'finalizar' (botón naranja) archiva, sin pedir clave
                 borrar_evento($id, $conn);
+<<<<<<< HEAD
                 registrar_transaccion('evento_archivar', 'Archivó evento ID ' . $id . ' desde Eventos Activos');
+=======
+>>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
                 break;
             
             case 'borrar':
@@ -67,7 +73,10 @@ if (isset($_POST['accion'])) {
                 if($stmt->num_rows === 0) throw new Exception("Credenciales incorrectas");
                 $stmt->close();
                 borrar_evento($id, $conn);
+<<<<<<< HEAD
                 registrar_transaccion('evento_archivar_admin', 'Archivó evento ID ' . $id . ' con clave de administrador');
+=======
+>>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
                 break;
             
             // Los casos 'reactivar' y 'borrar_permanente' no se pueden llamar
@@ -104,7 +113,10 @@ if($rv){
     while($r=$rv->fetch_assoc()){ 
         // Llama a la función de archivado completo
         borrar_evento($r['id_evento'], $conn); 
+<<<<<<< HEAD
         registrar_transaccion('evento_archivar_auto', 'Archivado automático de evento ID ' . $r['id_evento']);
+=======
+>>>>>>> 4d92ed57add1e65b0a8c2a3a700b2b0cfd2e6268
     }
 }
 
