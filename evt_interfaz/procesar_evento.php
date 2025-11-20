@@ -201,7 +201,14 @@ try {
     }
 
     $conn->commit();
-    registrar_transaccion('evento_crear', 'Creó evento: ' . $titulo . ' (ID ' . $id_nuevo . ')');
+    
+    // Registrar transacción con datos del evento
+    $datos_evento = json_encode([
+        'id_evento' => $id_nuevo,
+        'titulo' => $titulo,
+        'tipo' => $tipo
+    ]);
+    registrar_transaccion_con_datos('evento_crear', 'Creó evento: ' . $titulo . ' (ID ' . $id_nuevo . ')', $datos_evento);
 
     // ==================================================================
     // 6. REDIRECCIÓN CON ÉXITO (ESTILO NUEVO)
