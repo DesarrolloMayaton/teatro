@@ -641,10 +641,20 @@ function mostrarBoletosGenerados(boletos) {
                         <p class="mb-2"><small class="text-muted">Código: ${boleto.codigo_unico}</small></p>
                         <p class="text-success fw-bold mb-3">$${boleto.precio.toFixed(2)}</p>
                         <a href="descargar_boleto.php?codigo=${boleto.codigo_unico}" 
-                           class="btn btn-primary btn-sm w-100" 
+                           class="btn btn-primary btn-sm w-100 mb-2" 
                            target="_blank">
                             <i class="bi bi-download"></i> Descargar Boleto
                         </a>
+                        <a href="imprimir_boleto.php?codigo=${boleto.codigo_unico}" 
+                           class="btn btn-warning btn-sm w-100 mb-2" 
+                           target="_blank">
+                            <i class="bi bi-printer"></i> Imprimir Boleto
+                        </a>
+                        <button type="button" 
+                                class="btn btn-success btn-sm w-100" 
+                                onclick="enviarBoletoPorWhatsApp('${boleto.codigo_unico}')">
+                            <i class="bi bi-whatsapp"></i> Enviar por WhatsApp
+                        </button>
                     </div>
                 </div>
             </div>
@@ -653,6 +663,8 @@ function mostrarBoletosGenerados(boletos) {
 
     html += '</div></div><div class="modal-footer">';
     html += '<button type="button" class="btn btn-secondary" onclick="descargarTodosBoletos()"><i class="bi bi-download"></i> Descargar Todos</button>';
+    html += '<button type="button" class="btn btn-warning" onclick="imprimirTodosBoletos()"><i class="bi bi-printer"></i> Imprimir Todos</button>';
+    html += '<button type="button" class="btn btn-success" onclick="enviarTodosBoletosPorWhatsApp()"><i class="bi bi-whatsapp"></i> Enviar Todos por WhatsApp</button>';
     html += '<button type="button" class="btn btn-primary" data-bs-dismiss="modal">Cerrar</button>';
     html += '</div></div></div></div>';
 
@@ -679,6 +691,327 @@ function descargarTodosBoletos() {
     
     // Abrir el PDF con todos los boletos
     window.open(`descargar_todos_boletos.php?codigos=${codigos}`, '_blank');
+}
+
+// Imprimir todos los boletos (abre cada uno en una nueva ventana)
+function imprimirTodosBoletos() {
+    if (!window.boletosActuales || window.boletosActuales.length === 0) {
+        notify.warning('No hay boletos para imprimir');
+        return;
+    }
+    
+    // Abrir cada boleto en una nueva ventana con un pequeño delay para evitar bloqueos del navegador
+    window.boletosActuales.forEach((boleto, index) => {
+        setTimeout(() => {
+            window.open(`imprimir_boleto.php?codigo=${boleto.codigo_unico}`, '_blank');
+        }, index * 300); // Delay de 300ms entre cada ventana
+    });
+    
+    notify.info(`Se abrirán ${window.boletosActuales.length} ventana(s) para imprimir los boletos.`);
+}
+
+// Función para abrir WhatsApp con un boleto
+function enviarBoletoPorWhatsApp(codigoBoleto) {
+    abrirWhatsAppWeb([codigoBoleto], false);
+}
+
+// Función para abrir WhatsApp con todos los boletos
+function enviarTodosBoletosPorWhatsApp() {
+    if (!window.boletosActuales || window.boletosActuales.length === 0) {
+        notify.warning('No hay boletos para enviar');
+        return;
+    }
+    
+    const codigos = window.boletosActuales.map(b => b.codigo_unico);
+    abrirWhatsAppWeb(codigos, true);
+}
+
+// Códigos de país comunes para WhatsApp
+const CODIGOS_PAIS = [
+    { codigo: '52', pais: '🇲🇽 México', nombre: 'México' },
+    { codigo: '1', pais: '🇺🇸 Estados Unidos / 🇨🇦 Canadá', nombre: 'EE.UU./Canadá' },
+    { codigo: '54', pais: '🇦🇷 Argentina', nombre: 'Argentina' },
+    { codigo: '55', pais: '🇧🇷 Brasil', nombre: 'Brasil' },
+    { codigo: '56', pais: '🇨🇱 Chile', nombre: 'Chile' },
+    { codigo: '57', pais: '🇨🇴 Colombia', nombre: 'Colombia' },
+    { codigo: '51', pais: '🇵🇪 Perú', nombre: 'Perú' },
+    { codigo: '58', pais: '🇻🇪 Venezuela', nombre: 'Venezuela' },
+    { codigo: '593', pais: '🇪🇨 Ecuador', nombre: 'Ecuador' },
+    { codigo: '595', pais: '🇵🇾 Paraguay', nombre: 'Paraguay' },
+    { codigo: '598', pais: '🇺🇾 Uruguay', nombre: 'Uruguay' },
+    { codigo: '591', pais: '🇧🇴 Bolivia', nombre: 'Bolivia' },
+    { codigo: '34', pais: '🇪🇸 España', nombre: 'España' },
+    { codigo: '49', pais: '🇩🇪 Alemania', nombre: 'Alemania' },
+    { codigo: '33', pais: '🇫🇷 Francia', nombre: 'Francia' },
+    { codigo: '39', pais: '🇮🇹 Italia', nombre: 'Italia' },
+    { codigo: '44', pais: '🇬🇧 Reino Unido', nombre: 'Reino Unido' },
+    { codigo: '81', pais: '🇯🇵 Japón', nombre: 'Japón' },
+    { codigo: '86', pais: '🇨🇳 China', nombre: 'China' },
+    { codigo: '91', pais: '🇮🇳 India', nombre: 'India' }
+];
+
+// Función para abrir WhatsApp Web
+async function abrirWhatsAppWeb(codigosBoletos, esMultiple) {
+    // Remover modal anterior si existe
+    const modalAnterior = document.getElementById('modalWhatsApp');
+    if (modalAnterior) {
+        modalAnterior.remove();
+    }
+
+    const textoBoleto = esMultiple ? 'boletos' : 'boleto';
+    
+    // Obtener información del evento y boletos
+    let infoEvento = null;
+    let asientosLista = [];
+    
+    try {
+        const codigosStr = codigosBoletos.join(',');
+        const response = await fetch(`obtener_info_boletos.php?codigos=${codigosStr}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            infoEvento = data.evento;
+            asientosLista = data.asientos;
+        }
+    } catch (error) {
+        console.error('Error al obtener información de boletos:', error);
+    }
+    
+    // Crear opciones de código de país
+    let opcionesPais = '';
+    CODIGOS_PAIS.forEach(pais => {
+        const selected = pais.codigo === '52' ? 'selected' : '';
+        opcionesPais += `<option value="${pais.codigo}" ${selected}>${pais.pais}</option>`;
+    });
+    
+    const modalHTML = `
+        <div class="modal fade" id="modalWhatsApp" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content shadow-lg border-0">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title d-flex align-items-center">
+                            <i class="bi bi-whatsapp me-2 fs-4"></i>
+                            Enviar ${textoBoleto} por WhatsApp
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="alert alert-info d-flex align-items-start mb-4">
+                            <i class="bi bi-info-circle me-2 fs-5"></i>
+                            <div>
+                                <strong>Instrucciones:</strong><br>
+                                <small>Selecciona el código de país y ingresa el número de teléfono (sin espacios ni guiones).</small>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="codigoPais" class="form-label fw-bold">
+                                <i class="bi bi-globe"></i> Código de País
+                            </label>
+                            <select class="form-select form-select-lg" id="codigoPais">
+                                ${opcionesPais}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="telefonoWhatsApp" class="form-label fw-bold">
+                                <i class="bi bi-telephone"></i> Número de Teléfono
+                            </label>
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text bg-light" id="codigoPaisDisplay">+52</span>
+                                <input type="tel" 
+                                       class="form-control" 
+                                       id="telefonoWhatsApp" 
+                                       placeholder="4531197417"
+                                       pattern="[0-9]+"
+                                       maxlength="15"
+                                       aria-describedby="codigoPaisDisplay"
+                                       required>
+                            </div>
+                            <small class="form-text text-muted mt-1">
+                                <i class="bi bi-exclamation-circle"></i> Solo números, sin espacios ni guiones
+                            </small>
+                        </div>
+                        
+                        <div class="alert alert-warning d-flex align-items-start">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <div>
+                                <strong>Nota:</strong> Se abrirá WhatsApp Web. Deberás adjuntar el${esMultiple ? 'os' : ''} PDF${esMultiple ? 's' : ''} del${esMultiple ? 'os' : ''} boleto${esMultiple ? 's' : ''} manualmente desde el chat.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-top">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle"></i> Cancelar
+                        </button>
+                        <button type="button" class="btn btn-success btn-lg" onclick="confirmarAbrirWhatsApp()">
+                            <i class="bi bi-whatsapp"></i> Abrir WhatsApp
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Guardar códigos de boletos y información en el modal para usarlos después
+    const modal = document.getElementById('modalWhatsApp');
+    modal.dataset.codigos = JSON.stringify(codigosBoletos);
+    modal.dataset.esMultiple = esMultiple;
+    if (infoEvento) {
+        modal.dataset.evento = JSON.stringify(infoEvento);
+        modal.dataset.asientos = JSON.stringify(asientosLista);
+    }
+    
+    // Actualizar el display del código de país cuando cambia el select
+    const selectCodigoPais = document.getElementById('codigoPais');
+    const displayCodigoPais = document.getElementById('codigoPaisDisplay');
+    
+    selectCodigoPais.addEventListener('change', function() {
+        displayCodigoPais.textContent = '+' + this.value;
+    });
+    
+    // Mostrar modal
+    const bootstrapModal = new bootstrap.Modal(modal);
+    bootstrapModal.show();
+    
+    // Enfocar el input después de que se muestre el modal
+    modal.addEventListener('shown.bs.modal', function () {
+        document.getElementById('telefonoWhatsApp').focus();
+    });
+    
+    // Permitir enviar con Enter
+    document.getElementById('telefonoWhatsApp').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            confirmarAbrirWhatsApp();
+        }
+    });
+    
+    // Limpiar al cerrar
+    modal.addEventListener('hidden.bs.modal', function () {
+        this.remove();
+    });
+}
+
+// Función para confirmar y abrir WhatsApp
+function confirmarAbrirWhatsApp() {
+    const inputTelefono = document.getElementById('telefonoWhatsApp');
+    const selectCodigoPais = document.getElementById('codigoPais');
+    const telefono = inputTelefono.value.trim().replace(/[^0-9]/g, '');
+    const codigoPais = selectCodigoPais.value;
+    
+    if (!telefono) {
+        notify.error('Por favor ingresa un número de teléfono');
+        inputTelefono.focus();
+        return;
+    }
+    
+    if (telefono.length < 8) {
+        notify.error('El número de teléfono es muy corto');
+        inputTelefono.focus();
+        return;
+    }
+    
+    const modal = document.getElementById('modalWhatsApp');
+    const codigosBoletos = JSON.parse(modal.dataset.codigos);
+    const esMultiple = modal.dataset.esMultiple === 'true';
+    
+    // Obtener información del evento si está disponible
+    let infoEvento = null;
+    let asientosLista = [];
+    if (modal.dataset.evento) {
+        infoEvento = JSON.parse(modal.dataset.evento);
+        asientosLista = JSON.parse(modal.dataset.asientos);
+    }
+    
+    // Construir mensaje detallado
+    let mensaje = 'Hola! Te envío tu';
+    const textoBoleto = esMultiple ? 'boletos' : 'boleto';
+    mensaje += ` ${textoBoleto} de entrada`;
+    
+    if (infoEvento) {
+        mensaje += ` para:\n\n`;
+        mensaje += `🎭 *${infoEvento.titulo}*`;
+        
+        if (infoEvento.fecha) {
+            mensaje += `\n📅 Fecha: ${infoEvento.fecha}`;
+        }
+        
+        if (infoEvento.hora) {
+            mensaje += `\n🕐 Hora: ${infoEvento.hora}`;
+        }
+        
+        mensaje += `\n🎫 Asiento${esMultiple ? 's' : ''}: `;
+        if (asientosLista.length > 0) {
+            if (asientosLista.length === 1) {
+                mensaje += asientosLista[0];
+            } else {
+                mensaje += asientosLista.join(', ');
+            }
+        }
+        
+        mensaje += `\n\n¡Nos vemos en el evento! 🎉`;
+    } else {
+        mensaje += '.';
+    }
+    
+    // Codificar mensaje para URL
+    const mensajeCodificado = encodeURIComponent(mensaje);
+    
+    // Construir número completo (código de país + número, sin el +)
+    const numeroCompleto = codigoPais + telefono;
+    
+    // Construir URL de WhatsApp
+    const urlWhatsApp = `https://api.whatsapp.com/send/?phone=${numeroCompleto}&text=${mensajeCodificado}&type=phone_number&app_absent=0`;
+    
+    // Descargar PDF del boleto(s) automáticamente
+    if (esMultiple && codigosBoletos.length > 1) {
+        // Descargar todos los boletos en un solo PDF
+        const codigosStr = codigosBoletos.join(',');
+        const urlDescargar = `descargar_todos_boletos.php?codigos=${codigosStr}`;
+        
+        // Crear un enlace temporal para descargar
+        const linkDescarga = document.createElement('a');
+        linkDescarga.href = urlDescargar;
+        linkDescarga.target = '_blank';
+        linkDescarga.style.display = 'none';
+        document.body.appendChild(linkDescarga);
+        linkDescarga.click();
+        
+        // Remover el enlace después de un momento
+        setTimeout(() => {
+            document.body.removeChild(linkDescarga);
+        }, 1000);
+    } else {
+        // Descargar un solo boleto
+        const urlDescargar = `descargar_boleto.php?codigo=${codigosBoletos[0]}`;
+        
+        // Crear un enlace temporal para descargar
+        const linkDescarga = document.createElement('a');
+        linkDescarga.href = urlDescargar;
+        linkDescarga.target = '_blank';
+        linkDescarga.style.display = 'none';
+        document.body.appendChild(linkDescarga);
+        linkDescarga.click();
+        
+        // Remover el enlace después de un momento
+        setTimeout(() => {
+            document.body.removeChild(linkDescarga);
+        }, 1000);
+    }
+    
+    // Cerrar modal
+    const bootstrapModal = bootstrap.Modal.getInstance(modal);
+    bootstrapModal.hide();
+    
+    // Abrir WhatsApp en nueva ventana después de un pequeño delay para que la descarga inicie
+    setTimeout(() => {
+        window.open(urlWhatsApp, '_blank');
+        
+        // Mostrar notificación
+        notify.success('PDF descargado y WhatsApp Web abierto. Puedes adjuntar el PDF desde el chat.');
+    }, 500);
 }
 
 // Función para actualizar estadísticas

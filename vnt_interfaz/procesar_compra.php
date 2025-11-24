@@ -100,6 +100,48 @@ try {
         $id_promocion = isset($asiento_data['id_promocion']) ? (int)$asiento_data['id_promocion'] : null;
         $tipo_boleto = isset($asiento_data['tipo_boleto']) ? $asiento_data['tipo_boleto'] : 'adulto';
         
+        // Validar que la categoría existe y pertenece al evento
+        $stmt = $conn->prepare("SELECT id_categoria FROM categorias WHERE id_categoria = ? AND id_evento = ?");
+        $stmt->bind_param("ii", $categoria_id, $id_evento);
+        $stmt->execute();
+        $result_cat = $stmt->get_result();
+        
+        if ($result_cat->num_rows === 0) {
+            // La categoría no existe o no pertenece al evento, buscar una categoría por defecto
+            $stmt->close();
+            
+            // Primero intentar encontrar "General"
+            $stmt = $conn->prepare("SELECT id_categoria FROM categorias WHERE id_evento = ? AND LOWER(nombre_categoria) = 'general' LIMIT 1");
+            $stmt->bind_param("i", $id_evento);
+            $stmt->execute();
+            $result_cat = $stmt->get_result();
+            
+            if ($result_cat->num_rows > 0) {
+                $row_cat = $result_cat->fetch_assoc();
+                $categoria_id = (int)$row_cat['id_categoria'];
+                $stmt->close();
+            } else {
+                // Si no hay "General", tomar la primera categoría disponible del evento
+                $stmt->close();
+                $stmt = $conn->prepare("SELECT id_categoria FROM categorias WHERE id_evento = ? ORDER BY precio ASC LIMIT 1");
+                $stmt->bind_param("i", $id_evento);
+                $stmt->execute();
+                $result_cat = $stmt->get_result();
+                
+                if ($result_cat->num_rows > 0) {
+                    $row_cat = $result_cat->fetch_assoc();
+                    $categoria_id = (int)$row_cat['id_categoria'];
+                    $stmt->close();
+                } else {
+                    // No hay categorías para este evento
+                    $stmt->close();
+                    throw new Exception("El evento no tiene categorías configuradas. Por favor, configura las categorías antes de vender boletos.");
+                }
+            }
+        } else {
+            $stmt->close();
+        }
+        
         // Si es cortesía, el precio final es 0
         if ($tipo_boleto === 'cortesia') {
             $precio_final = 0.00;
