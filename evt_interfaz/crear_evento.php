@@ -1,9 +1,9 @@
 <?php
 session_start();
-include "../conexion.php"; // Incluir conexión para la verificación de sesión
+include "../conexion.php"; 
 
 // ==================================================================
-// VERIFICACIÓN DE SESIÓN (para acceso directo)
+// VERIFICACIÓN DE SESIÓN
 // ==================================================================
 if (!isset($_SESSION['usuario_id']) || ($_SESSION['usuario_rol'] !== 'admin' && (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado']))) {
     die('<div style="font-family: Arial; text-align: center; margin-top: 50px; color: red;"><h1>Acceso Denegado</h1><p>No tiene permiso para ver esta página.</p></div>');
@@ -65,10 +65,13 @@ if (!isset($_SESSION['usuario_id']) || ($_SESSION['usuario_rol'] !== 'admin' && 
                     <label class="fw-bold">Inicio Venta</label><input type="text" id="ini" name="inicio_venta" class="form-control" readonly required>
                     <div id="ttIni" class="tooltip-error"></div>
                 </div>
+                
                 <div class="col-md-6">
-                    <label class="fw-bold">Cierre Venta</label><input type="text" id="fin" name="cierre_venta" class="form-control" readonly required>
+                    <label class="fw-bold">Cierre Venta (Automático)</label>
+                    <input type="text" id="fin" name="cierre_venta" class="form-control" readonly required style="background-color: #e9ecef; cursor: not-allowed;">
                     <div id="ttFin" class="tooltip-error"></div>
                 </div>
+                
                 <div class="col-12">
                     <label class="fw-bold">Descripción</label>
                     <textarea id="desc" name="descripcion" class="form-control" rows="3" required></textarea>
@@ -112,7 +115,11 @@ const fpD=flatpickr("#fDate",{minDate:"today",onChange:function(s,d){
     check();
 }});
 const fpT=flatpickr("#fTime",{enableTime:true,noCalendar:true,dateFormat:"H:i",time_24hr:true,minuteIncrement:15,onChange:check});
-const fpI=flatpickr("#ini",{enableTime:true,minDate:now,onChange:val}), fpE=flatpickr("#fin",{enableTime:true,minDate:now,onChange:val});
+
+const fpI=flatpickr("#ini",{enableTime:true,minDate:now,onChange:val});
+
+// Cierre de venta automático (Solo lectura visual)
+const fpE=flatpickr("#fin",{enableTime:true, clickOpens: false});
 
 function check(){els.add.disabled=!(fpD.selectedDates.length&&fpT.selectedDates.length);}
 els.add.onclick=()=>{
@@ -127,17 +134,22 @@ function upd(){
     if(!funcs.length){ 
         els.list.appendChild(els.no); 
         fpI.set('maxDate',null); 
-        fpE.set('minDate',now); fpE.clear();
+        fpE.setDate(null); // Limpiar fecha de cierre
     }
     else{
         funcs.forEach((d,i)=>{
             els.list.innerHTML+=`<div class="funcion-item">${d.toLocaleString('es-ES',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}<button type="button" onclick="del(${i})">×</button></div>`;
             els.hid.innerHTML+=`<input type="hidden" name="funciones[]" value="${d.getFullYear()}-${(d.getMonth()+1+'').padStart(2,'0')}-${(d.getDate()+'').padStart(2,'0')} ${(d.getHours()+'').padStart(2,'0')}:${(d.getMinutes()+'').padStart(2,'0')}:00">`;
         });
+        
+        // Configurar máximo inicio venta
         fpI.set('maxDate', new Date(funcs[0].getTime() - 60000));
-        const cierreAuto = new Date(funcs[funcs.length-1].getTime() + 7200000);
-        fpE.set('minDate', cierreAuto);
-        fpE.setDate(cierreAuto, true);
+        
+        // --- LÓGICA AUTOMÁTICA DE CIERRE (Igual que en editar) ---
+        const ultimaFuncion = funcs[funcs.length - 1];
+        const cierreCalculado = new Date(ultimaFuncion.getTime() + 7200000); // +2 horas
+        fpE.setDate(cierreCalculado, true);
+        fpE.set('minDate', cierreCalculado);
     }
     val();
 }
@@ -154,8 +166,8 @@ function val(){
     
     if(!fpI.selectedDates.length){ if(funcs.length) err(els.ttI,els.ini,'Requerido.'); ok=false; }
     else if(funcs.length&&fpI.selectedDates[0]>=funcs[0]){ err(els.ttI,els.ini,'Debe ser antes de la 1ª función.'); ok=false; }
-    if(!fpE.selectedDates.length){ if(funcs.length) err(els.ttE,els.fin,'Requerido.'); ok=false; }
-    else if(fpI.selectedDates.length&&fpE.selectedDates[0]<=fpI.selectedDates[0]){ err(els.ttE,els.fin,'Debe ser posterior al inicio.'); ok=false; }
+    
+    // Validación de cierre eliminada (es automática)
     
     if(!els.desc.value.trim()){ err(els.ttDesc, els.desc, 'La descripción es obligatoria.'); ok=false; }
     if(!els.img.files.length){ err(els.ttImg, els.img, 'La imagen es obligatoria.'); ok=false; }

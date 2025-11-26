@@ -1,46 +1,42 @@
 <?php
+// Activar reporte de errores
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 session_start();
 include "../conexion.php";
-require_once "../transacciones_helper.php";
+
+if(file_exists("../transacciones_helper.php")) {
+    require_once "../transacciones_helper.php";
+}
 
 // ==================================================================
-// VERIFICACIÓN DE SESIÓN (para acceso directo)
+// VERIFICACIÓN DE SESIÓN
 // ==================================================================
 if (!isset($_SESSION['usuario_id']) || ($_SESSION['usuario_rol'] !== 'admin' && (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado']))) {
     die('<div style="font-family: Arial; text-align: center; margin-top: 50px; color: red;"><h1>Acceso Denegado</h1><p>No tiene permiso para ver esta página.</p></div>');
 }
 
 // ==================================================================
-// FUNCIONES DE GESTIÓN (Finalizar, Reactivar, Borrar...)
+// FUNCIÓN PARA ARCHIVAR (MOVER A HISTÓRICO)
 // ==================================================================
-
-// reactivar_evento() no es necesaria aquí, ya que solo se usa en htr_eventos.php
-// La dejamos por si copias y pegas el bloque
-function reactivar_evento($id_evento, $conn) {
-    // Esta función simple ya no se usa, la real está en htr_eventos.php
-}
-
-/**
- * Mueve un evento de producción (trt_25) al histórico (trt_historico_evento).
- *
- * @param int $id_evento El ID del evento en 'trt_25.evento'.
- * @param mysqli $conn La conexión a la base de datos.
- * @throws Exception Si alguna de las operaciones SQL falla.
- */
-function borrar_evento($id_evento, $conn) {
-    // 1. COPIA de 'trt_25' a 'trt_historico_evento' (usando INSERT IGNORE para evitar duplicados)
-    if (!$conn->query("INSERT IGNORE INTO trt_historico_evento.evento SELECT * FROM trt_25.evento WHERE id_evento = $id_evento")) { throw new Exception("Error al archivar evento: " . $conn->error); }
-    if (!$conn->query("INSERT IGNORE INTO trt_historico_evento.funciones SELECT * FROM trt_25.funciones WHERE id_evento = $id_evento")) { throw new Exception("Error al archivar funciones: " . $conn->error); }
-    if (!$conn->query("INSERT IGNORE INTO trt_historico_evento.categorias SELECT * FROM trt_25.categorias WHERE id_evento = $id_evento")) { throw new Exception("Error al archivar categorías: " . $conn->error); }
-    if (!$conn->query("INSERT IGNORE INTO trt_historico_evento.promociones SELECT * FROM trt_25.promociones WHERE id_evento = $id_evento")) { throw new Exception("Error al archivar promociones: " . $conn->error); }
-    if (!$conn->query("INSERT IGNORE INTO trt_historico_evento.boletos SELECT * FROM trt_25.boletos WHERE id_evento = $id_evento")) { throw new Exception("Error al archivar boletos: " . $conn->error); }
+function archivar_evento_completo($id, $conn) {
+    // 1. COPIAR A HISTÓRICO (trt_historico_evento)
+    // NOTA: No copiamos 'funciones' porque se consideran irrelevantes para el historial.
     
-    // 2. BORRA de 'trt_25' (producción)
-    $conn->query("DELETE FROM trt_25.boletos WHERE id_evento = $id_evento");
-    $conn->query("DELETE FROM trt_25.promociones WHERE id_evento = $id_evento");
-    $conn->query("DELETE FROM trt_25.categorias WHERE id_evento = $id_evento");
-    $conn->query("DELETE FROM trt_25.funciones WHERE id_evento = $id_evento");
-    $conn->query("DELETE FROM trt_25.evento WHERE id_evento = $id_evento");
+    $conn->query("INSERT IGNORE INTO trt_historico_evento.evento SELECT * FROM trt_25.evento WHERE id_evento = $id");
+    // $conn->query("INSERT IGNORE INTO trt_historico_evento.funciones ..."); // <-- ELIMINADO A PETICIÓN
+    $conn->query("INSERT IGNORE INTO trt_historico_evento.categorias SELECT * FROM trt_25.categorias WHERE id_evento = $id");
+    $conn->query("INSERT IGNORE INTO trt_historico_evento.promociones SELECT * FROM trt_25.promociones WHERE id_evento = $id");
+    $conn->query("INSERT IGNORE INTO trt_historico_evento.boletos SELECT * FROM trt_25.boletos WHERE id_evento = $id");
+
+    // 2. BORRAR DE PRODUCCIÓN (trt_25)
+    // Aquí SÍ borramos las funciones para limpiar la base de datos activa
+    $conn->query("DELETE FROM trt_25.boletos WHERE id_evento = $id");
+    $conn->query("DELETE FROM trt_25.promociones WHERE id_evento = $id");
+    $conn->query("DELETE FROM trt_25.categorias WHERE id_evento = $id");
+    $conn->query("DELETE FROM trt_25.funciones WHERE id_evento = $id"); // <-- Se borran de la activa
+    $conn->query("DELETE FROM trt_25.evento WHERE id_evento = $id");
 }
 
 // ==================================================================
@@ -48,36 +44,33 @@ function borrar_evento($id_evento, $conn) {
 // ==================================================================
 if (isset($_POST['accion'])) {
     header('Content-Type: application/json');
-    $id = $_POST['id_evento'] ?? 0;
+    $id = (int)($_POST['id_evento'] ?? 0);
+    
     $conn->begin_transaction();
     try {
-        switch($_POST['accion']) {
+        if($_POST['accion'] === 'finalizar') {
+            // --- VALIDACIÓN DE CREDENCIALES ---
+            $user = $_POST['auth_user'] ?? '';
+            $pass = $_POST['auth_pass'] ?? '';
+
+            // Buscar usuario admin
+            $stmt = $conn->prepare("SELECT id_usuario FROM usuarios WHERE nombre = ? AND password = ? AND rol = 'admin' AND activo = 1");
+            $stmt->bind_param("ss", $user, $pass);
+            $stmt->execute();
+            $stmt->store_result();
+
+            if ($stmt->num_rows === 0) {
+                throw new Exception("Credenciales incorrectas o insuficientes.");
+            }
+            $stmt->close();
+            // -----------------------------------------
+
+            // Si pasa la validación, procedemos a archivar (sin funciones)
+            archivar_evento_completo($id, $conn);
             
-            case 'finalizar':
-                // 'finalizar' (botón naranja) archiva, sin pedir clave
-                borrar_evento($id, $conn);
-                registrar_transaccion('evento_archivar', 'Archivó evento ID ' . $id . ' desde Eventos Activos');
-                break;
-            
-            case 'borrar':
-                // 'borrar' (botón rojo) archiva, pidiendo clave
-                $u = $_POST['auth_user']??''; $p = $_POST['auth_pin']??'';
-                $stmt = $conn->prepare("SELECT id_usuario FROM usuarios WHERE nombre = ? AND password = ?");
-                $stmt->bind_param("ss", $u, $p); $stmt->execute(); $stmt->store_result();
-                if($stmt->num_rows === 0) throw new Exception("Credenciales incorrectas");
-                $stmt->close();
-                borrar_evento($id, $conn);
-                registrar_transaccion('evento_archivar_admin', 'Archivó evento ID ' . $id . ' con clave de administrador');
-                break;
-            
-            // Los casos 'reactivar' y 'borrar_permanente' no se pueden llamar
-            // desde esta página (act_evento.php), pero no causan daño.
-            case 'reactivar':
-                // No hacer nada
-                break;
-            case 'borrar_permanente':
-                // No hacer nada
-                break;
+            if(function_exists('registrar_transaccion')) {
+                registrar_transaccion('evento_archivar', 'Archivó evento ID ' . $id . ' al historial (Autorizado por: '.$user.')');
+            }
         }
         $conn->commit();
         echo json_encode(['status'=>'success']);
@@ -88,114 +81,208 @@ if (isset($_POST['accion'])) {
     exit;
 }
 
-// ==================================================================
 // CARGA DE DATOS (SOLO ACTIVOS)
-// ==================================================================
-
-// --- MODIFICADO ---
-// Auto-archivar eventos vencidos (en lugar de solo finalizarlos)
-$rv = $conn->query("SELECT e.id_evento FROM trt_25.evento e 
-                   LEFT JOIN trt_25.funciones lf ON e.id_evento = lf.id_evento 
-                   WHERE e.finalizado = 0 
-                   GROUP BY e.id_evento, e.cierre_venta
-                   HAVING ((MAX(lf.fecha_hora) IS NOT NULL AND MAX(lf.fecha_hora) < NOW()) 
-                        OR (MAX(lf.fecha_hora) IS NULL AND e.cierre_venta < NOW()))");
-if($rv){ 
-    while($r=$rv->fetch_assoc()){ 
-        // Llama a la función de archivado completo
-        borrar_evento($r['id_evento'], $conn); 
-        registrar_transaccion('evento_archivar_auto', 'Archivado automático de evento ID ' . $r['id_evento']);
-    }
-}
-
-// Carga los eventos activos de trt_25.evento
 $activos = $conn->query("SELECT * FROM trt_25.evento WHERE finalizado = 0 ORDER BY inicio_venta DESC");
 ?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
-    /* ... (Tu CSS) ... */
     :root {
-        --primary-color: #2563eb; --primary-dark: #1e40af;
-        --success-color: #10b981; --danger-color: #ef4444;
-        --warning-color: #f59e0b; --info-color: #3b82f6;
-        --bg-primary: #f8fafc; --bg-secondary: #ffffff;
-        --text-primary: #0f172a; --text-secondary: #64748b;
-        --border-color: #e2e8f0;
-        --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
-        --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
-        --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+        --primary-color: #2563eb; --bg-primary: #f8fafc;
+        --radius-md: 10px;
     }
-    body { background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-    .content-wrapper { padding: 30px; }
-    .card { border: none; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); transition: all 0.3s ease; background: var(--bg-secondary); }
-    .card:hover { transform: translateY(-5px); box-shadow: var(--shadow-md); }
-    .card-img-top { height: 180px; object-fit: cover; border-radius: var(--radius-md) var(--radius-md) 0 0; }
-    .btn { border-radius: var(--radius-sm); font-weight: 600; padding: 8px 16px; border: none; transition: all 0.2s; }
-    .btn-primary { background: var(--primary-color); color: white; } .btn-primary:hover { background: var(--primary-dark); }
-    .btn-success { background: var(--success-color); color: white; } .btn-success:hover { background: #059669; }
-    .btn-danger { background: var(--danger-color); color: white; } .btn-danger:hover { background: #dc2626; }
-    .btn-warning { background: var(--warning-color); color: white; } .btn-warning:hover { background: #d97706; }
-    .btn-dark { background: #334155; color: white; } .btn-dark:hover { background: #1e293b; }
-    .badge-finalizado { background: #64748b; color: white; padding: 4px 8px; border-radius: 20px; font-size: 0.7em; vertical-align: middle; }
-    .modal-danger-mode .modal-header { background-color: var(--danger-color); color: white; }
-    .modal-danger-mode .modal-content { border: 3px solid var(--danger-color); }
+    body { 
+        background-color: var(--bg-primary); 
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+        opacity: 0; transition: opacity 0.4s;
+    }
+    body.loaded { opacity: 1; }
+    
+    .content-wrapper { padding: 20px; }
+    
+    /* --- TARJETA --- */
+    .card { 
+        border: none; border-radius: var(--radius-md); 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+        background: white; overflow: hidden;
+        transition: transform 0.2s, box-shadow 0.2s;
+        animation: cardEntry 0.4s ease forwards;
+        opacity: 0; transform: translateY(15px);
+    }
+    @keyframes cardEntry { to { opacity: 1; transform: translateY(0); } }
+    
+    .card:hover { transform: translateY(-3px); box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+    
+    .card-img-container {
+        width: 100%;
+        aspect-ratio: 3 / 4; 
+        background-color: #e2e8f0; position: relative;
+        display: flex; align-items: center; justify-content: center;
+    }
+    
+    .card-img-top { 
+        width: 100%; height: 100%; object-fit: cover; 
+        transition: transform 0.4s;
+    }
+    .card:hover .card-img-top { transform: scale(1.08); }
+
+    .card-body { padding: 0.8rem; display: flex; flex-direction: column; gap: 5px; } 
+    .card-title { font-size: 0.95rem; margin-bottom: 0.2rem; line-height: 1.2; } 
+    
+    /* --- CONTENEDOR DE FUNCIONES --- */
+    .funcs-container {
+        display: flex; flex-wrap: wrap; gap: 4px;
+        max-height: 65px; overflow-y: auto; 
+        padding-right: 2px;
+    }
+    .funcs-container::-webkit-scrollbar { width: 3px; }
+    .funcs-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+    .func-badge {
+        font-size: 0.65rem; 
+        background: #f1f5f9; color: #475569;
+        padding: 2px 6px; border-radius: 4px;
+        border: 1px solid #e2e8f0;
+        white-space: nowrap; font-weight: 600;
+    }
+    
+    .card-footer { padding: 0.6rem 0.8rem; }
+    .btn-sm-custom { padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 6px; }
+
+    /* Estilos Modal Seguridad */
+    .modal-auth-header { background-color: #dc3545; color: white; }
+    .modal-auth-icon { font-size: 3rem; color: #dc3545; margin-bottom: 15px; }
 </style>
+</head>
+<body>
 
 <div class="content-wrapper">
-    <h2 class="fw-bold mb-4 text-primary">Eventos Activos</h2>
-    <div class="row g-4">
-        <?php if($activos && $activos->num_rows > 0): while($e = $activos->fetch_assoc()): 
-            // --- LÓGICA DE IMAGEN CORREGIDA ---
-            $img = '';
-            if (!empty($e['imagen'])) {
-                $img_path_real = "../evt_interfaz/" . $e['imagen']; // Asume que DB guarda "imagenes/evt_123.jpg"
-                if(file_exists($img_path_real)) {
-                    $img = $img_path_real;
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="fw-bold text-primary m-0">Eventos Activos</h4>
+        <span class="badge bg-secondary bg-opacity-10 text-secondary"><?= $activos->num_rows ?> eventos</span>
+    </div>
+
+    <div class="row g-3">
+        <?php if($activos && $activos->num_rows > 0): 
+            $delay = 0;
+            while($e = $activos->fetch_assoc()): 
+                $delay += 30;
+                $img = '';
+                if (!empty($e['imagen'])) {
+                    $rutas = ["../evt_interfaz/" . $e['imagen'], $e['imagen']];
+                    foreach($rutas as $r) { if(file_exists($r)) { $img = $r; break; } }
                 }
-            }
+
+                $id_evt = $e['id_evento'];
+                $sql_func = "SELECT fecha_hora FROM funciones WHERE id_evento = $id_evt ORDER BY fecha_hora ASC";
+                $res_func = $conn->query($sql_func);
+                $funciones = [];
+                if($res_func){
+                    while($f = $res_func->fetch_assoc()){ $funciones[] = $f['fecha_hora']; }
+                }
         ?>
-        <div class="col-xl-3 col-lg-4 col-md-6">
-            <div class="card h-100">
-                <?php if($img): ?><img src="<?= htmlspecialchars($img) ?>" class="card-img-top"><?php else: ?><div class="card-img-top bg-secondary"></div><?php endif; ?>
-                <div class="card-body">
-                    <h5 class="card-title fw-bold"><?= htmlspecialchars($e['titulo']) ?></h5>
-                    <p class="card-text small text-muted mb-0"><i class="bi bi-calendar2-event me-1"></i> Inicio: <?= date('d/m/y', strtotime($e['inicio_venta'])) ?></p>
+        <div class="col-xxl-2 col-xl-2 col-lg-3 col-md-4 col-6">
+            <div class="card h-100" style="animation-delay: <?= $delay ?>ms">
+                <div class="card-img-container">
+                    <?php if($img): ?>
+                        <img src="<?= htmlspecialchars($img) ?>" class="card-img-top" loading="lazy">
+                    <?php else: ?>
+                        <div class="text-center text-muted"><i class="bi bi-image fs-4 opacity-50"></i></div>
+                    <?php endif; ?>
                 </div>
-                <div class="card-footer bg-white border-0 pt-0 d-flex justify-content-between">
-                    <a href="editar_evento.php?id=<?= $e['id_evento'] ?>" class="btn btn-outline-primary btn-sm"><i class="bi bi-pencil"></i></a>
-                    <div class="d-flex gap-1">
-                        <button class="btn btn-warning btn-sm text-white" onclick="conf('finalizar', <?= $e['id_evento'] ?>, '<?= addslashes($e['titulo']) ?>')"><i class="bi bi-archive"></i></button>
-                        <button class="btn btn-danger btn-sm" onclick="conf('borrar', <?= $e['id_evento'] ?>, '<?= addslashes($e['titulo']) ?>')"><i class="bi bi-trash"></i></button>
+                
+                <div class="card-body">
+                    <h6 class="card-title fw-bold text-dark text-truncate" title="<?= htmlspecialchars($e['titulo']) ?>">
+                        <?= htmlspecialchars($e['titulo']) ?>
+                    </h6>
+                    
+                    <div class="funcs-container">
+                        <?php if(count($funciones) > 0): ?>
+                            <?php foreach($funciones as $fh): ?>
+                                <span class="func-badge">
+                                    <i class="bi bi-clock me-1" style="font-size:9px"></i><?= date('d/m H:i', strtotime($fh)) ?>
+                                </span>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <span class="func-badge text-danger border-danger bg-danger-subtle">Sin funciones</span>
+                        <?php endif; ?>
                     </div>
+                </div>
+                
+                <div class="card-footer bg-white border-0 d-flex justify-content-between align-items-center">
+                    <button onclick="window.location.href='editar_evento.php?id=<?= $e['id_evento'] ?>'" class="btn btn-outline-primary btn-sm-custom w-100 me-1">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    
+                    <button class="btn btn-light text-danger btn-sm-custom" onclick="prepararArchivado(<?= $e['id_evento'] ?>, '<?= addslashes($e['titulo']) ?>')" title="Mover al Historial">
+                        <i class="bi bi-archive"></i>
+                    </button>
                 </div>
             </div>
         </div>
         <?php endwhile; else: ?>
-        <div class="col-12"><div class="alert alert-info shadow-sm border-0">No hay eventos activos.</div></div>
+        <div class="col-12">
+            <div class="alert alert-light border text-center p-5">
+                <i class="bi bi-inbox fs-1 text-muted mb-3"></i>
+                <p class="mb-0 text-muted">No hay eventos activos.</p>
+            </div>
+        </div>
         <?php endif; ?>
     </div>
 </div>
 
-<div class="modal fade" id="mConf" tabindex="-1" data-bs-backdrop="static">
+<div class="modal fade" id="modalArchivar" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg" id="mContent">
-            <div class="modal-header border-0" id="mHeader">
-                <h5 class="modal-title fw-bold" id="mTitle">Confirmar Acción</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" id="mClose"></button>
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 bg-danger text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-shield-lock-fill me-2"></i>Zona de Seguridad</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <p id="mMsg" class="fs-5 mb-3"></p>
-                <div id="mAuth" class="d-none bg-light p-3 rounded-3 mb-3 border">
-                    <label class="small fw-bold text-secondary mb-2">Credenciales de Administrador:</label>
-                    <input type="text" id="mUser" class="form-control mb-2" placeholder="Usuario">
-                    <input type="password" id="mPin" class="form-control" placeholder="PIN">
+            <div class="modal-body p-4">
+                <div id="pasoAdvertencia">
+                    <div class="text-center mb-3">
+                        <i class="bi bi-exclamation-triangle-fill text-warning" style="font-size: 3rem;"></i>
+                    </div>
+                    <h5 class="text-center fw-bold mb-3">¿Estás seguro?</h5>
+                    <p class="text-center text-muted">
+                        Estás a punto de archivar el evento: <br>
+                        <strong id="nombreEventoArchivar" class="text-dark fs-5"></strong>
+                    </p>
+                    <div class="alert alert-warning small border-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        El evento dejará de ser visible para la venta. Toda la información (boletos, ventas, configuración) se moverá a la base de datos histórica.
+                    </div>
+                    <button class="btn btn-danger w-100 py-2 fw-bold" onclick="mostrarPasoAuth()">
+                        Continuar y Autorizar <i class="bi bi-arrow-right"></i>
+                    </button>
                 </div>
-                <div id="mWarn" class="alert alert-warning border-0 small d-flex align-items-center"><i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i><span id="mTxt"></span></div>
-            </div>
-            <div class="modal-footer border-0">
-                <button class="btn btn-light" data-bs-dismiss="modal" id="mCancel">Cancelar</button>
-                <button id="mBtn" class="btn px-4">Confirmar</button>
+
+                <div id="pasoAuth" style="display: none;">
+                    <div class="text-center mb-3">
+                        <i class="bi bi-person-lock text-danger" style="font-size: 3rem;"></i>
+                    </div>
+                    <h6 class="text-center fw-bold mb-3">Autorización de Administrador</h6>
+                    <p class="text-center small text-muted mb-4">Para confirmar esta acción crítica, ingresa tus credenciales.</p>
+                    
+                    <div class="mb-3">
+                        <input type="text" id="auth_user" class="form-control form-control-lg" placeholder="Usuario Admin">
+                    </div>
+                    <div class="mb-4">
+                        <input type="password" id="auth_pass" class="form-control form-control-lg" placeholder="Contraseña / PIN">
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-light w-50" onclick="volverPasoAdvertencia()">Atrás</button>
+                        <button id="btnConfirmarFinal" class="btn btn-danger w-50 fw-bold" onclick="ejecutarArchivado()">
+                            Confirmar Archivo
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -203,112 +290,79 @@ $activos = $conn->query("SELECT * FROM trt_25.evento WHERE finalizado = 0 ORDER 
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-const m = new bootstrap.Modal('#mConf');
-const els = { cont:document.getElementById('mContent'), head:document.getElementById('mHeader'), title:document.getElementById('mTitle'), msg:document.getElementById('mMsg'), auth:document.getElementById('mAuth'), warn:document.getElementById('mWarn'), txt:document.getElementById('mTxt'), btn:document.getElementById('mBtn'), user:document.getElementById('mUser'), pin:document.getElementById('mPin'), close:document.getElementById('mClose'), cancel:document.getElementById('mCancel') };
-function resetModal() {
-    els.cont.parentNode.classList.remove('modal-danger-mode');
-    els.head.classList.remove('bg-danger', 'text-white');
-    els.btn.classList.remove('btn-danger', 'w-100', 'py-3', 'fs-5');
-    els.warn.className = 'alert alert-warning border-0 small d-flex align-items-center';
-    els.auth.classList.add('d-none'); els.user.value = ''; els.pin.value = '';
-    els.close.classList.remove('btn-close-white'); els.cancel.classList.remove('d-none');
+document.addEventListener('DOMContentLoaded', () => document.body.classList.add('loaded'));
+
+let eventoIdSeleccionado = null;
+const modalElement = document.getElementById('modalArchivar');
+const modal = new bootstrap.Modal(modalElement);
+
+// Configurar modal al abrir
+function prepararArchivado(id, titulo) {
+    eventoIdSeleccionado = id;
+    document.getElementById('nombreEventoArchivar').textContent = titulo;
+    
+    // Resetear pasos
+    document.getElementById('pasoAdvertencia').style.display = 'block';
+    document.getElementById('pasoAuth').style.display = 'none';
+    document.getElementById('auth_user').value = '';
+    document.getElementById('auth_pass').value = '';
+    document.getElementById('btnConfirmarFinal').disabled = false;
+    document.getElementById('btnConfirmarFinal').innerHTML = 'Confirmar Archivo';
+    
+    modal.show();
 }
-function conf(act, id, nom) {
-    resetModal();
-    let t='', w='', c='btn-primary', req=false, isCritical=false;
-    switch(act) {
-        case 'finalizar': 
-            t='Archivar Evento'; 
-            els.msg.innerHTML=`¿Archivar <strong>${nom}</strong>?`; 
-            w='El evento se moverá al historial y ya no estará activo.'; 
-            c='btn-warning'; 
-            isCritical = true;
-            req = false;
-            break;
-        case 'borrar': 
-            t='Archivar (con Clave)'; 
-            els.msg.innerHTML=`¿Archivar <strong>${nom}</strong>?`; 
-            w='Se moverá al historial. Requiere autorización.'; 
-            c='btn-danger';
-            req=true; 
-            isCritical=true; 
-            break;
-        case 'reactivar': t='Reactivar Evento'; els.msg.innerHTML=`¿Crear copia de <strong>${nom}</strong>?`; w='Se creará un nuevo evento activo.'; c='btn-success'; break;
-        case 'borrar_permanente': t='Archivado Permanente'; els.msg.innerHTML=`¿Archivar <strong>${nom}</strong> permanentemente?`; w='Se moverá a la base de datos histórica.'; c='btn-dark'; isCritical=true; break;
+
+// Cambiar entre pasos del modal
+function mostrarPasoAuth() {
+    document.getElementById('pasoAdvertencia').style.display = 'none';
+    document.getElementById('pasoAuth').style.display = 'block';
+    // Auto-focus en usuario
+    setTimeout(() => document.getElementById('auth_user').focus(), 100);
+}
+
+function volverPasoAdvertencia() {
+    document.getElementById('pasoAuth').style.display = 'none';
+    document.getElementById('pasoAdvertencia').style.display = 'block';
+}
+
+// Ejecutar la acción real
+function ejecutarArchivado() {
+    const user = document.getElementById('auth_user').value.trim();
+    const pass = document.getElementById('auth_pass').value.trim();
+
+    if (!user || !pass) {
+        alert("Por favor, ingresa usuario y contraseña.");
+        return;
     }
-    els.title.textContent=t; els.txt.textContent=w; els.auth.classList.toggle('d-none',!req); els.btn.className=`btn fw-bold ${c}`;
-    
-    els.btn.onclick = () => {
-        if(isCritical) {
-            if(req && (!els.user.value || !els.pin.value)) return alert('Faltan credenciales');
-            
-            els.cont.parentNode.classList.add('modal-danger-mode');
-            els.head.classList.add('bg-danger', 'text-white');
-            els.close.classList.add('btn-close-white');
-            els.title.innerHTML = '<i class="bi bi-exclamation-octagon-fill me-2"></i>¡ADVERTENCIA FINAL!';
-            
-            if (act === 'finalizar') {
-                els.msg.innerHTML = `<h4 class="text-warning fw-bold text-center my-3">¿CONFIRMAS EL ARCHIVADO?</h4><p class="text-center mb-0">El evento <strong>${nom}</strong> se moverá al histórico.</p>`;
-                els.warn.className = 'alert alert-warning border-0 fw-bold text-center d-block';
-                els.txt.textContent = 'ACCIÓN DE ARCHIVADO.';
-                els.btn.className = 'btn btn-warning fw-bold w-100 py-3 fs-5';
-                els.btn.innerHTML = '<i class="bi bi-archive-fill me-2"></i>ARCHIVAR AHORA';
-            } 
-            else if (act === 'borrar') {
-                els.msg.innerHTML = `<h4 class="text-danger fw-bold text-center my-3">¿ESTÁS SEGURO?</h4><p class="text-center mb-0">Se archivará <strong>${nom}</strong>.</p><p class="text-center fw-bold text-danger mt-2">Esta acción requiere clave de admin.</p>`;
-                els.warn.className = 'alert alert-danger border-0 fw-bold text-center d-block';
-                els.txt.textContent = 'ACCIÓN DESTRUCTIVA.';
-                els.btn.className = 'btn btn-danger fw-bold w-100 py-3 fs-5';
-                els.btn.innerHTML = '<i class="bi bi-trash3-fill me-2"></i>ARCHIVAR DEFINITIVAMENTE';
-            }
-            else if (act === 'borrar_permanente') { 
-                els.msg.innerHTML = `<h4 class="text-warning fw-bold text-center my-3">¿CONFIRMAS EL ARCHIVADO?</h4><p class="text-center mb-0">Se moverán todos los datos de <strong>${nom}</strong> al histórico.</p><p class="text-center fw-bold text-danger mt-2">Esta acción es irreversible.</p>`;
-                els.warn.className = 'alert alert-warning border-0 fw-bold text-center d-block';
-                els.txt.textContent = 'ACCIÓN DE ARCHIVADO.';
-                els.btn.className = 'btn btn-dark fw-bold w-100 py-3 fs-5';
-                els.btn.innerHTML = '<i class="bi bi-archive-fill me-2"></i>ARCHIVAR AHORA';
-            }
 
-            els.auth.classList.add('d-none');
-            els.cancel.classList.add('d-none');
-            els.btn.onclick = () => ejecutar(act, id, req);
-            isCritical = false; return;
-        }
-        ejecutar(act, id, req);
-    };
-    m.show();
-}
+    const btn = document.getElementById('btnConfirmarFinal');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
 
-function ejecutar(act, id, req) {
-    let fd = new FormData(); fd.append('accion',act); fd.append('id_evento',id);
-    if(req) { fd.append('auth_user',els.user.value); fd.append('auth_pin',els.pin.value); }
-    const originalButtonText = els.btn.innerHTML;
-    els.btn.disabled=true; 
-    els.btn.innerHTML='<span class="spinner-border spinner-border-sm"></span>';
+    let fd = new FormData();
+    fd.append('accion', 'finalizar');
+    fd.append('id_evento', eventoIdSeleccionado);
+    fd.append('auth_user', user);
+    fd.append('auth_pass', pass);
     
-    fetch('',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
-        if(d.status==='success') {
-            localStorage.setItem('evt_upd', Date.now());
-            if (act === 'reactivar') {
-                // 'reactivar' no debería estar aquí, pero si lo está, lo redirige
-                window.location.href = `editar_evento.php?id=${id}&es_nuevo=1`;
-            } else {
-                window.location.reload();
-            }
-        } else { 
-            alert(d.message||'Error'); 
-            m.hide(); 
-            els.btn.disabled=false;
-            els.btn.innerHTML = originalButtonText;
+    fetch('', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+        if(data.status === 'success') {
+            modal.hide();
+            location.reload(); // Recargar para ver cambios
+        } else {
+            alert('Error: ' + data.message);
+            btn.disabled = false;
+            btn.innerHTML = 'Confirmar Archivo';
         }
-    }).catch(()=>{ 
-        alert('Error de red'); 
-        m.hide(); 
-        els.btn.disabled=false;
-        els.btn.innerHTML = originalButtonText;
+    })
+    .catch(() => {
+        alert('Error de conexión con el servidor.');
+        btn.disabled = false;
+        btn.innerHTML = 'Confirmar Archivo';
     });
 }
-window.addEventListener('storage', (e) => {
-    if (e.key === 'evt_upd') window.location.reload();
-});
 </script>
+</body>
+</html>
