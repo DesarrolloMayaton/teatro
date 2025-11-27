@@ -1,28 +1,59 @@
 <?php
 session_start();
-include "../conexion.php"; // Incluir conexión para verificar usuarios
+include "../conexion.php"; 
 
-// Verificar que hay sesión activa
+// 1. VERIFICACIÓN DE SEGURIDAD
 if (!isset($_SESSION['usuario_id'])) {
-    die('<html><head><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"></head><body style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; background: #f4f7f6; color: #e74c3c; font-size: 1.2em;">
-    <div style="text-align: center;">
-        <i class="bi bi-lock-fill" style="font-size: 3em;"></i>
-        <p>Acceso denegado. Debe iniciar sesión.</p>
-    </div>
-    </body></html>');
+    die('<html><head><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"></head><body style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; background: #f4f7f6; color: #e74c3c; font-size: 1.2em;"><div style="text-align: center;"><i class="bi bi-lock-fill" style="font-size: 3em;"></i><p>Acceso denegado.</p></div></body></html>');
 }
 
-// Verificar acceso al panel de administración
-if ($_SESSION['usuario_rol'] !== 'admin') {
-    if (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado']) {
-        die('<html><head><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"></head><body style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; background: #f4f7f6; color: #e74c3c; font-size: 1.2em;">
-        <div style="text-align: center;">
-            <i class="bi bi-shield-lock-fill" style="font-size: 3em;"></i>
-            <p>Acceso denegado. Requiere verificación de administrador.</p>
-            <button onclick="window.parent.location.href=\'/teatro/index.php\'" style="margin-top: 20px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1em;">Volver al Sistema</button>
+if ($_SESSION['usuario_rol'] !== 'admin' && (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado'])) {
+    die('<html><head><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"></head><body style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; background: #f4f7f6; color: #e74c3c; font-size: 1.2em;"><div style="text-align: center;"><i class="bi bi-shield-lock-fill" style="font-size: 3em;"></i><p>Requiere permisos de Administrador.</p><button onclick="window.parent.location.href=\'/teatro/index.php\'" style="margin-top: 20px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">Volver</button></div></body></html>');
+}
+
+// 2. DETERMINAR VISTA INICIAL
+$sql_check = "SELECT COUNT(*) as total FROM evento WHERE finalizado = 0";
+$res_check = $conn->query($sql_check);
+$row_check = $res_check->fetch_assoc();
+$hay_eventos = $row_check['total'] > 0;
+
+$tab = $_GET['tab'] ?? 'activos';
+$src_inicial = '';
+$class_activos = ''; 
+$class_historial = '';
+
+if ($tab === 'historial') {
+    $src_inicial = 'htr_eventos.php';
+    $class_historial = 'active';
+} else {
+    if ($hay_eventos) {
+        $src_inicial = "act_evento.php";
+    } else {
+        $html_vacio = '<!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+        <style>
+            body { height: 100vh; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-family: sans-serif; text-align: center; }
+            .empty-state { max-width: 400px; padding: 40px; }
+            .icon-box { font-size: 4rem; color: #cbd5e1; margin-bottom: 20px; }
+        </style>
+    </head>
+    <body>
+        <div class="empty-state">
+            <div class="icon-box"><i class="bi bi-calendar-x"></i></div>
+            <h3 class="fw-bold text-dark">No hay eventos activos</h3>
+            <p class="mb-0">Actualmente no existen eventos disponibles en la plataforma.</p>
         </div>
-        </body></html>');
+    </body>
+    </html>';
+    
+    $src_inicial = "data:text/html;base64," . base64_encode($html_vacio);
     }
+    
+    // Solo marcamos activo si no se especificó historial explícitamente
+    if ($tab !== 'historial') $class_activos = 'active';
 }
 ?>
 <!DOCTYPE html>
@@ -30,169 +61,128 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title></title>
+    <title>Panel Admin</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
+        :root {
+            --sidebar-bg: #1e293b; --sidebar-text: #94a3b8; --active-color: #3b82f6;
+            --hover-bg: rgba(255, 255, 255, 0.05); --body-bg: #f1f5f9;
+        }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f7f6;
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0; padding: 0; background-color: var(--body-bg);
+            display: flex; height: 100vh; overflow: hidden;
         }
+        
         nav.menu-admin {
-            width: 230px;
-            background-color: #1e293b; /* Color del menu.php */
-            color: white;
-            display: flex;
-            flex-direction: column;
-            padding-top: 10px;
-            box-shadow: 4px 0 12px rgba(0, 0, 0, 0.1);
-            flex-shrink: 0;
+            width: 200px; background-color: var(--sidebar-bg); color: white;
+            display: flex; flex-direction: column; padding: 20px 10px;
+            box-shadow: 4px 0 15px rgba(0, 0, 0, 0.15); flex-shrink: 0; z-index: 10;
+            animation: slideIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
         }
+        @keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+
         .menu-header {
-            padding: 10px 20px 20px 20px;
-            border-bottom: 1px solid #34495e;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            padding: 0 10px 25px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 15px; display: flex; align-items: center; gap: 10px;
         }
-        .menu-header h4 {
-            color: white;
-            font-weight: 600;
-            margin: 0;
-            font-size: 1.2em;
-        }
-        .menu-header .btn-reload {
-            background: none;
-            border: 1px solid #566573;
-            color: #bdc3c7;
-            border-radius: 5px;
-            cursor: pointer;
-        }
+        .menu-header h4 { color: white; font-weight: 700; margin: 0; font-size: 1.1em; letter-spacing: 0.5px; }
+        
         nav.menu-admin a.menu-item {
-            display: flex;
-            align-items: center;
-            color: #bdc3c7; /* Color de texto más suave */
-            padding: 16px 20px;
-            text-decoration: none;
-            font-size: 15px;
-            font-weight: 500;
-            transition: all 0.2s ease;
-            border-left: 4px solid transparent;
+            display: flex; align-items: center; color: var(--sidebar-text);
+            padding: 12px 15px; margin-bottom: 6px; text-decoration: none;
+            font-size: 14px; font-weight: 500; border-radius: 10px;
+            transition: all 0.2s ease; border: 1px solid transparent;
         }
-        nav.menu-admin a.menu-item i {
-            font-size: 1.2em;
-            min-width: 30px;
-            margin-right: 12px;
-            opacity: 0.8;
-        }
-        nav.menu-admin a.menu-item:hover {
-            background-color: #2c3e50;
-            color: #fff;
-        }
+        nav.menu-admin a.menu-item i { font-size: 1.2em; min-width: 28px; transition: transform 0.2s; }
+        nav.menu-admin a.menu-item:hover { background-color: var(--hover-bg); color: white; transform: translateX(4px); }
+        
         nav.menu-admin a.menu-item.active {
-            background-color: #2563eb; /* Azul primario */
-            color: #fff;
-            border-left: 4px solid #fff;
-            font-weight: 600;
+            background: linear-gradient(135deg, #3b82f6, #2563eb); color: white;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); font-weight: 600;
         }
-        .menu-footer {
-            margin-top: auto;
-            padding: 20px;
-        }
-        .menu-footer .btn-success {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 8px;
-            width: 100%;
-            padding: 12px;
-            background-color: #10b981;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            text-decoration: none;
-            font-size: 15px;
-            font-weight: 600;
-        }
-        header {
-            background-color: #ffffff;
-            color: #2c3e50;
-            padding: 12px 20px;
-            font-size: 18px;
-            font-weight: 600;
-            flex-shrink: 0;
-            width: 100%;
-            border-bottom: 1px solid #e2e8f0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-        }
-        .contenido-admin {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
-        iframe.content-frame {
-            flex-grow: 1;
-            width: 100%;
-            height: 100%;
-            border: none;
-            background-color: #f8fafc; /* Color de fondo del content */
-        }
+        
+        .menu-separator { height: 1px; background: rgba(255,255,255,0.1); margin: 15px 5px; }
+        .contenido-admin { flex-grow: 1; display: flex; flex-direction: column; height: 100vh; background-color: var(--body-bg); animation: fadeIn 0.6s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        iframe.content-frame { width: 100%; height: 100%; border: none; transition: opacity 0.3s ease; }
+        .iframe-loading { opacity: 0.5; filter: blur(2px); }
     </style>
 </head>
 <body>
 
-    <nav class="menu-admin" id="menuAdmin">
+    <nav class="menu-admin">
         <div class="menu-header">
-             <h4 class="m-0"><i class="bi bi-grid-fill me-2"></i>Dashboard</h4>
-             <button onclick="reloadFrame()" class="btn-reload" title="Actualizar Datos"><i class="bi bi-arrow-clockwise"></i></button>
+             <h4 class="m-0"><i class="bi bi-grid-fill text-primary me-2"></i> Admin</h4>
         </div>
         
-        <a class="menu-item" href="act_evento.php" target="contentFrame">
+        <a class="menu-item <?= $class_activos ?>" href="act_evento.php" target="contentFrame" onclick="manualLoad()">
             <i class="bi bi-activity"></i> Activos
         </a>
     
-        <a class="menu-item" href="htr_eventos.php" target="contentFrame">
+        <a class="menu-item <?= $class_historial ?>" href="htr_eventos.php" target="contentFrame" onclick="manualLoad()">
             <i class="bi bi-archive"></i> Historial
         </a>
         
-        <div style="height: 1px; background: #34495e; margin: 10px 20px;"></div>
+        <div class="menu-separator"></div>
 
-        <a class="menu-item" href="crear_evento.php" target="contentFrame">
-            <i class="bi bi-plus-lg"></i> Nuevo Evento
+        <a class="menu-item" href="crear_evento.php" target="contentFrame" onclick="manualLoad()">
+            <i class="bi bi-plus-lg"></i> Nuevo
         </a>
     </nav>
 
     <div class="contenido-admin">
-        <header></header>
-
-        <iframe class="content-frame" name="contentFrame" id="contentFrame" src="act_evento.php">
-            Tu navegador no soporta iframes.
-        </iframe>
+        <iframe class="content-frame" name="contentFrame" id="contentFrame" src="<?php echo $src_inicial; ?>"></iframe>
     </div>
 
     <script>
-        // Script para manejar la clase 'active'
-        document.querySelectorAll('nav.menu-admin a.menu-item').forEach(link => {
-            link.addEventListener('click', function(e) {
-                document.querySelectorAll('nav.menu-admin a.menu-item').forEach(item => {
-                    item.classList.remove('active');
-                });
-                this.classList.add('active');
-            });
-        });
+        const iframe = document.getElementById('contentFrame');
+        const menuItems = document.querySelectorAll('nav.menu-admin a.menu-item');
 
-        // Activar el link de "Activos" por defecto
-        document.querySelector('nav.menu-admin a.menu-item[href="act_evento.php"]').classList.add('active');
-        
-        // Función para recargar el iframe
-        function reloadFrame() {
-            document.getElementById('contentFrame').src = document.getElementById('contentFrame').src;
+        function manualLoad() {
+            iframe.classList.add('iframe-loading');
         }
+
+        // --- LÓGICA AUTOMÁTICA DEL MENÚ ---
+        iframe.onload = function() {
+            iframe.classList.remove('iframe-loading');
+
+            try {
+                // 1. Obtener nombre del archivo cargado
+                const path = iframe.contentWindow.location.pathname;
+                const filename = path.substring(path.lastIndexOf('/') + 1);
+                
+                // 2. Obtener parámetros URL (ej: ?modo_reactivacion=1)
+                const searchParams = iframe.contentWindow.location.search;
+
+                menuItems.forEach(link => {
+                    link.classList.remove('active'); // Limpiar todos
+                    const href = link.getAttribute('href');
+
+                    // CASO 1: Coincidencia Exacta (act_evento.php, htr_eventos.php, crear_evento.php)
+                    if (href === filename) {
+                        link.classList.add('active');
+                    } 
+                    
+                    // CASO 2: Estamos en el EDITOR
+                    else if (filename.includes('editar_evento.php')) {
+                        
+                        // Si estamos REACTIVANDO (viene del historial) -> Iluminar Historial
+                        if (searchParams.includes('modo_reactivacion=1') && href === 'htr_eventos.php') {
+                            link.classList.add('active');
+                        }
+                        
+                        // Si es EDICIÓN NORMAL (activo) -> Iluminar Activos
+                        else if (!searchParams.includes('modo_reactivacion=1') && href === 'act_evento.php') {
+                            link.classList.add('active');
+                        }
+                    }
+                });
+            } catch (e) {
+                // Silencioso
+            }
+        };
     </script>
 
 </body>
