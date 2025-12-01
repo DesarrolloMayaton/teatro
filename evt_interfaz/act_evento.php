@@ -18,24 +18,28 @@ if (!isset($_SESSION['usuario_id']) || ($_SESSION['usuario_rol'] !== 'admin' && 
 }
 
 // ==================================================================
+// ACTUALIZACIÓN AUTOMÁTICA DE ESTADOS DE FUNCIONES
+// ==================================================================
+// Marca como '1' (Finalizada) las funciones que ya pasaron de fecha/hora
+$conn->query("UPDATE funciones SET estado = 1 WHERE fecha_hora < NOW() AND estado = 0");
+
+
+// ==================================================================
 // FUNCIÓN PARA ARCHIVAR (MOVER A HISTÓRICO)
 // ==================================================================
 function archivar_evento_completo($id, $conn) {
-    // 1. COPIAR A HISTÓRICO (trt_historico_evento)
-    // NOTA: No copiamos 'funciones' porque se consideran irrelevantes para el historial.
-    
+    // 1. COPIAR A HISTÓRICO
     $conn->query("INSERT IGNORE INTO trt_historico_evento.evento SELECT * FROM trt_25.evento WHERE id_evento = $id");
-    // $conn->query("INSERT IGNORE INTO trt_historico_evento.funciones ..."); // <-- ELIMINADO A PETICIÓN
+    // No copiamos funciones al histórico
     $conn->query("INSERT IGNORE INTO trt_historico_evento.categorias SELECT * FROM trt_25.categorias WHERE id_evento = $id");
     $conn->query("INSERT IGNORE INTO trt_historico_evento.promociones SELECT * FROM trt_25.promociones WHERE id_evento = $id");
     $conn->query("INSERT IGNORE INTO trt_historico_evento.boletos SELECT * FROM trt_25.boletos WHERE id_evento = $id");
 
-    // 2. BORRAR DE PRODUCCIÓN (trt_25)
-    // Aquí SÍ borramos las funciones para limpiar la base de datos activa
+    // 2. BORRAR DE PRODUCCIÓN
     $conn->query("DELETE FROM trt_25.boletos WHERE id_evento = $id");
     $conn->query("DELETE FROM trt_25.promociones WHERE id_evento = $id");
     $conn->query("DELETE FROM trt_25.categorias WHERE id_evento = $id");
-    $conn->query("DELETE FROM trt_25.funciones WHERE id_evento = $id"); // <-- Se borran de la activa
+    $conn->query("DELETE FROM trt_25.funciones WHERE id_evento = $id");
     $conn->query("DELETE FROM trt_25.evento WHERE id_evento = $id");
 }
 
@@ -49,11 +53,9 @@ if (isset($_POST['accion'])) {
     $conn->begin_transaction();
     try {
         if($_POST['accion'] === 'finalizar') {
-            // --- VALIDACIÓN DE CREDENCIALES ---
             $user = $_POST['auth_user'] ?? '';
             $pass = $_POST['auth_pass'] ?? '';
 
-            // Buscar usuario admin
             $stmt = $conn->prepare("SELECT id_usuario FROM usuarios WHERE nombre = ? AND password = ? AND rol = 'admin' AND activo = 1");
             $stmt->bind_param("ss", $user, $pass);
             $stmt->execute();
@@ -63,13 +65,11 @@ if (isset($_POST['accion'])) {
                 throw new Exception("Credenciales incorrectas o insuficientes.");
             }
             $stmt->close();
-            // -----------------------------------------
 
-            // Si pasa la validación, procedemos a archivar (sin funciones)
             archivar_evento_completo($id, $conn);
             
             if(function_exists('registrar_transaccion')) {
-                registrar_transaccion('evento_archivar', 'Archivó evento ID ' . $id . ' al historial (Autorizado por: '.$user.')');
+                registrar_transaccion('evento_archivar', 'Archivó evento ID ' . $id . ' (Autorizado por: '.$user.')');
             }
         }
         $conn->commit();
@@ -143,12 +143,22 @@ $activos = $conn->query("SELECT * FROM trt_25.evento WHERE finalizado = 0 ORDER 
     .funcs-container::-webkit-scrollbar { width: 3px; }
     .funcs-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 
+    /* Estilos dinámicos para badges de función */
     .func-badge {
         font-size: 0.65rem; 
-        background: #f1f5f9; color: #475569;
         padding: 2px 6px; border-radius: 4px;
-        border: 1px solid #e2e8f0;
         white-space: nowrap; font-weight: 600;
+        display: inline-flex; align-items: center; gap: 3px;
+    }
+    
+    .func-badge.active {
+        background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;
+    }
+    
+    /* Estilo para funciones vencidas (estado 1) */
+    .func-badge.expired {
+        background: #fef2f2; color: #dc2626; border: 1px solid #fecaca;
+        text-decoration: line-through; opacity: 0.7;
     }
     
     .card-footer { padding: 0.6rem 0.8rem; }
@@ -179,11 +189,12 @@ $activos = $conn->query("SELECT * FROM trt_25.evento WHERE finalizado = 0 ORDER 
                 }
 
                 $id_evt = $e['id_evento'];
-                $sql_func = "SELECT fecha_hora FROM funciones WHERE id_evento = $id_evt ORDER BY fecha_hora ASC";
+                // Seleccionamos también el estado
+                $sql_func = "SELECT fecha_hora, estado FROM funciones WHERE id_evento = $id_evt ORDER BY fecha_hora ASC";
                 $res_func = $conn->query($sql_func);
                 $funciones = [];
                 if($res_func){
-                    while($f = $res_func->fetch_assoc()){ $funciones[] = $f['fecha_hora']; }
+                    while($f = $res_func->fetch_assoc()){ $funciones[] = $f; }
                 }
         ?>
         <div class="col-xxl-2 col-xl-2 col-lg-3 col-md-4 col-6">
@@ -203,9 +214,14 @@ $activos = $conn->query("SELECT * FROM trt_25.evento WHERE finalizado = 0 ORDER 
                     
                     <div class="funcs-container">
                         <?php if(count($funciones) > 0): ?>
-                            <?php foreach($funciones as $fh): ?>
-                                <span class="func-badge">
-                                    <i class="bi bi-clock me-1" style="font-size:9px"></i><?= date('d/m H:i', strtotime($fh)) ?>
+                            <?php foreach($funciones as $f): 
+                                $esVencida = ($f['estado'] == 1);
+                                $clase = $esVencida ? 'expired' : 'active';
+                                $icono = $esVencida ? 'bi-hourglass-bottom' : 'bi-clock';
+                            ?>
+                                <span class="func-badge <?= $clase ?>">
+                                    <i class="bi <?= $icono ?>" style="font-size:9px"></i>
+                                    <?= date('d/m H:i', strtotime($f['fecha_hora'])) ?>
                                 </span>
                             <?php endforeach; ?>
                         <?php else: ?>
@@ -255,7 +271,7 @@ $activos = $conn->query("SELECT * FROM trt_25.evento WHERE finalizado = 0 ORDER 
                     </p>
                     <div class="alert alert-warning small border-0">
                         <i class="bi bi-info-circle me-1"></i>
-                        El evento dejará de ser visible para la venta. Toda la información (boletos, ventas, configuración) se moverá a la base de datos histórica.
+                        El evento dejará de ser visible. Se moverá al histórico.
                     </div>
                     <button class="btn btn-danger w-100 py-2 fw-bold" onclick="mostrarPasoAuth()">
                         Continuar y Autorizar <i class="bi bi-arrow-right"></i>
@@ -267,7 +283,7 @@ $activos = $conn->query("SELECT * FROM trt_25.evento WHERE finalizado = 0 ORDER 
                         <i class="bi bi-person-lock text-danger" style="font-size: 3rem;"></i>
                     </div>
                     <h6 class="text-center fw-bold mb-3">Autorización de Administrador</h6>
-                    <p class="text-center small text-muted mb-4">Para confirmar esta acción crítica, ingresa tus credenciales.</p>
+                    <p class="text-center small text-muted mb-4">Para confirmar, ingresa tus credenciales.</p>
                     
                     <div class="mb-3">
                         <input type="text" id="auth_user" class="form-control form-control-lg" placeholder="Usuario Admin">
@@ -296,27 +312,21 @@ let eventoIdSeleccionado = null;
 const modalElement = document.getElementById('modalArchivar');
 const modal = new bootstrap.Modal(modalElement);
 
-// Configurar modal al abrir
 function prepararArchivado(id, titulo) {
     eventoIdSeleccionado = id;
     document.getElementById('nombreEventoArchivar').textContent = titulo;
-    
-    // Resetear pasos
     document.getElementById('pasoAdvertencia').style.display = 'block';
     document.getElementById('pasoAuth').style.display = 'none';
     document.getElementById('auth_user').value = '';
     document.getElementById('auth_pass').value = '';
     document.getElementById('btnConfirmarFinal').disabled = false;
     document.getElementById('btnConfirmarFinal').innerHTML = 'Confirmar Archivo';
-    
     modal.show();
 }
 
-// Cambiar entre pasos del modal
 function mostrarPasoAuth() {
     document.getElementById('pasoAdvertencia').style.display = 'none';
     document.getElementById('pasoAuth').style.display = 'block';
-    // Auto-focus en usuario
     setTimeout(() => document.getElementById('auth_user').focus(), 100);
 }
 
@@ -325,7 +335,6 @@ function volverPasoAdvertencia() {
     document.getElementById('pasoAdvertencia').style.display = 'block';
 }
 
-// Ejecutar la acción real
 function ejecutarArchivado() {
     const user = document.getElementById('auth_user').value.trim();
     const pass = document.getElementById('auth_pass').value.trim();
@@ -350,7 +359,7 @@ function ejecutarArchivado() {
     .then(data => {
         if(data.status === 'success') {
             modal.hide();
-            location.reload(); // Recargar para ver cambios
+            location.reload(); 
         } else {
             alert('Error: ' + data.message);
             btn.disabled = false;
@@ -358,7 +367,7 @@ function ejecutarArchivado() {
         }
     })
     .catch(() => {
-        alert('Error de conexión con el servidor.');
+        alert('Error de conexión.');
         btn.disabled = false;
         btn.innerHTML = 'Confirmar Archivo';
     });
