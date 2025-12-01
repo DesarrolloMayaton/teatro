@@ -85,7 +85,7 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
 
         // 5. Cargar funciones disponibles para el evento (solo futuras)
         $fecha_actual = date('Y-m-d H:i:s');
-        $stmt_fun = $conn->prepare("SELECT id_funcion, fecha_hora FROM funciones WHERE id_evento = ? AND fecha_hora > ? ORDER BY fecha_hora ASC");
+        $stmt_fun = $conn->prepare("SELECT id_funcion, fecha_hora, estado FROM funciones WHERE id_evento = ? AND fecha_hora > ? ORDER BY fecha_hora ASC");
         $stmt_fun->bind_param("is", $id_evento_seleccionado, $fecha_actual);
         $stmt_fun->execute();
         $res_funciones = $stmt_fun->get_result();
@@ -105,8 +105,18 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
                 }
             }
 
+            // Si no hay función seleccionada, seleccionar la primera función activa (estado = 0)
             if (is_null($id_funcion_seleccionada)) {
-                $id_funcion_seleccionada = (int)$funciones_evento[0]['id_funcion'];
+                foreach ($funciones_evento as $funcion) {
+                    if ((int)$funcion['estado'] === 0) {
+                        $id_funcion_seleccionada = (int)$funcion['id_funcion'];
+                        break;
+                    }
+                }
+                // Si no hay funciones activas, seleccionar la primera disponible
+                if (is_null($id_funcion_seleccionada)) {
+                    $id_funcion_seleccionada = (int)$funciones_evento[0]['id_funcion'];
+                }
             }
         }
 
@@ -438,6 +448,19 @@ body {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
   outline: none;
+}
+
+/* Estilos para opciones deshabilitadas (funciones vencidas) */
+.form-select option:disabled {
+  color: #9ca3af !important;
+  background-color: #f3f4f6 !important;
+  font-style: italic;
+  cursor: not-allowed;
+}
+
+#selectFuncion option:disabled {
+  color: #9ca3af !important;
+  background-color: #f3f4f6 !important;
 }
 
 .btn {
@@ -1307,9 +1330,16 @@ hr {
                         <?php foreach ($funciones_evento as $funcion): 
                             $fecha_funcion = new DateTime($funcion['fecha_hora']);
                             $texto_funcion = $fecha_funcion->format('d/m/Y \a\s H:i');
+                            $estado = (int)$funcion['estado'];
+                            $es_vencida = $estado === 1;
+                            $texto_estado = $es_vencida ? ' (Vencida)' : '';
                         ?>
-                        <option value="<?= $funcion['id_funcion'] ?>" <?= ($id_funcion_seleccionada==$funcion['id_funcion'])?'selected':'' ?>>
-                            <?= $texto_funcion ?>
+                        <option 
+                            value="<?= $funcion['id_funcion'] ?>" 
+                            <?= ($id_funcion_seleccionada==$funcion['id_funcion'])?'selected':'' ?>
+                            <?= $es_vencida ? 'disabled style="color: #9ca3af; background-color: #f3f4f6;"' : '' ?>
+                            data-estado="<?= $estado ?>">
+                            <?= $texto_funcion . $texto_estado ?>
                         </option>
                         <?php endforeach; ?>
                     </select>
@@ -1708,18 +1738,46 @@ function actualizarFuncionesDisponibles() {
                 const funcionesActuales = Array.from(selectFuncion.options).map(opt => opt.value);
                 const funcionesNuevas = data.funciones.map(f => f.id_funcion.toString());
                 
-                // Verificar si hay cambios
+                // Verificar si hay cambios (incluyendo cambios de estado)
                 const hayNuevasFunciones = funcionesNuevas.some(id => !funcionesActuales.includes(id));
                 const hayFuncionesEliminadas = funcionesActuales.some(id => !funcionesNuevas.includes(id));
                 
-                if (hayNuevasFunciones || hayFuncionesEliminadas) {
+                // Verificar si alguna función cambió de estado
+                let hayCambioEstado = false;
+                data.funciones.forEach(funcion => {
+                    const optionActual = selectFuncion.querySelector(`option[value="${funcion.id_funcion}"]`);
+                    if (optionActual) {
+                        const estadoActual = optionActual.getAttribute('data-estado');
+                        if (estadoActual !== funcion.estado.toString()) {
+                            hayCambioEstado = true;
+                        }
+                    }
+                });
+                
+                if (hayNuevasFunciones || hayFuncionesEliminadas || hayCambioEstado) {
                     // Actualizar el select
                     selectFuncion.innerHTML = '';
+                    
+                    let primeraFuncionActiva = null;
                     
                     data.funciones.forEach(funcion => {
                         const option = document.createElement('option');
                         option.value = funcion.id_funcion;
-                        option.textContent = funcion.texto;
+                        option.setAttribute('data-estado', funcion.estado);
+                        
+                        // Si la función está vencida (estado = 1)
+                        if (funcion.vencida) {
+                            option.textContent = funcion.texto + ' (Vencida)';
+                            option.disabled = true;
+                            option.style.color = '#9ca3af';
+                            option.style.backgroundColor = '#f3f4f6';
+                        } else {
+                            option.textContent = funcion.texto;
+                            // Guardar la primera función activa
+                            if (!primeraFuncionActiva) {
+                                primeraFuncionActiva = funcion.id_funcion;
+                            }
+                        }
                         
                         if (funcion.id_funcion.toString() === funcionActual) {
                             option.selected = true;
@@ -1728,18 +1786,25 @@ function actualizarFuncionesDisponibles() {
                         selectFuncion.appendChild(option);
                     });
                     
-                    // Si la función actual ya no existe, seleccionar la primera disponible
-                    if (!funcionesNuevas.includes(funcionActual) && data.funciones.length > 0) {
-                        selectFuncion.value = data.funciones[0].id_funcion;
+                    // Si la función actual ya no existe o está vencida, seleccionar la primera activa
+                    const funcionActualData = data.funciones.find(f => f.id_funcion.toString() === funcionActual);
+                    const funcionActualVencida = funcionActualData && funcionActualData.vencida;
+                    
+                    if ((!funcionesNuevas.includes(funcionActual) || funcionActualVencida) && primeraFuncionActiva) {
+                        selectFuncion.value = primeraFuncionActiva;
                         // Notificar al usuario
                         if (typeof notify !== 'undefined') {
-                            notify.warning('La función seleccionada ya no está disponible. Se ha seleccionado otra función.');
+                            if (funcionActualVencida) {
+                                notify.warning('La función seleccionada ha vencido. Se ha seleccionado otra función activa.');
+                            } else {
+                                notify.warning('La función seleccionada ya no está disponible. Se ha seleccionado otra función.');
+                            }
                         }
                         // Cambiar automáticamente a la nueva función
                         cambiarFuncion(selectFuncion);
                     }
                     
-                    console.log('Funciones actualizadas:', data.funciones.length);
+                    console.log('Funciones actualizadas:', data.funciones.length, '(Activas:', data.funciones.filter(f => !f.vencida).length + ')');
                 }
             }
         })
