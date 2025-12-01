@@ -1,7 +1,9 @@
 <?php
-// Evitar cualquier output antes del PDF
-error_reporting(0);
-ini_set('display_errors', 0);
+// Habilitar todos los errores para depuración
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/php_errors.log');
 
 require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/../conexion.php';
@@ -26,11 +28,13 @@ $stmt = $conn->prepare("
         a.codigo_asiento,
         e.titulo as evento_nombre,
         c.nombre_categoria,
-        TRIM(CONCAT(COALESCE(u.nombre, ''), ' ', COALESCE(u.apellido, ''))) AS vendedor_nombre,
-        (SELECT fecha_hora FROM funciones WHERE id_evento = e.id_evento ORDER BY fecha_hora ASC LIMIT 1) as fecha_hora
+        f.fecha_hora as funcion_fecha,
+        f.nombre as funcion_nombre,
+        TRIM(CONCAT(COALESCE(u.nombre, ''), ' ', COALESCE(u.apellido, ''))) AS vendedor_nombre
     FROM boletos b
     INNER JOIN asientos a ON b.id_asiento = a.id_asiento
     INNER JOIN evento e ON b.id_evento = e.id_evento
+    INNER JOIN funciones f ON b.id_funcion = f.id_funcion
     INNER JOIN categorias c ON b.id_categoria = c.id_categoria
     LEFT JOIN usuarios u ON b.id_usuario = u.id_usuario
     WHERE b.codigo_unico = ? AND b.estatus = 1
@@ -80,14 +84,24 @@ $pdf->MultiCell(0, 5, $nombre_evento, 0, 'C');
 $pdf->Ln(2);
 
 // Fecha y hora de la función
-if ($boleto['fecha_hora']) {
-    $fecha_obj = new DateTime($boleto['fecha_hora']);
+if ($boleto['funcion_fecha']) {
+    $fecha_obj = new DateTime($boleto['funcion_fecha']);
     $fecha_str = $fecha_obj->format('d/m/Y');
     $hora_str = $fecha_obj->format('H:i');
     
+    $pdf->SetFont('Arial', 'B', 8);
+    $pdf->Cell(0, 4, 'FUNCIÓN', 0, 1, 'C');
     $pdf->SetFont('Arial', '', 8);
     $pdf->Cell(0, 4, 'Fecha: ' . $fecha_str, 0, 1, 'C');
     $pdf->Cell(0, 4, 'Hora: ' . $hora_str, 0, 1, 'C');
+    
+    if (!empty($boleto['funcion_nombre'])) {
+        $pdf->SetFont('Arial', 'B', 7);
+        $pdf->Cell(0, 4, 'Tipo:', 0, 1, 'C');
+        $pdf->SetFont('Arial', '', 7);
+        $pdf->MultiCell(0, 4, convertirTexto($boleto['funcion_nombre']), 0, 'C');
+    }
+    
     $pdf->Ln(2);
 }
 

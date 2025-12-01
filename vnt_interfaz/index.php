@@ -4,10 +4,12 @@
 include "../conexion.php"; 
 
 $id_evento_seleccionado = null;
+$id_funcion_seleccionada = null;
 $evento_info = null;
 $eventos_lista = [];
 $categorias_palette = [];
 $mapa_guardado = []; 
+$funciones_evento = [];
 
 // --- MODIFICADO: Empezar vacíos. Se llenarán dinámicamente ---
 $colores_por_id = []; 
@@ -81,7 +83,34 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
         }
         // --- FIN: MODIFICADO ---
 
-        // 5. Cargar el mapa desde JSON
+        // 5. Cargar funciones disponibles para el evento (solo futuras)
+        $fecha_actual = date('Y-m-d H:i:s');
+        $stmt_fun = $conn->prepare("SELECT id_funcion, fecha_hora FROM funciones WHERE id_evento = ? AND fecha_hora > ? ORDER BY fecha_hora ASC");
+        $stmt_fun->bind_param("is", $id_evento_seleccionado, $fecha_actual);
+        $stmt_fun->execute();
+        $res_funciones = $stmt_fun->get_result();
+        if ($res_funciones) {
+            $funciones_evento = $res_funciones->fetch_all(MYSQLI_ASSOC);
+        }
+        $stmt_fun->close();
+
+        if (!empty($funciones_evento)) {
+            if (isset($_GET['id_funcion'])) {
+                $id_funcion_propuesto = (int)$_GET['id_funcion'];
+                foreach ($funciones_evento as $funcion) {
+                    if ((int)$funcion['id_funcion'] === $id_funcion_propuesto) {
+                        $id_funcion_seleccionada = $id_funcion_propuesto;
+                        break;
+                    }
+                }
+            }
+
+            if (is_null($id_funcion_seleccionada)) {
+                $id_funcion_seleccionada = (int)$funciones_evento[0]['id_funcion'];
+            }
+        }
+
+        // 6. Cargar el mapa desde JSON
         if (!empty($evento_info['mapa_json'])) {
             $mapa_guardado = json_decode($evento_info['mapa_json'], true);
         }
@@ -1270,6 +1299,22 @@ hr {
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <input type="hidden" name="id_funcion" id="inputIdFuncion" value="<?= htmlspecialchars($id_funcion_seleccionada ?? '') ?>">
+                <?php if ($evento_info && !empty($funciones_evento)): ?>
+                <div class="input-group mt-3">
+                    <span class="input-group-text"><i class="bi bi-clock-history"></i></span>
+                    <select id="selectFuncion" class="form-select" onchange="cambiarFuncion(this)">
+                        <?php foreach ($funciones_evento as $funcion): 
+                            $fecha_funcion = new DateTime($funcion['fecha_hora']);
+                            $texto_funcion = $fecha_funcion->format('d/m/Y \a\s H:i');
+                        ?>
+                        <option value="<?= $funcion['id_funcion'] ?>" <?= ($id_funcion_seleccionada==$funcion['id_funcion'])?'selected':'' ?>>
+                            <?= $texto_funcion ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <?php endif; ?>
             </form>
             <div id="loadingIndicator" style="display:none;" class="text-center mt-3">
                 <div class="spinner-border text-primary" role="status">
@@ -1553,6 +1598,8 @@ hr {
     
     // --- MODIFICADO: Pasamos el ID real de "General" a JavaScript ---
     const DEFAULT_CAT_ID = <?= $id_categoria_general ?? 0 ?>;
+    const EVENTO_SELECCIONADO = <?= $id_evento_seleccionado ? (int)$id_evento_seleccionado : 'null' ?>;
+    const FUNCION_SELECCIONADA = <?= $id_funcion_seleccionada ? (int)$id_funcion_seleccionada : 'null' ?>;
     
     // Variable global para almacenar datos del boleto a cancelar
     let boletoACancelar = null;
@@ -1565,8 +1612,172 @@ hr {
         const loading = document.getElementById('loadingIndicator');
         if (loading) loading.style.display = 'block';
         
+        const funcionInput = document.getElementById('inputIdFuncion');
+        if (funcionInput) {
+            funcionInput.value = '';
+        }
+        
         select.form.submit();
     }
+    
+    function cambiarFuncion(select) {
+    const loading = document.getElementById('loadingIndicator');
+    if (loading) loading.style.display = 'block';
+    
+    const idFuncion = select.value;
+    const funcionInput = document.getElementById('inputIdFuncion');
+    if (funcionInput) {
+        funcionInput.value = idFuncion;
+    }
+
+    // Get the current URL and update the id_funcion parameter
+    const url = new URL(window.location.href);
+    url.searchParams.set('id_funcion', idFuncion);
+    
+    // Update the URL without reloading the page
+    window.history.pushState({}, '', url);
+
+    // Use fetch to update the page content
+    fetch(url, {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest' // Add this header to identify AJAX requests
+        }
+    })
+    .then(response => response.text())
+    .then(html => {
+        // Create a temporary container to hold the new content
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        
+        // Update the seat map content
+        const newSeatMap = temp.querySelector('.seat-map-content');
+        if (newSeatMap) {
+            const currentSeatMap = document.querySelector('.seat-map-content');
+            if (currentSeatMap) {
+                currentSeatMap.innerHTML = newSeatMap.innerHTML;
+            }
+        }
+        
+        // Update the function dropdown to maintain the selected value
+        const newSelect = temp.getElementById('selectFuncion');
+        if (newSelect) {
+            const currentSelect = document.getElementById('selectFuncion');
+            if (currentSelect) {
+                currentSelect.innerHTML = newSelect.innerHTML;
+                currentSelect.value = idFuncion; // Maintain the selected value
+            }
+        }
+        
+        // Reinitialize any necessary JavaScript
+        if (window.cargarAsientosVendidos) {
+            cargarAsientosVendidos();
+        }
+        if (window.cargarDescuentos) {
+            cargarDescuentos();
+        }
+    })
+    .catch(error => {
+        console.error('Error al cargar la función:', error);
+        // If there's an error, fall back to the original form submission
+        select.form.submit();
+    })
+    .finally(() => {
+        if (loading) loading.style.display = 'none';
+    });
+}
+
+// Add popstate event listener for browser back/forward buttons
+window.addEventListener('popstate', function() {
+    window.location.reload();
+});
+
+// ===== ACTUALIZACIÓN EN TIEMPO REAL DEL SELECT DE FUNCIONES =====
+let intervalActualizacionFunciones = null;
+
+function actualizarFuncionesDisponibles() {
+    if (!EVENTO_SELECCIONADO) return;
+    
+    fetch('obtener_funciones.php?id_evento=' + EVENTO_SELECCIONADO)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.funciones) {
+                const selectFuncion = document.getElementById('selectFuncion');
+                if (!selectFuncion) return;
+                
+                const funcionActual = selectFuncion.value;
+                const funcionesActuales = Array.from(selectFuncion.options).map(opt => opt.value);
+                const funcionesNuevas = data.funciones.map(f => f.id_funcion.toString());
+                
+                // Verificar si hay cambios
+                const hayNuevasFunciones = funcionesNuevas.some(id => !funcionesActuales.includes(id));
+                const hayFuncionesEliminadas = funcionesActuales.some(id => !funcionesNuevas.includes(id));
+                
+                if (hayNuevasFunciones || hayFuncionesEliminadas) {
+                    // Actualizar el select
+                    selectFuncion.innerHTML = '';
+                    
+                    data.funciones.forEach(funcion => {
+                        const option = document.createElement('option');
+                        option.value = funcion.id_funcion;
+                        option.textContent = funcion.texto;
+                        
+                        if (funcion.id_funcion.toString() === funcionActual) {
+                            option.selected = true;
+                        }
+                        
+                        selectFuncion.appendChild(option);
+                    });
+                    
+                    // Si la función actual ya no existe, seleccionar la primera disponible
+                    if (!funcionesNuevas.includes(funcionActual) && data.funciones.length > 0) {
+                        selectFuncion.value = data.funciones[0].id_funcion;
+                        // Notificar al usuario
+                        if (typeof notify !== 'undefined') {
+                            notify.warning('La función seleccionada ya no está disponible. Se ha seleccionado otra función.');
+                        }
+                        // Cambiar automáticamente a la nueva función
+                        cambiarFuncion(selectFuncion);
+                    }
+                    
+                    console.log('Funciones actualizadas:', data.funciones.length);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error al actualizar funciones:', error);
+        });
+}
+
+// Iniciar actualización automática cada 30 segundos
+function iniciarActualizacionFunciones() {
+    if (EVENTO_SELECCIONADO && !intervalActualizacionFunciones) {
+        // Primera actualización inmediata
+        actualizarFuncionesDisponibles();
+        
+        // Actualizar cada 30 segundos
+        intervalActualizacionFunciones = setInterval(actualizarFuncionesDisponibles, 30000);
+        console.log('Actualización automática de funciones iniciada');
+    }
+}
+
+// Detener actualización automática
+function detenerActualizacionFunciones() {
+    if (intervalActualizacionFunciones) {
+        clearInterval(intervalActualizacionFunciones);
+        intervalActualizacionFunciones = null;
+        console.log('Actualización automática de funciones detenida');
+    }
+}
+
+// Iniciar cuando la página carga
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', iniciarActualizacionFunciones);
+} else {
+    iniciarActualizacionFunciones();
+}
+
+// Detener cuando la página se descarga
+window.addEventListener('beforeunload', detenerActualizacionFunciones);
     
     // Función para abrir el modal de cancelar boleto
     function abrirCancelarBoleto() {

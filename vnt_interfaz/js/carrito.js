@@ -1,4 +1,6 @@
 // Sistema de carrito de compras
+const ID_EVENTO = typeof EVENTO_SELECCIONADO !== 'undefined' ? EVENTO_SELECCIONADO : null;
+const ID_FUNCION = typeof FUNCION_SELECCIONADA !== 'undefined' ? FUNCION_SELECCIONADA : null;
 let carrito = [];
 let asientosVendidos = new Set();
 let descuentos = [];
@@ -11,12 +13,18 @@ let modoSeleccionMultiple = false;
 // Cargar asientos vendidos al inicio
 async function cargarAsientosVendidos() {
     const urlParams = new URLSearchParams(window.location.search);
-    const idEvento = urlParams.get('id_evento');
+    const idEvento = ID_EVENTO || urlParams.get('id_evento');
+    const idFuncion = ID_FUNCION || urlParams.get('id_funcion');
 
     if (!idEvento) return;
 
     try {
-        const response = await fetch(`obtener_asientos_vendidos.php?id_evento=${idEvento}`);
+        const params = new URLSearchParams({ id_evento: idEvento });
+        if (idFuncion) {
+            params.append('id_funcion', idFuncion);
+        }
+
+        const response = await fetch(`obtener_asientos_vendidos.php?${params.toString()}`);
         const data = await response.json();
 
         if (data.success) {
@@ -31,7 +39,7 @@ async function cargarAsientosVendidos() {
 // Cargar descuentos disponibles
 async function cargarDescuentos() {
     const urlParams = new URLSearchParams(window.location.search);
-    const idEvento = urlParams.get('id_evento');
+    const idEvento = ID_EVENTO || urlParams.get('id_evento');
 
     console.log('Cargando descuentos para evento:', idEvento);
 
@@ -546,10 +554,16 @@ function aplicarTipoATodos(tipo) {
 // Confirmar y procesar pago
 async function confirmarYProcesarPago() {
     const urlParams = new URLSearchParams(window.location.search);
-    const idEvento = urlParams.get('id_evento');
+    const idEvento = ID_EVENTO || urlParams.get('id_evento');
+    const idFuncion = ID_FUNCION || urlParams.get('id_funcion');
 
     if (!idEvento) {
         notify.error('Error: No se ha seleccionado un evento');
+        return;
+    }
+
+    if (!idFuncion) {
+        notify.error('Error: No se ha seleccionado una función');
         return;
     }
 
@@ -583,6 +597,7 @@ async function confirmarYProcesarPago() {
             },
             body: JSON.stringify({
                 id_evento: idEvento,
+                id_funcion: idFuncion,
                 asientos: asientosConDescuento
             })
         });

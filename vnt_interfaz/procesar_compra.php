@@ -73,6 +73,7 @@ if (!$data || !isset($data['id_evento']) || !isset($data['asientos'])) {
 }
 
 $id_evento = (int)$data['id_evento'];
+$id_funcion = isset($data['id_funcion']) ? (int)$data['id_funcion'] : 0;
 $asientos = $data['asientos'];
 
 if (empty($asientos)) {
@@ -177,8 +178,22 @@ try {
         }
         
         // Verificar si existe un boleto para este asiento
-        $stmt = $conn->prepare("SELECT id_boleto, estatus FROM boletos WHERE id_evento = ? AND id_asiento = ?");
-        $stmt->bind_param("ii", $id_evento, $id_asiento);
+        $sql = "SELECT id_boleto, estatus FROM boletos WHERE id_evento = ? AND id_asiento = ?";
+        $params = [$id_evento, $id_asiento];
+        $types = "ii";
+        
+        // Si se proporcionó id_funcion, incluirlo en la consulta
+        if ($id_funcion > 0) {
+            $sql .= " AND id_funcion = ?";
+            $params[] = $id_funcion;
+            $types .= "i";
+        } else {
+            // Si no se proporcionó id_funcion, buscar boletos con id_funcion NULL o 0
+            $sql .= " AND (id_funcion IS NULL OR id_funcion = 0)";
+        }
+        
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $result = $stmt->get_result();
         
@@ -202,6 +217,7 @@ try {
             if ($id_promocion) {
                 $stmt = $conn->prepare("
                     UPDATE boletos SET
+                        id_funcion = ?,
                         id_categoria = ?,
                         id_promocion = ?,
                         codigo_unico = ?,
@@ -215,7 +231,8 @@ try {
                     WHERE id_boleto = ?
                 ");
                 
-                $stmt->bind_param("iisdddsii", 
+                $stmt->bind_param("iiisdddssii", 
+                    $id_funcion,
                     $categoria_id,
                     $id_promocion,
                     $codigo_unico,
@@ -229,6 +246,7 @@ try {
             } else {
                 $stmt = $conn->prepare("
                     UPDATE boletos SET
+                        id_funcion = ?,
                         id_categoria = ?,
                         id_promocion = NULL,
                         codigo_unico = ?,
@@ -242,7 +260,8 @@ try {
                     WHERE id_boleto = ?
                 ");
                 
-                $stmt->bind_param("isdddsii", 
+                $stmt->bind_param("iisdddssii", 
+                    $id_funcion,
                     $categoria_id,
                     $codigo_unico,
                     $precio,
@@ -261,9 +280,10 @@ try {
         } else {
             // Insertar nuevo boleto si no existe ninguno
             if ($id_promocion) {
-                $stmt = $conn->prepare("
+                $sql = "
                     INSERT INTO boletos (
                         id_evento, 
+                        id_funcion,
                         id_asiento, 
                         id_categoria, 
                         id_promocion,
@@ -274,11 +294,13 @@ try {
                         tipo_boleto,
                         id_usuario, 
                         estatus
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-                ");
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                ";
                 
-                $stmt->bind_param("iiiisdddsi", 
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("iiiiisdddssi", 
                     $id_evento, 
+                    $id_funcion,
                     $id_asiento, 
                     $categoria_id,
                     $id_promocion, 
@@ -290,9 +312,10 @@ try {
                     $id_usuario_vendedor
                 );
             } else {
-                $stmt = $conn->prepare("
+                $sql = "
                     INSERT INTO boletos (
                         id_evento, 
+                        id_funcion,
                         id_asiento, 
                         id_categoria, 
                         codigo_unico, 
@@ -300,13 +323,14 @@ try {
                         descuento_aplicado, 
                         precio_final,
                         tipo_boleto,
-                        id_usuario, 
-                        estatus
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-                ");
+                        id_usuario
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ";
                 
-                $stmt->bind_param("iiisdddsi", 
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("iiiisdddss", 
                     $id_evento, 
+                    $id_funcion,
                     $id_asiento, 
                     $categoria_id, 
                     $codigo_unico, 

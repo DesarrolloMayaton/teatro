@@ -26,10 +26,13 @@ $stmt = $conn->prepare("
         e.titulo as evento_nombre,
         e.imagen,
         c.nombre_categoria,
+        f.fecha_hora as funcion_fecha,
+        f.nombre as funcion_nombre,
         TRIM(CONCAT(COALESCE(u.nombre, ''), ' ', COALESCE(u.apellido, ''))) AS vendedor_nombre
     FROM boletos b
     INNER JOIN asientos a ON b.id_asiento = a.id_asiento
     INNER JOIN evento e ON b.id_evento = e.id_evento
+    INNER JOIN funciones f ON b.id_funcion = f.id_funcion
     INNER JOIN categorias c ON b.id_categoria = c.id_categoria
     LEFT JOIN usuarios u ON b.id_usuario = u.id_usuario
     WHERE b.codigo_unico = ? AND b.estatus = 1
@@ -139,11 +142,18 @@ $pdf->Cell(0, 7, '$' . number_format($boleto['precio_final'], 2), 0, 1);
 $pdf->SetTextColor(0, 0, 0);
 
 $pdf->SetFont('Arial', 'B', 11);
+$pdf->Cell(45, 7, 'Función:', 0, 0);
+$pdf->SetFont('Arial', '', 11);
+$fecha_funcion = new DateTime($boleto['funcion_fecha']);
+$pdf->Cell(0, 7, $fecha_funcion->format('d/m/Y H:i') . 
+    (!empty($boleto['funcion_nombre']) ? ' - ' . convertirTexto($boleto['funcion_nombre']) : ''), 0, 1);
+
+$pdf->SetFont('Arial', 'B', 11);
 $pdf->Cell(45, 7, convertirTexto('Vendido por:'), 0, 0);
 $pdf->SetFont('Arial', '', 11);
 $pdf->Cell(0, 7, convertirTexto(!empty(trim($boleto['vendedor_nombre'])) ? trim($boleto['vendedor_nombre']) : 'Sin asignar'), 0, 1);
 
-$pdf->Ln(8);
+$pdf->Ln(5);
 
 // Código QR - Reducido de tamaño
 $qr_path = __DIR__ . '/../boletos_qr/' . $codigo_unico . '.png';
