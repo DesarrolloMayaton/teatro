@@ -33,11 +33,13 @@ $stmt = $conn->prepare("
         a.codigo_asiento,
         e.titulo as evento_nombre,
         e.imagen,
-        c.nombre_categoria
+        c.nombre_categoria,
+        TRIM(CONCAT(COALESCE(u.nombre, ''), ' ', COALESCE(u.apellido, ''))) AS vendedor_nombre
     FROM boletos b
     INNER JOIN asientos a ON b.id_asiento = a.id_asiento
     INNER JOIN evento e ON b.id_evento = e.id_evento
     INNER JOIN categorias c ON b.id_categoria = c.id_categoria
+    LEFT JOIN usuarios u ON b.id_usuario = u.id_usuario
     WHERE b.codigo_unico IN ($placeholders) AND b.estatus = 1
     ORDER BY a.codigo_asiento
 ");
@@ -61,61 +63,128 @@ $pdf = new FPDF('P', 'mm', 'A4');
 
 foreach ($boletos as $index => $boleto) {
     $pdf->AddPage();
-    $pdf->SetMargins(20, 20, 20);
+    $pdf->SetMargins(15, 15, 15);
 
-    // Título
-    $pdf->SetFont('Arial', 'B', 24);
-    $pdf->Cell(0, 15, 'BOLETO DE ENTRADA', 0, 1, 'C');
-    $pdf->Ln(5);
+    // Título con mejor diseño
+    $pdf->SetFont('Arial', 'B', 20);
+    $pdf->SetFillColor(240, 240, 240);
+    $pdf->Cell(0, 12, 'BOLETO DE ENTRADA', 0, 1, 'C', true);
+    $pdf->Ln(8);
 
-    // Imagen del evento (si existe)
-    $imagen_path = __DIR__ . '/../' . $boleto['imagen'];
+    // Imagen del evento (si existe) - Dimensionada para que quepa en una sola hoja
+    // La imagen se guarda en evt_interfaz/imagenes/ y en la BD se guarda como "imagenes/evt_xxx.jpg"
+    $imagen_path = __DIR__ . '/../evt_interfaz/' . $boleto['imagen'];
     if (!empty($boleto['imagen']) && file_exists($imagen_path)) {
-        $pdf->Image($imagen_path, 55, $pdf->GetY(), 100, 0);
-        $pdf->Ln(60);
+        // Obtener dimensiones de la imagen
+        $imagen_info = getimagesize($imagen_path);
+        if ($imagen_info) {
+            $ancho_imagen = $imagen_info[0];
+            $alto_imagen = $imagen_info[1];
+            
+            // Ancho máximo disponible
+            $ancho_maximo = 140;
+            $alto_maximo = 70; // Altura máxima para la imagen
+            
+            // Calcular dimensiones manteniendo proporción
+            $ratio = $ancho_imagen / $alto_imagen;
+            
+            if ($ancho_imagen > $alto_imagen) {
+                // Imagen horizontal
+                $ancho_final = min($ancho_maximo, $ancho_imagen);
+                $alto_final = $ancho_final / $ratio;
+                
+                // Si la altura excede el máximo, ajustar
+                if ($alto_final > $alto_maximo) {
+                    $alto_final = $alto_maximo;
+                    $ancho_final = $alto_final * $ratio;
+                }
+            } else {
+                // Imagen vertical
+                $alto_final = min($alto_maximo, $alto_imagen);
+                $ancho_final = $alto_final * $ratio;
+                
+                // Si el ancho excede el máximo, ajustar
+                if ($ancho_final > $ancho_maximo) {
+                    $ancho_final = $ancho_maximo;
+                    $alto_final = $ancho_final / $ratio;
+                }
+            }
+            
+            // Centrar la imagen
+            $x_centrado = (210 - $ancho_final) / 2;
+            $pdf->Image($imagen_path, $x_centrado, $pdf->GetY(), $ancho_final, $alto_final);
+            $pdf->Ln($alto_final + 8);
+        } else {
+            // Si no se pueden obtener las dimensiones, usar tamaño fijo
+            $pdf->Image($imagen_path, 35, $pdf->GetY(), 140, 70);
+            $pdf->Ln(78);
+        }
+    } else {
+        $pdf->Ln(3);
     }
 
     // Información del evento
-    $pdf->SetFont('Arial', 'B', 18);
-    $pdf->Cell(0, 10, convertirTexto($boleto['evento_nombre']), 0, 1, 'C');
-    $pdf->Ln(5);
+    $pdf->SetFont('Arial', 'B', 16);
+    $pdf->Cell(0, 8, convertirTexto($boleto['evento_nombre']), 0, 1, 'C');
+    $pdf->Ln(8);
 
-    // Detalles del boleto
-    $pdf->SetFont('Arial', 'B', 12);
-    $pdf->Cell(50, 8, 'Asiento:', 0, 0);
-    $pdf->SetFont('Arial', '', 12);
-    $pdf->Cell(0, 8, $boleto['codigo_asiento'], 0, 1);
+    // Línea separadora
+    $pdf->SetLineWidth(0.5);
+    $pdf->Line(15, $pdf->GetY(), 195, $pdf->GetY());
+    $pdf->Ln(8);
 
-    $pdf->SetFont('Arial', 'B', 12);
-    $pdf->Cell(50, 8, convertirTexto('Categoría:'), 0, 0);
-    $pdf->SetFont('Arial', '', 12);
-    $pdf->Cell(0, 8, convertirTexto($boleto['nombre_categoria']), 0, 1);
+    // Detalles del boleto en formato más compacto
+    $pdf->SetFont('Arial', 'B', 11);
+    $pdf->Cell(45, 7, 'Asiento:', 0, 0);
+    $pdf->SetFont('Arial', '', 11);
+    $pdf->Cell(0, 7, $boleto['codigo_asiento'], 0, 1);
 
-    $pdf->SetFont('Arial', 'B', 12);
-    $pdf->Cell(50, 8, 'Precio:', 0, 0);
-    $pdf->SetFont('Arial', '', 12);
-    $pdf->Cell(0, 8, '$' . number_format($boleto['precio_final'], 2), 0, 1);
+    $pdf->SetFont('Arial', 'B', 11);
+    $pdf->Cell(45, 7, convertirTexto('Categoría:'), 0, 0);
+    $pdf->SetFont('Arial', '', 11);
+    $pdf->Cell(0, 7, convertirTexto($boleto['nombre_categoria']), 0, 1);
 
-    $pdf->Ln(10);
+    $pdf->SetFont('Arial', 'B', 11);
+    $pdf->Cell(45, 7, 'Precio:', 0, 0);
+    $pdf->SetFont('Arial', '', 11);
+    $pdf->SetTextColor(0, 128, 0);
+    $pdf->Cell(0, 7, '$' . number_format($boleto['precio_final'], 2), 0, 1);
+    $pdf->SetTextColor(0, 0, 0);
 
-    // Código QR
+    $pdf->SetFont('Arial', 'B', 11);
+    $pdf->Cell(45, 7, convertirTexto('Vendido por:'), 0, 0);
+    $pdf->SetFont('Arial', '', 11);
+    $pdf->Cell(0, 7, convertirTexto(!empty(trim($boleto['vendedor_nombre'])) ? trim($boleto['vendedor_nombre']) : 'Sin asignar'), 0, 1);
+
+    $pdf->Ln(8);
+
+    // Código QR - Reducido de tamaño
     $qr_path = __DIR__ . '/../boletos_qr/' . $boleto['codigo_unico'] . '.png';
     if (file_exists($qr_path)) {
-        $pdf->SetFont('Arial', 'B', 12);
-        $pdf->Cell(0, 8, convertirTexto('Código de verificación:'), 0, 1, 'C');
-        $pdf->Image($qr_path, 65, $pdf->GetY(), 80, 80);
-        $pdf->Ln(85);
+        $pdf->SetFont('Arial', 'B', 10);
+        $pdf->Cell(0, 6, convertirTexto('Código de verificación:'), 0, 1, 'C');
+        $pdf->Ln(3);
+        
+        // QR más pequeño (50mm en lugar de 80mm) y centrado
+        $qr_size = 50;
+        $qr_x = (210 - $qr_size) / 2;
+        $pdf->Image($qr_path, $qr_x, $pdf->GetY(), $qr_size, $qr_size);
+        $pdf->Ln($qr_size + 5);
     }
 
     // Código único
-    $pdf->SetFont('Arial', '', 10);
-    $pdf->Cell(0, 6, 'Codigo: ' . $boleto['codigo_unico'], 0, 1, 'C');
+    $pdf->SetFont('Arial', '', 9);
+    $pdf->Cell(0, 5, 'Codigo: ' . $boleto['codigo_unico'], 0, 1, 'C');
 
-    $pdf->Ln(10);
+    $pdf->Ln(8);
+
+    // Línea separadora
+    $pdf->Line(15, $pdf->GetY(), 195, $pdf->GetY());
+    $pdf->Ln(5);
 
     // Nota al pie
-    $pdf->SetFont('Arial', 'I', 9);
-    $pdf->MultiCell(0, 5, convertirTexto('Este boleto es válido únicamente para la función indicada. Conserve este boleto para su ingreso al evento.'), 0, 'C');
+    $pdf->SetFont('Arial', 'I', 8);
+    $pdf->MultiCell(0, 4, convertirTexto('Este boleto es válido únicamente para la función indicada. Conserve este boleto para su ingreso al evento.'), 0, 'C');
 
     // Indicador de página
     if ($index < count($boletos) - 1) {

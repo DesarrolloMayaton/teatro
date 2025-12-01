@@ -73,6 +73,7 @@ if (!$data || !isset($data['id_evento']) || !isset($data['asientos'])) {
 }
 
 $id_evento = (int)$data['id_evento'];
+$id_funcion = isset($data['id_funcion']) ? (int)$data['id_funcion'] : 0;
 $asientos = $data['asientos'];
 
 if (empty($asientos)) {
@@ -99,6 +100,48 @@ try {
         $precio_final = isset($asiento_data['precio_final']) ? (float)$asiento_data['precio_final'] : $precio;
         $id_promocion = isset($asiento_data['id_promocion']) ? (int)$asiento_data['id_promocion'] : null;
         $tipo_boleto = isset($asiento_data['tipo_boleto']) ? $asiento_data['tipo_boleto'] : 'adulto';
+        
+        // Validar que la categoría existe y pertenece al evento
+        $stmt = $conn->prepare("SELECT id_categoria FROM categorias WHERE id_categoria = ? AND id_evento = ?");
+        $stmt->bind_param("ii", $categoria_id, $id_evento);
+        $stmt->execute();
+        $result_cat = $stmt->get_result();
+        
+        if ($result_cat->num_rows === 0) {
+            // La categoría no existe o no pertenece al evento, buscar una categoría por defecto
+            $stmt->close();
+            
+            // Primero intentar encontrar "General"
+            $stmt = $conn->prepare("SELECT id_categoria FROM categorias WHERE id_evento = ? AND LOWER(nombre_categoria) = 'general' LIMIT 1");
+            $stmt->bind_param("i", $id_evento);
+            $stmt->execute();
+            $result_cat = $stmt->get_result();
+            
+            if ($result_cat->num_rows > 0) {
+                $row_cat = $result_cat->fetch_assoc();
+                $categoria_id = (int)$row_cat['id_categoria'];
+                $stmt->close();
+            } else {
+                // Si no hay "General", tomar la primera categoría disponible del evento
+                $stmt->close();
+                $stmt = $conn->prepare("SELECT id_categoria FROM categorias WHERE id_evento = ? ORDER BY precio ASC LIMIT 1");
+                $stmt->bind_param("i", $id_evento);
+                $stmt->execute();
+                $result_cat = $stmt->get_result();
+                
+                if ($result_cat->num_rows > 0) {
+                    $row_cat = $result_cat->fetch_assoc();
+                    $categoria_id = (int)$row_cat['id_categoria'];
+                    $stmt->close();
+                } else {
+                    // No hay categorías para este evento
+                    $stmt->close();
+                    throw new Exception("El evento no tiene categorías configuradas. Por favor, configura las categorías antes de vender boletos.");
+                }
+            }
+        } else {
+            $stmt->close();
+        }
         
         // Si es cortesía, el precio final es 0
         if ($tipo_boleto === 'cortesia') {
@@ -135,8 +178,22 @@ try {
         }
         
         // Verificar si existe un boleto para este asiento
-        $stmt = $conn->prepare("SELECT id_boleto, estatus FROM boletos WHERE id_evento = ? AND id_asiento = ?");
-        $stmt->bind_param("ii", $id_evento, $id_asiento);
+        $sql = "SELECT id_boleto, estatus FROM boletos WHERE id_evento = ? AND id_asiento = ?";
+        $params = [$id_evento, $id_asiento];
+        $types = "ii";
+        
+        // Si se proporcionó id_funcion, incluirlo en la consulta
+        if ($id_funcion > 0) {
+            $sql .= " AND id_funcion = ?";
+            $params[] = $id_funcion;
+            $types .= "i";
+        } else {
+            // Si no se proporcionó id_funcion, buscar boletos con id_funcion NULL o 0
+            $sql .= " AND (id_funcion IS NULL OR id_funcion = 0)";
+        }
+        
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $result = $stmt->get_result();
         
@@ -160,6 +217,7 @@ try {
             if ($id_promocion) {
                 $stmt = $conn->prepare("
                     UPDATE boletos SET
+                        id_funcion = ?,
                         id_categoria = ?,
                         id_promocion = ?,
                         codigo_unico = ?,
@@ -173,7 +231,8 @@ try {
                     WHERE id_boleto = ?
                 ");
                 
-                $stmt->bind_param("iisdddsii", 
+                $stmt->bind_param("iiisdddssii", 
+                    $id_funcion,
                     $categoria_id,
                     $id_promocion,
                     $codigo_unico,
@@ -187,6 +246,7 @@ try {
             } else {
                 $stmt = $conn->prepare("
                     UPDATE boletos SET
+                        id_funcion = ?,
                         id_categoria = ?,
                         id_promocion = NULL,
                         codigo_unico = ?,
@@ -200,7 +260,8 @@ try {
                     WHERE id_boleto = ?
                 ");
                 
-                $stmt->bind_param("isdddsii", 
+                $stmt->bind_param("iisdddssii", 
+                    $id_funcion,
                     $categoria_id,
                     $codigo_unico,
                     $precio,
@@ -219,9 +280,10 @@ try {
         } else {
             // Insertar nuevo boleto si no existe ninguno
             if ($id_promocion) {
-                $stmt = $conn->prepare("
+                $sql = "
                     INSERT INTO boletos (
                         id_evento, 
+                        id_funcion,
                         id_asiento, 
                         id_categoria, 
                         id_promocion,
@@ -232,11 +294,13 @@ try {
                         tipo_boleto,
                         id_usuario, 
                         estatus
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-                ");
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                ";
                 
-                $stmt->bind_param("iiiisdddsi", 
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("iiiiisdddssi", 
                     $id_evento, 
+                    $id_funcion,
                     $id_asiento, 
                     $categoria_id,
                     $id_promocion, 
@@ -248,9 +312,10 @@ try {
                     $id_usuario_vendedor
                 );
             } else {
-                $stmt = $conn->prepare("
+                $sql = "
                     INSERT INTO boletos (
                         id_evento, 
+                        id_funcion,
                         id_asiento, 
                         id_categoria, 
                         codigo_unico, 
@@ -258,13 +323,14 @@ try {
                         descuento_aplicado, 
                         precio_final,
                         tipo_boleto,
-                        id_usuario, 
-                        estatus
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-                ");
+                        id_usuario
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ";
                 
-                $stmt->bind_param("iiisdddsi", 
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("iiiisdddss", 
                     $id_evento, 
+                    $id_funcion,
                     $id_asiento, 
                     $categoria_id, 
                     $codigo_unico, 
