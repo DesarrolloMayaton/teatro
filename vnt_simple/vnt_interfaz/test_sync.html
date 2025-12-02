@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test - Sincronización de Eventos</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #2563eb;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1e40af;
+        }
+        .log {
+            background: #1e293b;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 3px 0;
+            border-bottom: 1px solid #334155;
+        }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+        .info { color: #3b82f6; }
+        .warning { color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <h1>🔄 Test de Sincronización de Eventos</h1>
+    
+    <div class="card">
+        <h2>Instrucciones</h2>
+        <ol>
+            <li>Abre esta página en dos pestañas diferentes</li>
+            <li>En una pestaña, simula la edición de un evento</li>
+            <li>Observa cómo la otra pestaña detecta el cambio automáticamente</li>
+        </ol>
+    </div>
+    
+    <div class="card">
+        <h2>Acciones de Prueba</h2>
+        <button onclick="simularCrearEvento()">Simular Crear Evento</button>
+        <button onclick="simularEditarEvento(29)">Simular Editar Evento #29</button>
+        <button onclick="simularEditarEvento(31)">Simular Editar Evento #31</button>
+        <button onclick="limpiarLog()">Limpiar Log</button>
+        <button onclick="abrirVenta()">Abrir Página de Venta</button>
+    </div>
+    
+    <div class="card">
+        <h2>Log de Eventos</h2>
+        <div class="log" id="log">
+            <div class="log-entry info">Sistema iniciado. Esperando eventos...</div>
+        </div>
+    </div>
+    
+    <script>
+        const log = document.getElementById('log');
+        
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        function limpiarLog() {
+            log.innerHTML = '<div class="log-entry info">Log limpiado.</div>';
+        }
+        
+        function simularCrearEvento() {
+            addLog('Simulando creación de evento...', 'info');
+            localStorage.setItem('evt_upd', Date.now().toString());
+            addLog('✓ Evento "evt_upd" guardado en localStorage', 'success');
+        }
+        
+        function simularEditarEvento(idEvento) {
+            addLog(`Simulando edición del evento #${idEvento}...`, 'info');
+            const data = {
+                id_evento: idEvento,
+                timestamp: Date.now()
+            };
+            localStorage.setItem('evento_actualizado', JSON.stringify(data));
+            addLog(`✓ Evento #${idEvento} actualizado en localStorage`, 'success');
+        }
+        
+        function abrirVenta() {
+            addLog('Abriendo página de venta...', 'info');
+            window.open('index.php', '_blank');
+        }
+        
+        // Escuchar cambios en localStorage
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'evt_upd') {
+                addLog('🔔 Detectado: Nuevo evento creado', 'warning');
+            }
+            
+            if (e.key === 'evento_actualizado' && e.newValue) {
+                try {
+                    const data = JSON.parse(e.newValue);
+                    addLog(`🔔 Detectado: Evento #${data.id_evento} editado`, 'warning');
+                } catch (error) {
+                    addLog('❌ Error al parsear evento_actualizado', 'error');
+                }
+            }
+        });
+        
+        // Escuchar mensajes de otras ventanas
+        window.addEventListener('message', (e) => {
+            if (e.data && e.data.type === 'evento_actualizado') {
+                addLog(`📨 Mensaje recibido: Evento #${e.data.id_evento} editado`, 'info');
+            }
+        });
+        
+        addLog('✓ Listeners configurados correctamente', 'success');
+    </script>
+</body>
+</html>
