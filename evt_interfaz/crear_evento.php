@@ -189,13 +189,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     
-    /* Estilo del botón X corregido */
+    /* Estilo del botón X corregido con icono */
     .funcion-item button { 
         background: #fee2e2; /* Rojo muy suave */
         border: none; 
         color: #dc2626; /* Rojo fuerte */
-        width: 20px; 
-        height: 20px; 
+        width: 24px; 
+        height: 24px; 
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -204,7 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         transition: all 0.2s;
         padding: 0;
     }
-    .funcion-item button i { font-size: 0.8rem; font-weight: bold; }
+    .funcion-item button i { font-size: 14px; }
     .funcion-item button:hover { background: #dc2626; color: white; transform: scale(1.1); }
 
     .img-preview { width: 100px; height: 140px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-color); margin-top: 10px; }
@@ -368,9 +368,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mins = String(d.getMinutes()).padStart(2, '0');
                 const sqlDate = `${year}-${month}-${day} ${hours}:${mins}:00`;
                 
-                // --- USO DE ICONO VISIBLE PARA LA X ---
+                // CORRECCIÓN: Botón con icono X
                 els.list.innerHTML+=`<div class="funcion-item">
-                    <i class="bi bi-calendar-event"></i> ${fechaStr}
+                    <i class="bi bi-calendar-event text-muted small"></i> ${fechaStr}
                     <button type="button" onclick="del(${i})" title="Eliminar"><i class="bi bi-x-lg"></i></button>
                 </div>`;
                 els.hid.innerHTML+=`<input type="hidden" name="funciones[]" value="${sqlDate}">`;
