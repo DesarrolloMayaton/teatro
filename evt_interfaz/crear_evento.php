@@ -1,5 +1,5 @@
 <?php
-// 1. CONFIGURACIÓN
+// 1. CONFIGURACIÓN Y SEGURIDAD
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
@@ -7,7 +7,7 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
 include "../conexion.php";
 if(file_exists("../transacciones_helper.php")) { require_once "../transacciones_helper.php"; }
 
-// Seguridad
+// Verificar permisos
 if (!isset($_SESSION['usuario_id']) || ($_SESSION['usuario_rol'] !== 'admin' && (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado']))) {
     die('<div style="display:flex;height:100vh;align-items:center;justify-content:center;font-family:sans-serif;color:#ef4444;"><h1>Acceso Denegado</h1></div>');
 }
@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $desc = trim($_POST['descripcion']);
     $tipo = $_POST['tipo'];
     $ini = $_POST['inicio_venta'];
-    $fin = $_POST['cierre_venta']; // Recibido del cálculo automático del front
+    $fin = $_POST['cierre_venta']; 
     
     // Validaciones básicas
     if (empty($titulo)) $errores_php[] = "Falta el título.";
@@ -50,17 +50,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             // 1. Insertar Evento
             $stmt = $conn->prepare("INSERT INTO evento (titulo, descripcion, imagen, tipo, inicio_venta, cierre_venta, finalizado) VALUES (?, ?, ?, ?, ?, ?, 0)");
-            
-            // --- CORRECCIÓN CRÍTICA AQUÍ: 'sssiss' (6 letras para 6 variables) ---
+            // Solo 6 letras: s (titulo), s (desc), s (img), i (tipo), s (ini), s (fin)
             $stmt->bind_param("sssiss", $titulo, $desc, $imagen_ruta, $tipo, $ini, $fin);
-            
-            if (!$stmt->execute()) {
-                 throw new Exception("Error al insertar evento: " . $stmt->error);
-            }
+            $stmt->execute();
             $id_nuevo = $conn->insert_id;
             $stmt->close();
 
-            // 2. Insertar Funciones (Estado 0 = Activa)
+            // 2. Insertar Funciones
             $stmt_f = $conn->prepare("INSERT INTO funciones (id_evento, fecha_hora, estado) VALUES (?, ?, 0)");
             foreach ($_POST['funciones'] as $fh) {
                 $stmt_f->bind_param("is", $id_nuevo, $fh);
@@ -68,20 +64,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt_f->close();
 
-            // 3. Insertar Categorías por defecto
+            // =========================================================
+            // 3. INSERTAR 3 CATEGORÍAS POR DEFECTO (MODIFICADO)
+            // =========================================================
             $stmt_c = $conn->prepare("INSERT INTO categorias (id_evento, nombre_categoria, precio, color) VALUES (?, ?, ?, ?)");
-            // General
-            $nom = 'General'; $prec = 80; $col = '#808080';
+            
+            // A) General (Color Claro)
+            $nom = 'General'; 
+            $prec = 80; 
+            $col = '#cbd5e1'; // Gris claro
             $stmt_c->bind_param("isds", $id_nuevo, $nom, $prec, $col);
             $stmt_c->execute();
-            $id_cat_gen = $conn->insert_id;
-            // Discapacitado
-            $nom = 'Discapacitado'; $prec = 80; $col = '#2563eb';
-            $stmt_c->bind_param("isds", $id_nuevo, $nom, $prec, $col);
-            $stmt_c->execute();
-            $stmt_c->close();
+            $id_cat_gen = $conn->insert_id; // Guardamos ID para pintar el mapa inicial
 
-            // 4. Generar Mapa de Asientos
+            // B) Discapacitado (Azul)
+            $nom = 'Discapacitado'; 
+            $prec = 80; 
+            $col = '#2563eb'; // Azul vibrante
+            $stmt_c->bind_param("isds", $id_nuevo, $nom, $prec, $col);
+            $stmt_c->execute();
+
+            // C) No Venta (Color Oscuro)
+            $nom = 'No Venta'; 
+            $prec = 0; 
+            $col = '#0f172a'; // Muy oscuro (casi negro)
+            $stmt_c->bind_param("isds", $id_nuevo, $nom, $prec, $col);
+            $stmt_c->execute();
+            
+            $stmt_c->close();
+            // =========================================================
+
+            // 4. Generar Mapa de Asientos (Todo en "General" al principio)
             $mapa = [];
             if ($tipo == 2) { // Pasarela
                 for ($f=1; $f<=10; $f++) {
@@ -102,9 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if(function_exists('registrar_transaccion')) registrar_transaccion('evento_crear', "Creó evento: $titulo");
 
-            // ==================================================================
-            // PANTALLA DE ÉXITO (ANIMADA)
-            // ==================================================================
+            // PANTALLA DE ÉXITO
             ?>
             <!DOCTYPE html>
             <html lang="es">
@@ -127,9 +138,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="success-card">
                     <div class="icon-circle"><i class="bi bi-check-lg"></i></div>
                     <h4 class="fw-bold text-dark mb-2">¡Evento Creado!</h4>
-                    <p class="text-muted small mb-0">El evento ya está disponible para la venta.</p>
+                    <p class="text-muted small mb-0">El evento ya está disponible en cartelera.</p>
                     <div class="progress-track"><div class="progress-fill" id="pBar"></div></div>
-                    <p class="text-muted mt-2" style="font-size: 0.75rem; font-weight: 600;">REDIRIGIENDO...</p>
+                    <p class="text-muted mt-2" style="font-size: 0.75rem; font-weight: 600;">VOLVIENDO A ACTIVOS...</p>
                 </div>
                 <script>
                     setTimeout(() => document.getElementById('pBar').style.width = '100%', 100);
@@ -158,63 +169,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
-    :root { --primary-color: #2563eb; --primary-dark: #1e40af; --success-color: #10b981; --danger-color: #ef4444; --bg-primary: #f8fafc; --bg-secondary: #ffffff; --text-primary: #0f172a; --text-secondary: #64748b; --border-color: #e2e8f0; --radius-lg: 16px; }
+    :root { --primary-color: #2563eb; --primary-dark: #1e40af; --success-color: #10b981; --danger-color: #ef4444; --bg-primary: #f8fafc; --bg-secondary: #ffffff; --text-primary: #0f172a; --border-color: #e2e8f0; --radius-lg: 16px; }
     body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, var(--bg-primary), #e2e8f0); color: var(--text-primary); padding: 30px 20px; min-height: 100vh; opacity: 0; transition: opacity 0.4s ease; }
     body.loaded { opacity: 1; }
     body.exiting { opacity: 0; }
+
     .main-wrapper { max-width: 850px; margin: 0 auto; }
-    .card { background: var(--bg-secondary); border-radius: var(--radius-lg); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); padding: 40px; border: 1px solid var(--border-color); }
+    .card { background: white; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); padding: 40px; border: 1px solid var(--border-color); }
+    
     .form-control, .form-select { border-radius: 8px; padding: 12px; border: 1px solid var(--border-color); background: #fff; }
     .form-control:focus { border-color: var(--primary-color); box-shadow: 0 0 0 4px rgba(37,99,235,0.1); }
+    
     .btn { padding: 12px 24px; border-radius: 8px; font-weight: 600; border: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
     .btn-primary { background: var(--primary-color); color: white; } .btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); }
-    .btn-secondary { background: #fff; color: var(--text-primary); border: 1px solid var(--border-color); } .btn-secondary:hover { background: var(--bg-primary); }
-    .btn-danger { background: var(--danger-color); color: white; } .btn-danger:hover { background: #dc2626; }
-    .input-error { border-color: var(--danger-color) !important; background: #fef2f2 !important; }
-    .tooltip-error { color: var(--danger-color); font-size: 0.85em; margin-top: 5px; display: none; font-weight: 600; }
-    
-    /* Estilos mejorados para lista de funciones */
-    #lista-funciones { background: var(--bg-primary); border: 2px dashed var(--border-color); border-radius: 8px; padding: 15px; min-height: 60px; display: flex; flex-wrap: wrap; gap: 10px; }
-    
-    .funcion-item { 
-        background: white; 
-        padding: 6px 14px; 
-        border-radius: 20px; 
-        border: 1px solid var(--primary-color); 
-        color: var(--primary-color); 
-        font-weight: 600; 
-        display: flex; 
-        align-items: center; 
-        gap: 10px; 
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    }
-    
-    /* Estilo del botón X corregido con icono */
-    .funcion-item button { 
-        background: #fee2e2; /* Rojo muy suave */
-        border: none; 
-        color: #dc2626; /* Rojo fuerte */
-        width: 24px; 
-        height: 24px; 
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer; 
-        transition: all 0.2s;
-        padding: 0;
-    }
-    .funcion-item button i { font-size: 14px; }
-    .funcion-item button:hover { background: #dc2626; color: white; transform: scale(1.1); }
+    .btn-secondary { background: #fff; color: var(--text-primary); border: 1px solid var(--border-color); } .btn-secondary:hover { background: #f1f5f9; }
+    .btn-danger { background: #ef4444; color: white; } .btn-danger:hover { background: #dc2626; }
 
-    .img-preview { width: 100px; height: 140px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-color); margin-top: 10px; }
+    .input-error { border-color: #ef4444 !important; background: #fef2f2 !important; }
+    .tooltip-error { color: #ef4444; font-size: 0.85em; margin-top: 5px; display: none; font-weight: 600; }
+    
+    #lista-funciones { background: #f8fafc; border: 2px dashed var(--border-color); border-radius: 8px; padding: 15px; min-height: 70px; display: flex; flex-wrap: wrap; gap: 10px; }
+    .funcion-item { background: white; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--primary-color); color: var(--primary-color); font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .funcion-item button { background: none; border: none; color: #ef4444; font-size: 1.1em; padding: 0; cursor: pointer; line-height: 1; }
+    .funcion-item button:hover { transform: scale(1.2); }
 </style>
 </head>
 <body>
 
 <div class="main-wrapper">
     <div class="mb-4">
-        <button onclick="abrirModalCancelar()" class="btn btn-secondary shadow-sm"> 
+        <button onclick="confirmarSalida()" class="btn btn-secondary shadow-sm"> 
             <i class="bi bi-arrow-left"></i> Volver a Eventos
         </button>
     </div>
@@ -308,7 +292,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <p class="text-muted">Se perderá la información que has ingresado.</p>
+        <p class="text-muted">Si sales ahora, perderás la información del nuevo evento.</p>
       </div>
       <div class="modal-footer border-0">
         <button type="button" class="btn btn-secondary fw-bold px-4" data-bs-dismiss="modal">Seguir Creando</button>
@@ -342,6 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     els.add.onclick=()=>{
         if (!fpD.selectedDates[0] || !fpT.selectedDates[0]) return;
+        
         let dt = new Date(fpD.selectedDates[0].getTime());
         dt.setHours(fpT.selectedDates[0].getHours());
         dt.setMinutes(fpT.selectedDates[0].getMinutes());
@@ -349,6 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if(dt <= new Date(Date.now() + 60000)) return alert("La función debe ser futura.");
         if(funcs.some(d=>d.getTime()===dt.getTime())) return alert("Ya existe esta función.");
+        
         funcs.push(dt); funcs.sort((a,b)=>a-b); fpD.clear(); fpT.clear(); check(); upd();
     };
 
@@ -368,11 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const mins = String(d.getMinutes()).padStart(2, '0');
                 const sqlDate = `${year}-${month}-${day} ${hours}:${mins}:00`;
                 
-                // CORRECCIÓN: Botón con icono X
-                els.list.innerHTML+=`<div class="funcion-item">
-                    <i class="bi bi-calendar-event text-muted small"></i> ${fechaStr}
-                    <button type="button" onclick="del(${i})" title="Eliminar"><i class="bi bi-x-lg"></i></button>
-                </div>`;
+                els.list.innerHTML+=`<div class="funcion-item"><i class="bi bi-calendar-event"></i> ${fechaStr}<button type="button" onclick="del(${i})" class="btn-close ms-2" style="font-size:0.6em"></button></div>`;
                 els.hid.innerHTML+=`<input type="hidden" name="funciones[]" value="${sqlDate}">`;
             });
             
@@ -415,13 +397,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 const modalCancel = new bootstrap.Modal(document.getElementById('modalCancelar'));
-function abrirModalCancelar() {
-    modalCancel.show();
-}
-
 function confirmarSalida() {
-    modalCancel.hide();
-    goBack();
+    modalCancel.show();
 }
 
 function goBack() {

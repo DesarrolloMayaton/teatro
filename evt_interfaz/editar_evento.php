@@ -315,6 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.classList.add('loaded');
     flatpickr.localize(flatpickr.l10ns.es);
     const now = new Date();
+    // Cargar funciones existentes desde PHP
     let funcs = [<?php if(!$modo_reactivacion) { foreach($funciones_existentes as $f) echo "new Date('".$f->format('c')."'),"; } ?>];
 
     const els={add:document.getElementById('fAdd'),sub:document.getElementById('bSub'),list:document.getElementById('lista-funciones'),hid:document.getElementById('hidFunc'),no:document.getElementById('noFunc'),ttF:document.getElementById('ttFunc'),ttI:document.getElementById('ttIni'),ini:document.getElementById('ini'),fin:document.getElementById('fin'),desc:document.getElementById('desc'),img:document.getElementById('img'),tipo:document.getElementById('tipo'),ttDesc:document.getElementById('ttDesc'),ttImg:document.getElementById('ttImg'),ttTipo:document.getElementById('ttTipo')};
@@ -325,13 +326,15 @@ document.addEventListener('DOMContentLoaded', () => {
         check();
     }});
     const fpT=flatpickr("#fTime",{enableTime:true,noCalendar:true,dateFormat:"H:i",time_24hr:true,minuteIncrement:15,onChange:check});
-    const fpI=flatpickr("#ini",{enableTime:true,minDate:new Date(),onChange:val});
+    
+    // CAMBIO 1: Eliminado minDate: new Date() para permitir cualquier fecha
+    const fpI=flatpickr("#ini",{enableTime:true, onChange:val}); 
+    
     const fpE=flatpickr("#fin",{enableTime:true, clickOpens:false}); 
 
     function check(){ els.add.disabled=!(fpD.selectedDates.length && fpT.selectedDates.length); }
 
     els.add.onclick=()=>{
-        // Construcción segura de fecha
         if (!fpD.selectedDates[0] || !fpT.selectedDates[0]) return;
         
         let dt = new Date(fpD.selectedDates[0].getTime());
@@ -354,7 +357,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             funcs.forEach((d,i)=>{
                 const fechaStr = d.toLocaleDateString('es-ES', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'});
-                // Formato SQL compatible
                 const year = d.getFullYear();
                 const month = String(d.getMonth() + 1).padStart(2, '0');
                 const day = String(d.getDate()).padStart(2, '0');
@@ -366,7 +368,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 els.hid.innerHTML+=`<input type="hidden" name="funciones[]" value="${sqlDate}">`;
             });
             
-            fpI.set('maxDate', new Date(funcs[0].getTime() - 60000));
+            // CAMBIO 2: Limitar visualmente a 2 horas antes de la primera funcion
+            const limiteVenta = new Date(funcs[0].getTime() - 7200000); 
+            fpI.set('maxDate', limiteVenta);
             
             const ultima = funcs[funcs.length-1];
             const cierre = new Date(ultima.getTime() + 7200000);
@@ -382,10 +386,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if(!document.getElementById('tit').value.trim()) ok=false;
         if(!funcs.length){ err(els.ttF,null,'Añade funciones.'); ok=false; }
+        
+        // CAMBIO 3: Validación manual de las 2 horas de anticipacion
         if(!fpI.selectedDates.length){ 
              if (funcs.length) { err(els.ttI,els.ini,'Requerido.'); ok=false; }
-        } else if(funcs.length && fpI.selectedDates[0] >= funcs[0]){ 
-             err(els.ttI,els.ini,'Inicio venta posterior a 1ª función.'); ok=false; 
+        } else if(funcs.length) {
+             const limite = funcs[0].getTime() - 7200000;
+             const seleccion = fpI.selectedDates[0].getTime();
+             if(seleccion > limite){ 
+                 err(els.ttI,els.ini,'Debe ser al menos 2 horas antes de la 1ª función.'); ok=false; 
+             }
         }
 
         if(!els.desc.value.trim()){ err(els.ttDesc,els.desc,'Descripción obligatoria.'); ok=false; }
@@ -417,9 +427,7 @@ function goBack() {
     document.body.classList.remove('loaded');
     document.body.classList.add('exiting');
     
-    // Determinar destino: Historial si es reactivación cancelada, Activos si es normal o guardado
     const esReactivacion = <?= $modo_reactivacion ? 'true' : 'false' ?>;
-    // Si estoy cancelando una reactivación, vuelvo a historial
     const tab = esReactivacion ? 'historial' : 'activos';
     
     setTimeout(() => window.parent.location.href = 'index.php?tab=' + tab, 350);

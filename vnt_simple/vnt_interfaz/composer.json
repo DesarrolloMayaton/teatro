@@ -1,9 +1,0 @@
-{
-    "name": "trt25/venta-boletos",
-    "description": "Sistema de venta de boletos",
-    "type": "project",
-    "require": {
-        "endroid/qr-code": "^6.0",
-        "setasign/fpdf": "^1.8"
-    }
-}
