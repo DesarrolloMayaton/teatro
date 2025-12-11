@@ -104,20 +104,7 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
                     }
                 }
             }
-
-            // Si no hay función seleccionada, seleccionar la primera función activa (estado = 0)
-            if (is_null($id_funcion_seleccionada)) {
-                foreach ($funciones_evento as $funcion) {
-                    if ((int)$funcion['estado'] === 0) {
-                        $id_funcion_seleccionada = (int)$funcion['id_funcion'];
-                        break;
-                    }
-                }
-                // Si no hay funciones activas, seleccionar la primera disponible
-                if (is_null($id_funcion_seleccionada)) {
-                    $id_funcion_seleccionada = (int)$funciones_evento[0]['id_funcion'];
-                }
-            }
+            // NO seleccionar función por defecto - el vendedor debe elegir manualmente
         }
 
         // 6. Cargar el mapa desde JSON
@@ -185,36 +172,38 @@ body {
 .container-fluid {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding: 24px;
-  gap: 20px;
+  height: 100vh;
+  padding: 8px;
+  gap: 8px;
+  overflow: hidden;
 }
 
 .card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   transition: all 0.3s ease;
 }
 
 .mapper-container {
   display: flex;
-  gap: 24px;
+  gap: 8px;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 .seat-map-wrapper {
-  flex-grow: 1;
+  flex: 1;
+  min-width: 0;
   background: var(--bg-secondary);
   border-radius: var(--radius-lg);
-  padding: 32px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  height: 100%;
+  padding: 16px;
+  overflow: auto;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-md);
 }
@@ -242,6 +231,7 @@ body {
   transform-origin: top center;
   width: fit-content;
   min-height: min-content;
+  transition: transform 0.3s ease;
 }
 
 .screen {
@@ -261,31 +251,29 @@ body {
 }
 
 .seat {
-  width: 48px;
-  height: 48px;
+  width: 24px;
+  height: 24px;
   background: #e2e8f0;
   color: var(--text-primary);
-  border-radius: var(--radius-sm);
-  font-size: 13px;
+  border-radius: 3px;
+  font-size: 7px;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 2px solid transparent;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  padding: 2px;
+  transition: all 0.15s ease;
+  padding: 0;
   box-sizing: border-box;
   text-align: center;
   line-height: 1;
-  will-change: transform;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
 }
 
 .seat:hover {
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: var(--shadow-md);
   border-color: var(--primary-color);
+  box-shadow: 0 2px 4px rgba(37,99,235,0.25);
 }
 
 .seat.selected {
@@ -361,25 +349,27 @@ body {
 .seats-block {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
 }
 
 .seat-row-wrapper {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 2px;
 }
 
 .pasillo {
-  width: 32px;
+  width: 8px;
 }
 
 .controls-panel {
-  width: 380px;
+  width: 320px;
+  min-width: 300px;
+  max-width: 350px;
   background: var(--bg-secondary);
-  border-radius: var(--radius-lg);
-  padding: 24px;
+  border-radius: var(--radius-md);
+  padding: 12px;
   overflow-y: auto;
   overflow-x: hidden;
   flex-shrink: 0;
@@ -387,6 +377,7 @@ body {
   box-shadow: var(--shadow-md);
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
 
 .controls-panel::-webkit-scrollbar {
@@ -408,38 +399,48 @@ body {
   background: var(--text-secondary);
 }
 
+.panel-header {
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border-color);
+}
+
 .controls-panel h2 {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
 .controls-panel h5 {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
+.seccion-horario {
+  margin-bottom: 4px;
+}
+
 .form-label {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .form-select {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  padding: 10px 14px;
-  font-size: 0.95rem;
+  padding: 8px 12px;
+  font-size: 0.9rem;
   transition: all 0.2s;
   background-color: var(--bg-primary);
 }
@@ -461,6 +462,191 @@ body {
 #selectFuncion option:disabled {
   color: #9ca3af !important;
   background-color: #f3f4f6 !important;
+}
+
+/* === CARTELERA DE EVENTOS === */
+.eventos-cartelera {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.evento-mini-card {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.evento-mini-card:hover {
+  border-color: var(--primary-color);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(37,99,235,0.15);
+}
+
+.evento-mini-card.selected {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.2);
+}
+
+.evento-mini-poster {
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  display: block;
+}
+
+.evento-mini-poster-placeholder {
+  width: 100%;
+  aspect-ratio: 2/3;
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 1.5rem;
+}
+
+.evento-mini-info {
+  padding: 8px;
+  text-align: center;
+}
+
+.evento-mini-titulo {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cambiar-evento-btn {
+  background: var(--bg-primary);
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+
+.cambiar-evento-btn:hover {
+  background: var(--bg-secondary);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+/* === CARTELERA FULLSCREEN (sin evento seleccionado) === */
+.cartelera-fullscreen {
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--bg-primary) 0%, #e2e8f0 100%);
+  padding: 40px;
+}
+
+.cartelera-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.cartelera-header h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.cartelera-header h1 i {
+  color: var(--primary-color);
+}
+
+.cartelera-header p {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+.cartelera-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.evento-card-full {
+  background: var(--bg-secondary);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.evento-card-full:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 15px 35px rgba(37,99,235,0.2);
+}
+
+.evento-card-full img {
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s ease;
+}
+
+.evento-card-full:hover img {
+  transform: scale(1.05);
+}
+
+.evento-card-full .placeholder-img {
+  width: 100%;
+  aspect-ratio: 2/3;
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 3rem;
+}
+
+.evento-card-full .info {
+  padding: 16px;
+}
+
+.evento-card-full .titulo {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.evento-card-full .tipo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  color: var(--primary-dark);
+  font-weight: 600;
 }
 
 .btn {
@@ -644,7 +830,7 @@ hr {
 /* Responsive */
 @media (max-width: 1200px) {
   .controls-panel {
-    width: 340px;
+    width: 280px;
   }
 }
 
@@ -1081,21 +1267,114 @@ hr {
 .seccion-content:not(.collapsed) {
   animation: slideDown 0.3s ease;
 }
+/* Responsive para el panel - ajustado para iframe */
+@media (max-width: 1200px) {
+  .controls-panel {
+    width: 260px;
+    min-width: 240px;
+    padding: 12px;
+  }
+  
+  .seat {
+    width: 28px;
+    height: 28px;
+    font-size: 8px;
+  }
+  
+  .pasillo {
+    width: 12px;
+  }
+}
 
-/* Responsive para el panel */
-@media (max-width: 992px) {
+@media (max-width: 900px) {
+  .mapper-container {
+    flex-direction: column;
+  }
+  
+  .controls-panel {
+    width: 100%;
+    max-width: none;
+    min-width: unset;
+    max-height: 40vh;
+  }
+  
+  .seat-map-wrapper {
+    min-height: 55vh;
+  }
+  
   .stats-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
   
   .stat-card {
-    padding: 12px;
+    padding: 10px;
   }
 }
 </style>
 </head>
 <body>
 
+<?php if (!$evento_info): ?>
+<!-- ===== CARTELERA FULLSCREEN (sin evento seleccionado) ===== -->
+<div class="cartelera-fullscreen">
+    <div class="cartelera-header">
+        <h1><i class="bi bi-film"></i> Cartelera</h1>
+        <p>Selecciona un evento para comenzar a vender</p>
+    </div>
+    
+    <?php if (empty($eventos_lista)): ?>
+    <div style="text-align:center; padding:80px; color:var(--text-secondary);">
+        <i class="bi bi-calendar-x" style="font-size:5rem; opacity:0.3;"></i>
+        <h3 style="margin-top:20px; font-weight:600;">No hay eventos disponibles</h3>
+        <p>Crea un evento desde el panel de administración</p>
+    </div>
+    <?php else: ?>
+    <div class="cartelera-grid">
+        <?php foreach ($eventos_lista as $e): 
+            $img_evt = '';
+            if (!empty($e['imagen'])) {
+                $rutas_img = ["../evt_interfaz/" . $e['imagen'], $e['imagen']];
+                foreach ($rutas_img as $r) { if (file_exists($r)) { $img_evt = $r; break; } }
+            }
+        ?>
+        <div class="evento-card-full" onclick="seleccionarEvento(<?= $e['id_evento'] ?>)">
+            <?php if($img_evt): ?>
+                <img src="<?= htmlspecialchars($img_evt) ?>" alt="">
+            <?php else: ?>
+                <div class="placeholder-img"><i class="bi bi-image"></i></div>
+            <?php endif; ?>
+            <div class="info">
+                <div class="titulo"><?= htmlspecialchars($e['titulo']) ?></div>
+                <span class="tipo-badge">
+                    <i class="bi bi-<?= $e['tipo'] == 1 ? 'music-note-beamed' : 'person-walking' ?>"></i>
+                    <?= $e['tipo'] == 1 ? 'Teatro' : 'Pasarela' ?>
+                </span>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+</div>
+
+<!-- Scripts para cartelera fullscreen -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/sync-sender.js"></script>
+<script>
+// Función para seleccionar evento desde cartelera fullscreen
+function seleccionarEvento(idEvento) {
+    if (!idEvento) return;
+    window.location.href = 'index.php?id_evento=' + idEvento;
+}
+</script>
+</body>
+</html>
+<?php 
+endif; // Fin de cartelera fullscreen (!$evento_info)
+
+// Si hay evento, continúa con la vista de ventas
+if ($evento_info): 
+?>
+<!-- ===== VISTA DE VENTAS (con evento seleccionado) ===== -->
 <div class="container-fluid">
   
   <!-- Botón para ocultar/mostrar paneles -->
@@ -1150,7 +1429,7 @@ hr {
       <?php endfor; ?>
       
       <!-- Pasarela posicionada absolutamente sobre todas las filas -->
-      <div class="pasarela" style="position: absolute; width: 100px; height: <?= (48 + 10) * 10 ?>px; top: 0; left: 50%; transform: translateX(-50%); background: linear-gradient(180deg, var(--text-primary) 0%, #334155 100%); color: #fff; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-md); box-shadow: var(--shadow-md);">
+      <div class="pasarela" style="position: absolute; width: 100px; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); background: linear-gradient(180deg, var(--text-primary) 0%, #334155 100%); color: #fff; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-md); box-shadow: var(--shadow-md);">
         <span class="pasarela-text">PASARELA</span>
       </div>
       </div>
@@ -1281,77 +1560,56 @@ hr {
               <?php endfor; ?>
             </div>
             <div class="row-label">P</div>
-          </div>
-      <?php endif; ?>
+        <?php endif; ?>
       </div>
     </div>
     <?php endif; ?>
     <div class="controls-panel card">
       
-        <!-- Header del Panel -->
+        <!-- Header del Panel con título del evento -->
         <div class="panel-header">
-            <h2><i class="bi bi-shop"></i> Punto de Venta</h2>
-            <?php if ($evento_info): ?>
-            <div class="evento-badge">
-                <i class="bi bi-calendar-event"></i>
-                <span><?= htmlspecialchars($evento_info['titulo']) ?></span>
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0" style="font-size:1rem; font-weight:600;">
+                    <i class="bi bi-ticket-perforated text-primary"></i> 
+                    <?= htmlspecialchars($evento_info['titulo']) ?>
+                </h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="location.href='index.php'" title="Cambiar evento">
+                    <i class="bi bi-arrow-left-right"></i>
+                </button>
             </div>
-            <?php endif; ?>
         </div>
         
-        <!-- Selector de Evento -->
-        <div class="seccion-evento">
-            <form method="GET" id="formEvento">
-                <div class="input-group">
-                    <span class="input-group-text"><i class="bi bi-calendar-check"></i></span>
-                    <select name="id_evento" class="form-select" onchange="cambiarEvento(this)">
-                        <option value="">Seleccionar evento...</option>
-                        <?php foreach ($eventos_lista as $e): ?>
-                        <option value="<?= $e['id_evento'] ?>" <?= ($id_evento_seleccionado==$e['id_evento'])?'selected':'' ?>>
-                            <?= htmlspecialchars($e['titulo']) ?> 
-                            <?php 
-                                if ($e['tipo'] == 1) {
-                                    echo '• Teatro 420';
-                                } elseif ($e['tipo'] == 2) {
-                                    echo '• Pasarela 540';
-                                } else {
-                                    echo '• Otro';
-                                }
-                            ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <input type="hidden" name="id_funcion" id="inputIdFuncion" value="<?= htmlspecialchars($id_funcion_seleccionada ?? '') ?>">
-                <?php if ($evento_info && !empty($funciones_evento)): ?>
-                <div class="input-group mt-3">
-                    <span class="input-group-text"><i class="bi bi-clock-history"></i></span>
-                    <select id="selectFuncion" class="form-select" onchange="cambiarFuncion(this)">
-                        <?php foreach ($funciones_evento as $funcion): 
-                            $fecha_funcion = new DateTime($funcion['fecha_hora']);
-                            $texto_funcion = $fecha_funcion->format('d/m/Y \a\s H:i');
-                            $estado = (int)$funcion['estado'];
-                            $es_vencida = $estado === 1;
-                            $texto_estado = $es_vencida ? ' (Vencida)' : '';
-                        ?>
-                        <option 
-                            value="<?= $funcion['id_funcion'] ?>" 
-                            <?= ($id_funcion_seleccionada==$funcion['id_funcion'])?'selected':'' ?>
-                            <?= $es_vencida ? 'disabled style="color: #9ca3af; background-color: #f3f4f6;"' : '' ?>
-                            data-estado="<?= $estado ?>">
-                            <?= $texto_funcion . $texto_estado ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <?php endif; ?>
-            </form>
-            <div id="loadingIndicator" style="display:none;" class="text-center mt-3">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Cargando...</span>
-                </div>
-                <p class="mt-2" style="color: var(--text-secondary); font-size: 0.9rem;">Cargando evento...</p>
-            </div>
+        <!-- Selector de Horario -->
+        <?php if (!empty($funciones_evento)): ?>
+        <div class="seccion-horario">
+            <label class="form-label mb-1" style="font-size:0.85rem; font-weight:500;">
+                <i class="bi bi-clock"></i> Horario
+            </label>
+            <input type="hidden" name="id_funcion" id="inputIdFuncion" value="<?= htmlspecialchars($id_funcion_seleccionada ?? '') ?>">
+            <select id="selectFuncion" class="form-select" onchange="cambiarFuncion(this)">
+                <option value="">Seleccionar horario...</option>
+                <?php foreach ($funciones_evento as $funcion): 
+                    $fecha_funcion = new DateTime($funcion['fecha_hora']);
+                    $texto_funcion = $fecha_funcion->format('d/m/Y H:i');
+                    $estado = (int)$funcion['estado'];
+                    $es_vencida = $estado === 1;
+                    $texto_estado = $es_vencida ? ' (Vencida)' : '';
+                ?>
+                <option 
+                    value="<?= $funcion['id_funcion'] ?>" 
+                    <?= ($id_funcion_seleccionada==$funcion['id_funcion'])?'selected':'' ?>
+                    <?= $es_vencida ? 'disabled style="color: #9ca3af;"' : '' ?>
+                    data-estado="<?= $estado ?>">
+                    <?= $texto_funcion . $texto_estado ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <?php endif; ?>
+        
+        <div id="loadingIndicator" style="display:none;" class="text-center py-3">
+            <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+            <small class="d-block mt-1 text-muted">Cargando...</small>
         </div>
         
         <?php if ($evento_info): ?>
@@ -1438,8 +1696,13 @@ hr {
                 • <strong>Doble Click:</strong> Seleccionar fila completa
             </div>
             
-            <button class="btn btn-outline-secondary w-100" onclick="limpiarSeleccion()">
+            <button class="btn btn-outline-secondary w-100 mb-2" onclick="limpiarSeleccion()">
                 <i class="bi bi-arrow-counterclockwise"></i> Limpiar Selección
+            </button>
+            
+            <!-- Botón Pantalla Cliente -->
+            <button class="btn btn-dark w-100" onclick="abrirVisorCliente()">
+                <i class="bi bi-display"></i> Abrir Pantalla Cliente
             </button>
         </div>
 
@@ -1630,6 +1893,7 @@ hr {
     const DEFAULT_CAT_ID = <?= $id_categoria_general ?? 0 ?>;
     const EVENTO_SELECCIONADO = <?= $id_evento_seleccionado ? (int)$id_evento_seleccionado : 'null' ?>;
     const FUNCION_SELECCIONADA = <?= $id_funcion_seleccionada ? (int)$id_funcion_seleccionada : 'null' ?>;
+    const TOTAL_EVENTOS = <?= count($eventos_lista) ?>;
     
     // Variable global para almacenar datos del boleto a cancelar
     let boletoACancelar = null;
@@ -1650,11 +1914,28 @@ hr {
         select.form.submit();
     }
     
+    // Función para seleccionar evento desde la cartelera visual
+    function seleccionarEvento(idEvento) {
+        if (!idEvento) return;
+        
+        const loading = document.getElementById('loadingIndicator');
+        if (loading) loading.style.display = 'block';
+        
+        // Redirigir al evento seleccionado
+        window.location.href = 'index.php?id_evento=' + idEvento;
+    }
+    
     function cambiarFuncion(select) {
+    const idFuncion = select.value;
+    
+    // Si no se seleccionó ninguna función, no hacer nada
+    if (!idFuncion) {
+        return;
+    }
+    
     const loading = document.getElementById('loadingIndicator');
     if (loading) loading.style.display = 'block';
     
-    const idFuncion = select.value;
     const funcionInput = document.getElementById('inputIdFuncion');
     if (funcionInput) {
         funcionInput.value = idFuncion;
@@ -1704,6 +1985,15 @@ hr {
         }
         if (window.cargarDescuentos) {
             cargarDescuentos();
+        }
+        // Reinicializar event listeners de los asientos
+        if (window.inicializarEventListenersAsientos) {
+            inicializarEventListenersAsientos();
+        }
+        
+        // Sincronizar con visor cliente
+        if (typeof enviarFuncion === 'function') {
+            enviarFuncion();
         }
     })
     .catch(error => {
@@ -1758,6 +2048,12 @@ function actualizarFuncionesDisponibles() {
                     // Actualizar el select
                     selectFuncion.innerHTML = '';
                     
+                    // Agregar opción vacía primero
+                    const opcionVacia = document.createElement('option');
+                    opcionVacia.value = '';
+                    opcionVacia.textContent = 'Seleccionar horario...';
+                    selectFuncion.appendChild(opcionVacia);
+                    
                     let primeraFuncionActiva = null;
                     
                     data.funciones.forEach(funcion => {
@@ -1786,22 +2082,24 @@ function actualizarFuncionesDisponibles() {
                         selectFuncion.appendChild(option);
                     });
                     
-                    // Si la función actual ya no existe o está vencida, seleccionar la primera activa
-                    const funcionActualData = data.funciones.find(f => f.id_funcion.toString() === funcionActual);
-                    const funcionActualVencida = funcionActualData && funcionActualData.vencida;
-                    
-                    if ((!funcionesNuevas.includes(funcionActual) || funcionActualVencida) && primeraFuncionActiva) {
-                        selectFuncion.value = primeraFuncionActiva;
-                        // Notificar al usuario
-                        if (typeof notify !== 'undefined') {
-                            if (funcionActualVencida) {
-                                notify.warning('La función seleccionada ha vencido. Se ha seleccionado otra función activa.');
-                            } else {
-                                notify.warning('La función seleccionada ya no está disponible. Se ha seleccionado otra función.');
+                    // Solo si había una función seleccionada previamente y ya no está disponible
+                    if (funcionActual && funcionActual !== '') {
+                        const funcionActualData = data.funciones.find(f => f.id_funcion.toString() === funcionActual);
+                        const funcionActualVencida = funcionActualData && funcionActualData.vencida;
+                        
+                        if ((!funcionesNuevas.includes(funcionActual) || funcionActualVencida) && primeraFuncionActiva) {
+                            selectFuncion.value = primeraFuncionActiva;
+                            // Notificar al usuario
+                            if (typeof notify !== 'undefined') {
+                                if (funcionActualVencida) {
+                                    notify.warning('La función seleccionada ha vencido. Se ha seleccionado otra función activa.');
+                                } else {
+                                    notify.warning('La función seleccionada ya no está disponible. Se ha seleccionado otra función.');
+                                }
                             }
+                            // Cambiar automáticamente a la nueva función
+                            cambiarFuncion(selectFuncion);
                         }
-                        // Cambiar automáticamente a la nueva función
-                        cambiarFuncion(selectFuncion);
                     }
                     
                     console.log('Funciones actualizadas:', data.funciones.length, '(Activas:', data.funciones.filter(f => !f.vencida).length + ')');
@@ -2114,6 +2412,28 @@ window.addEventListener('beforeunload', detenerActualizacionFunciones);
 <script src="js/escaner_qr.js"></script>
 <script src="js/menu-mejoras.js?v=1"></script>
 <script src="js/seleccion-multiple.js?v=1"></script>
+<script src="js/sync-sender.js"></script>
+
+<script>
+// Función para abrir el visor cliente en una nueva ventana
+function abrirVisorCliente() {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id_evento') || 0;
+    // Abrir ventana emergente sin barras de navegación
+    window.open(`visor_cliente.php?id_evento=${id}`, 'VisorCliente', 'width=1200,height=800,menubar=no,toolbar=no');
+}
+
+// Función para seleccionar evento desde cartelera fullscreen
+function seleccionarEvento(idEvento) {
+    if (!idEvento) return;
+    window.location.href = 'index.php?id_evento=' + idEvento;
+}
+
+// Auto-escalado deshabilitado - el mapa usa scroll si no cabe
+// function escalarMapa() { ... }
+</script>
+
+<?php endif; // Fin de la vista de ventas (con evento) ?>
 
 </body>
 </html>

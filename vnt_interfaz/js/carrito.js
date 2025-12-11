@@ -30,6 +30,11 @@ async function cargarAsientosVendidos() {
         if (data.success) {
             asientosVendidos = new Set(data.asientos);
             marcarAsientosVendidos();
+
+            // <--- SINCRONIZACIÓN: ENVIAR VENDIDOS AL VISOR CLIENTE --->
+            if (typeof enviarVendidos === 'function') {
+                enviarVendidos(Array.from(asientosVendidos));
+            }
         }
     } catch (error) {
         console.error('Error al cargar asientos vendidos:', error);
@@ -51,7 +56,7 @@ async function cargarDescuentos() {
     try {
         const response = await fetch(`obtener_descuentos.php?id_evento=${idEvento}`);
         console.log('Response status:', response.status);
-        
+
         const data = await response.json();
         console.log('Datos recibidos:', data);
 
@@ -82,26 +87,26 @@ function actualizarSelectDescuentos() {
     descuentos.forEach(desc => {
         const option = document.createElement('option');
         option.value = desc.id_promocion;
-        
+
         let texto = desc.nombre;
         if (desc.modo_calculo === 'porcentaje') {
             texto += ` (-${desc.valor}%)`;
         } else {
             texto += ` (-$${parseFloat(desc.valor).toFixed(2)})`;
         }
-        
+
         if (desc.nombre_categoria) {
             texto += ` [${desc.nombre_categoria}]`;
         }
-        
+
         if (desc.tipo_regla === 'codigo' && desc.codigo) {
             texto += ` (Código: ${desc.codigo})`;
         }
-        
+
         if (desc.min_cantidad > 1) {
             texto += ` (Mín. ${desc.min_cantidad} boletos)`;
         }
-        
+
         option.textContent = texto;
         select.appendChild(option);
     });
@@ -111,7 +116,7 @@ function actualizarSelectDescuentos() {
 function aplicarDescuento() {
     const select = document.getElementById('selectDescuento');
     const infoElement = document.getElementById('descuentoInfo');
-    
+
     if (!select.value) {
         descuentoSeleccionado = null;
         infoElement.textContent = '';
@@ -120,7 +125,7 @@ function aplicarDescuento() {
     }
 
     descuentoSeleccionado = descuentos.find(d => d.id_promocion == select.value);
-    
+
     if (descuentoSeleccionado) {
         // Verificar cantidad mínima
         if (carrito.length < descuentoSeleccionado.min_cantidad) {
@@ -131,21 +136,21 @@ function aplicarDescuento() {
             actualizarCarrito();
             return;
         }
-        
+
         let infoTexto = '';
         if (descuentoSeleccionado.modo_calculo === 'porcentaje') {
             infoTexto = `Descuento del ${descuentoSeleccionado.valor}% aplicado`;
         } else {
             infoTexto = `Descuento de $${parseFloat(descuentoSeleccionado.valor).toFixed(2)} aplicado`;
         }
-        
+
         if (descuentoSeleccionado.nombre_categoria) {
             infoTexto += ` (solo ${descuentoSeleccionado.nombre_categoria})`;
         }
-        
+
         infoElement.textContent = infoTexto;
     }
-    
+
     actualizarCarrito();
 }
 
@@ -154,7 +159,7 @@ function calcularDescuentoItem(item) {
     if (!descuentoSeleccionado || !item.descuentoAplicado) return 0;
 
     // Si el descuento es para una categoría específica, verificar
-    if (descuentoSeleccionado.id_categoria && 
+    if (descuentoSeleccionado.id_categoria &&
         descuentoSeleccionado.id_categoria != item.categoriaId) {
         return 0;
     }
@@ -197,11 +202,20 @@ function agregarAlCarrito(asientoId, categoriaId) {
 
     const categoriaInfo = CATEGORIAS_INFO[categoriaId] || CATEGORIAS_INFO[DEFAULT_CAT_ID];
 
+    // Obtener color del asiento o de la categoría
+    let colorAsiento = categoriaInfo.color || '#2563eb';
+    const seatElem = document.querySelector(`[data-asiento-id="${asientoId}"]`);
+    if (seatElem && seatElem.style.backgroundColor) {
+        colorAsiento = seatElem.style.backgroundColor;
+    }
+
     carrito.push({
         asiento: asientoId,
         categoria: categoriaInfo.nombre,
         precio: parseFloat(categoriaInfo.precio),
-        categoriaId: categoriaId
+        categoriaId: categoriaId,
+        color: colorAsiento,
+        descuentoAplicado: true
     });
 
     actualizarCarrito();
@@ -240,19 +254,24 @@ function actualizarCarrito() {
         carritoContainer.innerHTML = '<div class="carrito-vacio">No hay asientos seleccionados</div>';
         totalElement.textContent = '$0.00';
         btnPagar.disabled = true;
-        
+
         // Resetear descuento cuando el carrito está vacío
         descuentoSeleccionado = null;
         const selectDescuento = document.getElementById('selectDescuento');
         if (selectDescuento) selectDescuento.value = '';
         const descuentoInfo = document.getElementById('descuentoInfo');
         if (descuentoInfo) descuentoInfo.textContent = '';
-        
+
         // Mostrar botones de acciones cuando no hay asientos seleccionados
         mostrarBotonesAcciones(true);
+
+        // <--- SINCRONIZACIÓN: CARRITO VACÍO AL VISOR CLIENTE --->
+        if (typeof enviarCarrito === 'function') {
+            enviarCarrito([]);
+        }
         return;
     }
-    
+
     // Ocultar botones de acciones cuando hay asientos seleccionados
     mostrarBotonesAcciones(false);
 
@@ -263,10 +282,10 @@ function actualizarCarrito() {
     carrito.forEach(item => {
         const descuentoItem = calcularDescuentoItem(item);
         const precioFinal = item.precio - descuentoItem;
-        
+
         subtotal += item.precio;
         totalDescuento += descuentoItem;
-        
+
         html += `
             <div class="carrito-item">
                 <div class="asiento-info">
@@ -304,9 +323,14 @@ function actualizarCarrito() {
     carritoContainer.innerHTML = html;
     totalElement.textContent = `$${total.toFixed(2)}`;
     btnPagar.disabled = false;
-    
+
     // Actualizar estadísticas
     actualizarEstadisticas();
+
+    // <--- SINCRONIZACIÓN: ENVIAR CARRITO AL VISOR CLIENTE --->
+    if (typeof enviarCarrito === 'function') {
+        enviarCarrito(carrito);
+    }
 }
 
 // Procesar pago - Abre modal para seleccionar tipo de boleto
@@ -386,23 +410,23 @@ function abrirModalTipoBoleto() {
             </div>
         </div>
     `;
-    
+
     // Remover modal anterior si existe
     const modalAnterior = document.getElementById('modalTipoBoleto');
     if (modalAnterior) {
         modalAnterior.remove();
     }
-    
+
     // Agregar modal al DOM
     document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
+
     // Llenar lista de boletos
     llenarListaBoletosTipo();
-    
+
     // Mostrar modal
     const modal = new bootstrap.Modal(document.getElementById('modalTipoBoleto'));
     modal.show();
-    
+
     // Limpiar al cerrar
     document.getElementById('modalTipoBoleto').addEventListener('hidden.bs.modal', function () {
         this.remove();
@@ -413,21 +437,21 @@ function abrirModalTipoBoleto() {
 function llenarListaBoletosTipo() {
     const lista = document.getElementById('listaBoletosTipo');
     if (!lista) return;
-    
+
     let html = '';
-    
+
     carrito.forEach((item, index) => {
         const descuentoItem = calcularDescuentoItem(item);
         let precioBase = item.precio - descuentoItem;
-        
+
         // Inicializar tipo de boleto si no existe
         if (!item.tipo_boleto) {
             item.tipo_boleto = 'adulto';
         }
-        
+
         // Si es cortesía, el precio es 0
         const precioFinal = item.tipo_boleto === 'cortesia' ? 0 : precioBase;
-        
+
         html += `
             <div class="boleto-tipo-item mb-3 p-3 border rounded" data-index="${index}">
                 <div class="row align-items-center">
@@ -463,12 +487,12 @@ function llenarListaBoletosTipo() {
             </div>
         `;
     });
-    
+
     lista.innerHTML = html;
-    
+
     // Agregar event listeners a los selectores
     document.querySelectorAll('.tipo-boleto-select').forEach(select => {
-        select.addEventListener('change', function() {
+        select.addEventListener('change', function () {
             const index = parseInt(this.dataset.index);
             if (carrito[index]) {
                 carrito[index].tipo_boleto = this.value;
@@ -476,7 +500,7 @@ function llenarListaBoletosTipo() {
             }
         });
     });
-    
+
     // Actualizar total inicial
     actualizarTotalModal();
 }
@@ -485,25 +509,25 @@ function llenarListaBoletosTipo() {
 function actualizarPrecioEnModal(index) {
     const item = carrito[index];
     if (!item) return;
-    
+
     const boletoItem = document.querySelector(`.boleto-tipo-item[data-index="${index}"]`);
     if (!boletoItem) return;
-    
+
     const precioDisplay = boletoItem.querySelector('.precio-display');
     const precioBase = parseFloat(precioDisplay.dataset.precioBase);
-    
+
     // Si es cortesía, precio = 0
     const precioFinal = item.tipo_boleto === 'cortesia' ? 0 : precioBase;
-    
+
     precioDisplay.textContent = '$' + precioFinal.toFixed(2);
-    
+
     // Mostrar/ocultar alerta de cortesía
     const alertCortesia = document.getElementById('alertCortesia');
     const hayCortesia = carrito.some(i => i.tipo_boleto === 'cortesia');
     if (alertCortesia) {
         alertCortesia.style.display = hayCortesia ? 'block' : 'none';
     }
-    
+
     // Actualizar total
     actualizarTotalModal();
 }
@@ -511,17 +535,17 @@ function actualizarPrecioEnModal(index) {
 // Actualizar total en el modal
 function actualizarTotalModal() {
     let total = 0;
-    
+
     carrito.forEach((item, index) => {
         const descuentoItem = calcularDescuentoItem(item);
         const precioBase = item.precio - descuentoItem;
-        
+
         // Si es cortesía, no suma al total
         if (item.tipo_boleto !== 'cortesia') {
             total += precioBase;
         }
     });
-    
+
     const totalElement = document.getElementById('totalModalPago');
     if (totalElement) {
         totalElement.textContent = '$' + total.toFixed(2);
@@ -534,12 +558,12 @@ function aplicarTipoATodos(tipo) {
         item.tipo_boleto = tipo;
         actualizarPrecioEnModal(index);
     });
-    
+
     // Actualizar todos los selectores
     document.querySelectorAll('.tipo-boleto-select').forEach(select => {
         select.value = tipo;
     });
-    
+
     const tipoNombre = {
         'adulto': 'Adulto',
         'nino': 'Niño',
@@ -547,7 +571,7 @@ function aplicarTipoATodos(tipo) {
         'discapacitado': 'Discapacitado',
         'cortesia': 'Cortesía (Gratis)'
     };
-    
+
     notify.success(`Tipo "${tipoNombre[tipo]}" aplicado a todos los boletos`);
 }
 
@@ -613,6 +637,14 @@ async function confirmarYProcesarPago() {
         if (data.success) {
             console.log('Boletos recibidos:', data.boletos);
             notify.success(`¡Compra exitosa! Se generaron ${data.boletos.length} boleto(s)`);
+
+            // Calcular total de la compra
+            const totalCompra = data.boletos.reduce((sum, b) => sum + parseFloat(b.precio), 0);
+
+            // Enviar mensaje de compra exitosa al visor cliente (animación de gracias)
+            if (typeof enviarCompraExitosa === 'function') {
+                enviarCompraExitosa(totalCompra, data.boletos.length);
+            }
 
             // Agregar asientos vendidos al set
             carrito.forEach(item => asientosVendidos.add(item.asiento));
@@ -690,10 +722,25 @@ function mostrarBoletosGenerados(boletos) {
     // Guardar boletos en variable global para descargar todos
     window.boletosActuales = boletos;
 
-    // Remover modal del DOM al cerrarse
+    // Remover modal del DOM al cerrarse y manejar regreso
     document.getElementById('modalBoletos').addEventListener('hidden.bs.modal', function () {
         this.remove();
         delete window.boletosActuales;
+
+        // Enviar al cliente de regreso a la cartelera
+        if (typeof enviarRegresarCartelera === 'function') {
+            enviarRegresarCartelera();
+        }
+
+        // Si hay más de 1 evento, preguntar al vendedor si quiere regresar al menú
+        const totalEventos = typeof TOTAL_EVENTOS !== 'undefined' ? TOTAL_EVENTOS : 1;
+        if (totalEventos > 1) {
+            setTimeout(() => {
+                if (confirm('¿Desea regresar al menú principal para seleccionar otro evento?')) {
+                    window.location.href = 'index.php';
+                }
+            }, 300);
+        }
     });
 }
 
@@ -703,7 +750,7 @@ function descargarTodosBoletos() {
 
     // Crear string con todos los códigos separados por comas
     const codigos = window.boletosActuales.map(b => b.codigo_unico).join(',');
-    
+
     // Abrir el PDF con todos los boletos
     window.open(`descargar_todos_boletos.php?codigos=${codigos}`, '_blank');
 }
@@ -714,14 +761,14 @@ function imprimirTodosBoletos() {
         notify.warning('No hay boletos para imprimir');
         return;
     }
-    
+
     // Abrir cada boleto en una nueva ventana con un pequeño delay para evitar bloqueos del navegador
     window.boletosActuales.forEach((boleto, index) => {
         setTimeout(() => {
             window.open(`imprimir_boleto.php?codigo=${boleto.codigo_unico}`, '_blank');
         }, index * 300); // Delay de 300ms entre cada ventana
     });
-    
+
     notify.info(`Se abrirán ${window.boletosActuales.length} ventana(s) para imprimir los boletos.`);
 }
 
@@ -736,7 +783,7 @@ function enviarTodosBoletosPorWhatsApp() {
         notify.warning('No hay boletos para enviar');
         return;
     }
-    
+
     const codigos = window.boletosActuales.map(b => b.codigo_unico);
     abrirWhatsAppWeb(codigos, true);
 }
@@ -774,16 +821,16 @@ async function abrirWhatsAppWeb(codigosBoletos, esMultiple) {
     }
 
     const textoBoleto = esMultiple ? 'boletos' : 'boleto';
-    
+
     // Obtener información del evento y boletos
     let infoEvento = null;
     let asientosLista = [];
-    
+
     try {
         const codigosStr = codigosBoletos.join(',');
         const response = await fetch(`obtener_info_boletos.php?codigos=${codigosStr}`);
         const data = await response.json();
-        
+
         if (data.success) {
             infoEvento = data.evento;
             asientosLista = data.asientos;
@@ -791,14 +838,14 @@ async function abrirWhatsAppWeb(codigosBoletos, esMultiple) {
     } catch (error) {
         console.error('Error al obtener información de boletos:', error);
     }
-    
+
     // Crear opciones de código de país
     let opcionesPais = '';
     CODIGOS_PAIS.forEach(pais => {
         const selected = pais.codigo === '52' ? 'selected' : '';
         opcionesPais += `<option value="${pais.codigo}" ${selected}>${pais.pais}</option>`;
     });
-    
+
     const modalHTML = `
         <div class="modal fade" id="modalWhatsApp" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
@@ -869,7 +916,7 @@ async function abrirWhatsAppWeb(codigosBoletos, esMultiple) {
     `;
 
     document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
+
     // Guardar códigos de boletos y información en el modal para usarlos después
     const modal = document.getElementById('modalWhatsApp');
     modal.dataset.codigos = JSON.stringify(codigosBoletos);
@@ -878,31 +925,31 @@ async function abrirWhatsAppWeb(codigosBoletos, esMultiple) {
         modal.dataset.evento = JSON.stringify(infoEvento);
         modal.dataset.asientos = JSON.stringify(asientosLista);
     }
-    
+
     // Actualizar el display del código de país cuando cambia el select
     const selectCodigoPais = document.getElementById('codigoPais');
     const displayCodigoPais = document.getElementById('codigoPaisDisplay');
-    
-    selectCodigoPais.addEventListener('change', function() {
+
+    selectCodigoPais.addEventListener('change', function () {
         displayCodigoPais.textContent = '+' + this.value;
     });
-    
+
     // Mostrar modal
     const bootstrapModal = new bootstrap.Modal(modal);
     bootstrapModal.show();
-    
+
     // Enfocar el input después de que se muestre el modal
     modal.addEventListener('shown.bs.modal', function () {
         document.getElementById('telefonoWhatsApp').focus();
     });
-    
+
     // Permitir enviar con Enter
-    document.getElementById('telefonoWhatsApp').addEventListener('keypress', function(e) {
+    document.getElementById('telefonoWhatsApp').addEventListener('keypress', function (e) {
         if (e.key === 'Enter') {
             confirmarAbrirWhatsApp();
         }
     });
-    
+
     // Limpiar al cerrar
     modal.addEventListener('hidden.bs.modal', function () {
         this.remove();
@@ -915,23 +962,23 @@ function confirmarAbrirWhatsApp() {
     const selectCodigoPais = document.getElementById('codigoPais');
     const telefono = inputTelefono.value.trim().replace(/[^0-9]/g, '');
     const codigoPais = selectCodigoPais.value;
-    
+
     if (!telefono) {
         notify.error('Por favor ingresa un número de teléfono');
         inputTelefono.focus();
         return;
     }
-    
+
     if (telefono.length < 8) {
         notify.error('El número de teléfono es muy corto');
         inputTelefono.focus();
         return;
     }
-    
+
     const modal = document.getElementById('modalWhatsApp');
     const codigosBoletos = JSON.parse(modal.dataset.codigos);
     const esMultiple = modal.dataset.esMultiple === 'true';
-    
+
     // Obtener información del evento si está disponible
     let infoEvento = null;
     let asientosLista = [];
@@ -939,24 +986,24 @@ function confirmarAbrirWhatsApp() {
         infoEvento = JSON.parse(modal.dataset.evento);
         asientosLista = JSON.parse(modal.dataset.asientos);
     }
-    
+
     // Construir mensaje detallado
     let mensaje = 'Hola! Te envío tu';
     const textoBoleto = esMultiple ? 'boletos' : 'boleto';
     mensaje += ` ${textoBoleto} de entrada`;
-    
+
     if (infoEvento) {
         mensaje += ` para:\n\n`;
         mensaje += `🎭 *${infoEvento.titulo}*`;
-        
+
         if (infoEvento.fecha) {
             mensaje += `\n📅 Fecha: ${infoEvento.fecha}`;
         }
-        
+
         if (infoEvento.hora) {
             mensaje += `\n🕐 Hora: ${infoEvento.hora}`;
         }
-        
+
         mensaje += `\n🎫 Asiento${esMultiple ? 's' : ''}: `;
         if (asientosLista.length > 0) {
             if (asientosLista.length === 1) {
@@ -965,27 +1012,27 @@ function confirmarAbrirWhatsApp() {
                 mensaje += asientosLista.join(', ');
             }
         }
-        
+
         mensaje += `\n\n¡Nos vemos en el evento! 🎉`;
     } else {
         mensaje += '.';
     }
-    
+
     // Codificar mensaje para URL
     const mensajeCodificado = encodeURIComponent(mensaje);
-    
+
     // Construir número completo (código de país + número, sin el +)
     const numeroCompleto = codigoPais + telefono;
-    
+
     // Construir URL de WhatsApp
     const urlWhatsApp = `https://api.whatsapp.com/send/?phone=${numeroCompleto}&text=${mensajeCodificado}&type=phone_number&app_absent=0`;
-    
+
     // Descargar PDF del boleto(s) automáticamente
     if (esMultiple && codigosBoletos.length > 1) {
         // Descargar todos los boletos en un solo PDF
         const codigosStr = codigosBoletos.join(',');
         const urlDescargar = `descargar_todos_boletos.php?codigos=${codigosStr}`;
-        
+
         // Crear un enlace temporal para descargar
         const linkDescarga = document.createElement('a');
         linkDescarga.href = urlDescargar;
@@ -993,7 +1040,7 @@ function confirmarAbrirWhatsApp() {
         linkDescarga.style.display = 'none';
         document.body.appendChild(linkDescarga);
         linkDescarga.click();
-        
+
         // Remover el enlace después de un momento
         setTimeout(() => {
             document.body.removeChild(linkDescarga);
@@ -1001,7 +1048,7 @@ function confirmarAbrirWhatsApp() {
     } else {
         // Descargar un solo boleto
         const urlDescargar = `descargar_boleto.php?codigo=${codigosBoletos[0]}`;
-        
+
         // Crear un enlace temporal para descargar
         const linkDescarga = document.createElement('a');
         linkDescarga.href = urlDescargar;
@@ -1009,21 +1056,21 @@ function confirmarAbrirWhatsApp() {
         linkDescarga.style.display = 'none';
         document.body.appendChild(linkDescarga);
         linkDescarga.click();
-        
+
         // Remover el enlace después de un momento
         setTimeout(() => {
             document.body.removeChild(linkDescarga);
         }, 1000);
     }
-    
+
     // Cerrar modal
     const bootstrapModal = bootstrap.Modal.getInstance(modal);
     bootstrapModal.hide();
-    
+
     // Abrir WhatsApp en nueva ventana después de un pequeño delay para que la descarga inicie
     setTimeout(() => {
         window.open(urlWhatsApp, '_blank');
-        
+
         // Mostrar notificación
         notify.success('PDF descargado y WhatsApp Web abierto. Puedes adjuntar el PDF desde el chat.');
     }, 500);
@@ -1033,11 +1080,11 @@ function confirmarAbrirWhatsApp() {
 function actualizarEstadisticas() {
     const statAsientos = document.getElementById('statAsientos');
     const statTotal = document.getElementById('statTotal');
-    
+
     if (statAsientos) {
         statAsientos.textContent = carrito.length;
     }
-    
+
     if (statTotal) {
         const totalElement = document.getElementById('totalCompra');
         if (totalElement) {
@@ -1052,25 +1099,25 @@ function limpiarSeleccion() {
         notify.info('No hay asientos seleccionados');
         return;
     }
-    
+
     const cantidad = carrito.length;
-    
+
     // Remover clase selected de todos los asientos
     document.querySelectorAll('.seat.selected').forEach(seat => {
         seat.classList.remove('selected');
     });
-    
+
     // Limpiar carrito
     carrito = [];
     ultimoAsientoSeleccionado = null;
-    
+
     // Limpiar descuento
     descuentoSeleccionado = null;
     const selectDescuento = document.getElementById('selectDescuento');
     if (selectDescuento) selectDescuento.value = '';
     const descuentoInfo = document.getElementById('descuentoInfo');
     if (descuentoInfo) descuentoInfo.textContent = '';
-    
+
     actualizarCarrito();
     notify.success(`${cantidad} asiento(s) deseleccionado(s)`);
 }
@@ -1078,16 +1125,16 @@ function limpiarSeleccion() {
 // Función para seleccionar rango de asientos (Ctrl + Click)
 function seleccionarRango(asientoActual) {
     if (!ultimoAsientoSeleccionado) return;
-    
+
     const todosAsientos = Array.from(document.querySelectorAll('.seat'));
     const indexUltimo = todosAsientos.findIndex(s => s.dataset.asientoId === ultimoAsientoSeleccionado);
     const indexActual = todosAsientos.findIndex(s => s.dataset.asientoId === asientoActual);
-    
+
     if (indexUltimo === -1 || indexActual === -1) return;
-    
+
     const inicio = Math.min(indexUltimo, indexActual);
     const fin = Math.max(indexUltimo, indexActual);
-    
+
     let seleccionados = 0;
     for (let i = inicio; i <= fin; i++) {
         const seat = todosAsientos[i];
@@ -1100,7 +1147,7 @@ function seleccionarRango(asientoActual) {
             }
         }
     }
-    
+
     if (seleccionados > 0) {
         notify.success(`${seleccionados} asiento(s) seleccionado(s)`);
     }
@@ -1110,7 +1157,7 @@ function seleccionarRango(asientoActual) {
 function seleccionarFila(filaLabel) {
     const asientosFila = document.querySelectorAll(`.seat[data-asiento-id^="${filaLabel}"]`);
     let seleccionados = 0;
-    
+
     asientosFila.forEach(seat => {
         if (!seat.classList.contains('vendido') && !seat.classList.contains('selected')) {
             const asientoId = seat.dataset.asientoId;
@@ -1121,7 +1168,7 @@ function seleccionarFila(filaLabel) {
             }
         }
     });
-    
+
     if (seleccionados > 0) {
         notify.success(`${seleccionados} asiento(s) de la fila ${filaLabel} seleccionado(s)`);
     } else {
@@ -1133,14 +1180,14 @@ function seleccionarFila(filaLabel) {
 function deseleccionarFila(filaLabel) {
     const asientosFila = document.querySelectorAll(`.seat[data-asiento-id^="${filaLabel}"].selected`);
     let deseleccionados = 0;
-    
+
     asientosFila.forEach(seat => {
         const asientoId = seat.dataset.asientoId;
         removerDelCarrito(asientoId);
         seat.classList.remove('selected');
         deseleccionados++;
     });
-    
+
     if (deseleccionados > 0) {
         notify.info(`${deseleccionados} asiento(s) de la fila ${filaLabel} deseleccionado(s)`);
     }
@@ -1150,7 +1197,7 @@ function deseleccionarFila(filaLabel) {
 function toggleModoSeleccionMultiple() {
     modoSeleccionMultiple = !modoSeleccionMultiple;
     const btn = document.getElementById('btnModoMultiple');
-    
+
     if (modoSeleccionMultiple) {
         btn.classList.remove('btn-outline-primary');
         btn.classList.add('btn-primary');
@@ -1167,16 +1214,17 @@ function toggleModoSeleccionMultiple() {
 // Función removida por preferencia del usuario
 // function seleccionarNAsientos() { ... }
 
-// Inicializar al cargar la página
-document.addEventListener('DOMContentLoaded', () => {
-    cargarAsientosVendidos();
-    cargarDescuentos();
-
+// Función para inicializar event listeners de los asientos (reutilizable)
+function inicializarEventListenersAsientos() {
     // Modificar el comportamiento de click en los asientos
     document.querySelectorAll('.seat').forEach(seat => {
-        seat.addEventListener('click', (e) => {
-            const asientoId = seat.dataset.asientoId;
-            const categoriaId = seat.dataset.categoriaId;
+        // Remover listeners previos clonando el elemento
+        const nuevoSeat = seat.cloneNode(true);
+        seat.parentNode.replaceChild(nuevoSeat, seat);
+
+        nuevoSeat.addEventListener('click', (e) => {
+            const asientoId = nuevoSeat.dataset.asientoId;
+            const categoriaId = nuevoSeat.dataset.categoriaId;
 
             // Selección por rango con Ctrl
             if (e.ctrlKey && ultimoAsientoSeleccionado) {
@@ -1186,14 +1234,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Si ya está seleccionado, remover
-            if (seat.classList.contains('selected')) {
+            if (nuevoSeat.classList.contains('selected')) {
                 removerDelCarrito(asientoId);
-                seat.classList.remove('selected');
+                nuevoSeat.classList.remove('selected');
                 ultimoAsientoSeleccionado = null;
-            } else if (!seat.classList.contains('vendido')) {
+            } else if (!nuevoSeat.classList.contains('vendido')) {
                 // Si no está vendido, agregar
                 if (agregarAlCarrito(asientoId, categoriaId)) {
-                    seat.classList.add('selected');
+                    nuevoSeat.classList.add('selected');
                     ultimoAsientoSeleccionado = asientoId;
                 }
             }
@@ -1201,18 +1249,18 @@ document.addEventListener('DOMContentLoaded', () => {
             // Prevenir que se abra el modal de información
             e.stopPropagation();
         });
-        
+
         // Agregar doble click para seleccionar fila completa
-        seat.addEventListener('dblclick', (e) => {
+        nuevoSeat.addEventListener('dblclick', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            
-            const asientoId = seat.dataset.asientoId;
+
+            const asientoId = nuevoSeat.dataset.asientoId;
             // Extraer la fila del código de asiento
             const filaMatch = asientoId.match(/^([A-Z]+\d*)/);
             if (filaMatch) {
                 const fila = filaMatch[1];
-                if (seat.classList.contains('selected')) {
+                if (nuevoSeat.classList.contains('selected')) {
                     deseleccionarFila(fila);
                 } else {
                     seleccionarFila(fila);
@@ -1220,18 +1268,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
-    
+
     // Agregar botones de selección rápida a las etiquetas de fila
     document.querySelectorAll('.row-label').forEach(label => {
         const fila = label.textContent.trim();
         if (fila) {
             label.style.cursor = 'pointer';
             label.title = `Doble click para seleccionar toda la fila ${fila}`;
-            
-            label.addEventListener('dblclick', (e) => {
+
+            // Clonar para remover listeners previos
+            const nuevoLabel = label.cloneNode(true);
+            label.parentNode.replaceChild(nuevoLabel, label);
+
+            nuevoLabel.addEventListener('dblclick', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 // Verificar si hay asientos seleccionados en esta fila
                 const asientosFila = document.querySelectorAll(`.seat[data-asiento-id^="${fila}"].selected`);
                 if (asientosFila.length > 0) {
@@ -1242,9 +1294,21 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     });
-    
+
     // Inicializar estadísticas
     actualizarEstadisticas();
+
+    console.log('Event listeners de asientos inicializados');
+}
+
+// Exponer la función globalmente
+window.inicializarEventListenersAsientos = inicializarEventListenersAsientos;
+
+// Inicializar al cargar la página
+document.addEventListener('DOMContentLoaded', () => {
+    cargarAsientosVendidos();
+    cargarDescuentos();
+    inicializarEventListenersAsientos();
 });
 
 // Función para mostrar/ocultar botones de acciones según el estado del carrito
@@ -1253,7 +1317,7 @@ function mostrarBotonesAcciones(mostrar) {
     const btnEscanerQR = document.querySelector('.acciones-rapidas .btn-primary');
     const btnCancelarBoleto = document.querySelector('.acciones-rapidas .btn-danger');
     const btnCategorias = document.querySelector('.acciones-rapidas .btn-warning');
-    
+
     if (mostrar) {
         // Mostrar los botones
         if (btnEscanerQR) btnEscanerQR.style.display = '';
