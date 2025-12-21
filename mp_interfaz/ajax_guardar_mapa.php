@@ -1,6 +1,7 @@
 <?php
 // 1. CONEXIÓN
 include "../evt_interfaz/conexion.php"; // Asegúrate que esta ruta sea correcta
+require_once __DIR__ . "/../api/registrar_cambio.php";
 
 header('Content-Type: application/json');
 $response = ['status' => 'error', 'message' => 'Solicitud no válida.'];
@@ -38,6 +39,9 @@ if ($data && isset($data['id_evento']) && isset($data['mapa'])) {
         $response['message'] = 'Mapa guardado con éxito.';
         $response['notify_change'] = true;
         $response['id_evento'] = $id_evento;
+        
+        // Notificar cambio para auto-actualización en tiempo real
+        registrar_cambio('mapa', $id_evento, null, ['asientos_configurados' => count($mapa_para_json)]);
     } else {
         $response['message'] = 'Error al guardar en la base de datos.';
     }

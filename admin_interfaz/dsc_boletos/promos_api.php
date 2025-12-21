@@ -4,6 +4,7 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 session_start();
 require_once __DIR__ . '/../../transacciones_helper.php';
+require_once __DIR__ . '/../../api/registrar_cambio.php';
 
 // Conexión
 include_once __DIR__ . '/../../evt_interfaz/conexion.php';
@@ -92,6 +93,13 @@ function buildPromoFromPayload($src){
     $hasta_raw    = (string)($src['hasta'] ?? '');
 
     $condiciones  = trim((string)($src['condiciones'] ?? ''));
+    
+    // tipo_boleto_aplicable - guardar en condiciones con prefijo especial
+    $tipo_boleto_aplicable = trim((string)($src['tipo_boleto_aplicable'] ?? ''));
+    if ($tipo_boleto_aplicable !== '') {
+        // Agregar prefijo para identificar el tipo de boleto aplicable
+        $condiciones = 'TIPO_BOLETO:' . $tipo_boleto_aplicable . ($condiciones ? '|' . $condiciones : '');
+    }
 
     // tipo_boleto se usa SOLO al crear para armar el nombre
     $tipo_boleto  = trim((string)($src['tipo_boleto'] ?? ''));
@@ -259,6 +267,9 @@ if($action==='create'){
         $id_promo = $stmt->insert_id;
         registrar_transaccion('promocion_crear', 'Creó promoción ID ' . $id_promo . ' para evento ID ' . ($f['id_evento'] ?? 'global'));
         
+        // Notificar cambio en BD para SSE
+        registrar_cambio('descuento', $f['id_evento'], null, ['id_promocion' => $id_promo, 'accion' => 'crear']);
+        
         // Notificar cambio en descuentos
         if ($f['id_evento']) {
             echo json_encode([
@@ -360,6 +371,9 @@ if($action==='update'){
         );
         $stmt->execute();
         registrar_transaccion('promocion_actualizar', 'Actualizó promoción ID ' . $id);
+        
+        // Notificar cambio en BD para SSE
+        registrar_cambio('descuento', $f['id_evento'], null, ['id_promocion' => $id, 'accion' => 'actualizar']);
         
         // Notificar cambio en descuentos
         if ($f['id_evento']) {

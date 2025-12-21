@@ -63,7 +63,8 @@ $conn->close();
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mapeador de Asientos</title>
+<meta name="description" content="Sistema de mapeado de asientos por categorías para eventos del teatro">
+<title>Mapeador de Asientos - Teatro</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
@@ -119,10 +120,147 @@ $conn->close();
         padding: 2px; box-sizing: border-box; text-align: center; line-height: 1;
         will-change: transform; box-shadow: var(--shadow-sm);
     }
-    .seat:hover { 
+    .seat:hover, .seat:focus { 
         transform: translateY(-2px) scale(1.05); 
         box-shadow: var(--shadow-md); 
-        border-color: var(--primary-color); 
+        border-color: var(--primary-color);
+        outline: none;
+    }
+    .seat:focus-visible {
+        outline: 3px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+    .row-label:focus-visible {
+        outline: 3px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+    /* Skip Link */
+    .skip-link {
+        position: absolute; top: -50px; left: 10px;
+        background: var(--primary-color); color: white; padding: 10px 20px;
+        border-radius: var(--radius-sm); z-index: 10000; text-decoration: none;
+    }
+    .skip-link:focus { top: 10px; }
+    /* Live region */
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+
+    /* === PREVISUALIZACIÓN DE SELECCIÓN === */
+    .seat.preview-selection {
+        animation: pulseGlow 1s ease-in-out infinite;
+        position: relative;
+        z-index: 50;
+    }
+    .seat.preview-selection::before {
+        content: '';
+        position: absolute;
+        inset: -4px;
+        border-radius: 12px;
+        background: linear-gradient(45deg, var(--preview-color, #fbbf24), #f59e0b, var(--preview-color, #fbbf24));
+        opacity: 0.6;
+        z-index: -1;
+        animation: rotateBorder 2s linear infinite;
+    }
+    @keyframes pulseGlow {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7); }
+        50% { transform: scale(1.08); box-shadow: 0 0 20px 5px rgba(251, 191, 36, 0.5); }
+    }
+    @keyframes rotateBorder {
+        0% { filter: hue-rotate(0deg); }
+        100% { filter: hue-rotate(360deg); }
+    }
+
+    /* Barra de confirmación flotante */
+    .selection-confirm-bar {
+        position: fixed;
+        bottom: -100px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        color: white;
+        padding: 16px 24px;
+        border-radius: var(--radius-lg);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        z-index: 1000;
+        transition: bottom 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    .selection-confirm-bar.visible {
+        bottom: 30px;
+    }
+    .selection-confirm-bar .info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .selection-confirm-bar .info .icon {
+        width: 44px; height: 44px;
+        background: linear-gradient(135deg, #fbbf24, #f59e0b);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+    }
+    .selection-confirm-bar .info .text {
+        display: flex;
+        flex-direction: column;
+    }
+    .selection-confirm-bar .info .text .title {
+        font-weight: 700;
+        font-size: 1rem;
+    }
+    .selection-confirm-bar .info .text .subtitle {
+        font-size: 0.85rem;
+        opacity: 0.8;
+    }
+    .selection-confirm-bar .actions {
+        display: flex;
+        gap: 10px;
+    }
+    .selection-confirm-bar .btn-confirm {
+        background: linear-gradient(135deg, var(--success-color), #059669);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .selection-confirm-bar .btn-confirm:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+    }
+    .selection-confirm-bar .btn-cancel {
+        background: rgba(255,255,255,0.1);
+        color: white;
+        border: 1px solid rgba(255,255,255,0.2);
+        padding: 12px 20px;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .selection-confirm-bar .btn-cancel:hover {
+        background: rgba(239, 68, 68, 0.8);
+        border-color: transparent;
+    }
+    .selection-confirm-bar .preview-color-dot {
+        width: 24px; height: 24px;
+        border-radius: 6px;
+        border: 2px solid rgba(255,255,255,0.3);
     }
     
     .seat-row-wrapper {
@@ -242,44 +380,69 @@ $conn->close();
 </style>
 </head>
 <body>
+<a href="#seatMapContent" class="skip-link">Ir al mapa de asientos</a>
+<div id="liveAnnouncer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
-<div id="loading-overlay" class="d-none">
-    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+<div id="loading-overlay" class="d-none" role="status" aria-label="Cargando">
+    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" aria-hidden="true"></div>
+    <span class="sr-only">Cargando, por favor espere...</span>
 </div>
 
-<div class="container-fluid">
+<!-- Barra de confirmación para selección de rango -->
+<div class="selection-confirm-bar" id="selectionConfirmBar" role="alertdialog" aria-labelledby="confirmBarTitle" aria-describedby="confirmBarDesc">
+    <div class="info">
+        <div class="icon">
+            <i class="bi bi-check2-all" aria-hidden="true"></i>
+        </div>
+        <div class="text">
+            <span class="title" id="confirmBarTitle">Previsualización de selección</span>
+            <span class="subtitle" id="confirmBarDesc"><span id="seatCount">0</span> asientos serán pintados</span>
+        </div>
+    </div>
+    <div class="actions">
+        <div class="preview-color-dot" id="previewColorDot" title="Color a aplicar"></div>
+        <button type="button" class="btn-confirm" id="btnConfirmSelection" aria-label="Confirmar selección">
+            <i class="bi bi-check-lg" aria-hidden="true"></i> Aplicar
+        </button>
+        <button type="button" class="btn-cancel" id="btnCancelSelection" aria-label="Cancelar selección">
+            <i class="bi bi-x-lg" aria-hidden="true"></i> Cancelar
+        </button>
+    </div>
+</div>
+
+<div class="container-fluid" role="main">
     
-    <button class="toggle-sidebar-btn" id="btnToggleSidebar" title="Alternar Panel">
-        <i class="bi bi-layout-sidebar-inset-reverse"></i>
+    <button class="toggle-sidebar-btn" id="btnToggleSidebar" title="Alternar Panel" aria-label="Alternar panel lateral" aria-expanded="true" aria-controls="sidebarPanel">
+        <i class="bi bi-layout-sidebar-inset-reverse" aria-hidden="true"></i>
     </button>
 
     <div class="mapper-container">
         <?php if ($evento_info): ?>
         <div class="seat-map-wrapper">
             <div class="seat-map-content" id="seatMapContent">
-                <div class="screen"><?= ($evento_info['tipo']==1)?'ESCENARIO PRINCIPAL':'PASARELA 360°' ?></div>
+                <div class="screen" role="img" aria-label="<?= ($evento_info['tipo']==1)?'Escenario Principal':'Pasarela 360 grados' ?>"><?= ($evento_info['tipo']==1)?'ESCENARIO PRINCIPAL':'PASARELA 360°' ?></div>
                 
                 <div style="position: relative; margin: 0 auto; width: fit-content;">
                     
                     <?php if ($evento_info['tipo'] == 2): /* PASARELA */ ?>
                         <div style="position: relative; display: flex; flex-direction: column;">
                         <?php for ($f=1; $f<=10; $f++): $nom="PB".$f; $n=1; ?>
-                        <div class="seat-row-wrapper">
-                            <div class="row-label" data-row="<?= $nom ?>"><?= $nom ?></div>
-                            <div class="seats-block">
+                        <div class="seat-row-wrapper" role="row">
+                            <div class="row-label" data-row="<?= $nom ?>" tabindex="0" role="button" aria-label="Seleccionar fila <?= $nom ?> completa"><?= $nom ?></div>
+                            <div class="seats-block" role="group" aria-label="Bloque izquierdo fila <?= $nom ?>">
                                 <?php for($i=1;$i<=6;$i++): $na=$nom.'-'.$n++; $ic=$mapa_guardado[$na]??0; ?>
                                 <div class="seat" style="background-color:<?= $colores_por_id[$ic]??'#e2e8f0' ?>" 
-                                     data-id="<?= $na ?>" data-cat="<?= $ic ?>"><?= $na ?></div>
+                                     data-id="<?= $na ?>" data-cat="<?= $ic ?>" tabindex="0" role="button" aria-label="Asiento <?= $na ?>"><?= $na ?></div>
                                 <?php endfor; ?>
                             </div>
                             <div style="width: 140px; flex-shrink:0;"></div>
-                            <div class="seats-block">
+                            <div class="seats-block" role="group" aria-label="Bloque derecho fila <?= $nom ?>">
                                 <?php for($i=1;$i<=6;$i++): $na=$nom.'-'.$n++; $ic=$mapa_guardado[$na]??0; ?>
                                 <div class="seat" style="background-color:<?= $colores_por_id[$ic]??'#e2e8f0' ?>" 
-                                     data-id="<?= $na ?>" data-cat="<?= $ic ?>"><?= $na ?></div>
+                                     data-id="<?= $na ?>" data-cat="<?= $ic ?>" tabindex="0" role="button" aria-label="Asiento <?= $na ?>"><?= $na ?></div>
                                 <?php endfor; ?>
                             </div>
-                            <div class="row-label" data-row="<?= $nom ?>"><?= $nom ?></div>
+                            <div class="row-label" data-row="<?= $nom ?>" tabindex="0" role="button" aria-label="Seleccionar fila <?= $nom ?> completa"><?= $nom ?></div>
                         </div>
                         <?php endfor; ?>
                         
@@ -292,35 +455,35 @@ $conn->close();
                     <?php endif; ?>
 
                     <?php foreach (range('A','O') as $fila): $n=1; ?>
-                    <div class="seat-row-wrapper">
-                        <div class="row-label" data-row="<?= $fila ?>"><?= $fila ?></div>
+                    <div class="seat-row-wrapper" role="row">
+                        <div class="row-label" data-row="<?= $fila ?>" tabindex="0" role="button" aria-label="Seleccionar fila <?= $fila ?> completa"><?= $fila ?></div>
                         <div class="seats-block">
                             <?php 
                             for($i=0;$i<6;$i++): $na=$fila.$n++; $ic=$mapa_guardado[$na]??0;
-                                echo "<div class='seat' style='background-color:".($colores_por_id[$ic]??'#e2e8f0')."' data-id='$na' data-cat='$ic'>$na</div>";
+                                echo "<div class='seat' style='background-color:".($colores_por_id[$ic]??'#e2e8f0')."' data-id='$na' data-cat='$ic' tabindex='0' role='button' aria-label='Asiento $na'>$na</div>";
                             endfor;
-                            echo '<div class="aisle"></div>';
+                            echo '<div class="aisle" aria-hidden="true"></div>';
                             for($i=0;$i<14;$i++): $na=$fila.$n++; $ic=$mapa_guardado[$na]??0;
-                                echo "<div class='seat' style='background-color:".($colores_por_id[$ic]??'#e2e8f0')."' data-id='$na' data-cat='$ic'>$na</div>";
+                                echo "<div class='seat' style='background-color:".($colores_por_id[$ic]??'#e2e8f0')."' data-id='$na' data-cat='$ic' tabindex='0' role='button' aria-label='Asiento $na'>$na</div>";
                             endfor;
-                            echo '<div class="aisle"></div>';
+                            echo '<div class="aisle" aria-hidden="true"></div>';
                             for($i=0;$i<6;$i++): $na=$fila.$n++; $ic=$mapa_guardado[$na]??0;
-                                echo "<div class='seat' style='background-color:".($colores_por_id[$ic]??'#e2e8f0')."' data-id='$na' data-cat='$ic'>$na</div>";
+                                echo "<div class='seat' style='background-color:".($colores_por_id[$ic]??'#e2e8f0')."' data-id='$na' data-cat='$ic' tabindex='0' role='button' aria-label='Asiento $na'>$na</div>";
                             endfor;
                             ?>
                         </div>
-                        <div class="row-label" data-row="<?= $fila ?>"><?= $fila ?></div>
+                        <div class="row-label" data-row="<?= $fila ?>" tabindex="0" role="button" aria-label="Seleccionar fila <?= $fila ?> completa"><?= $fila ?></div>
                     </div>
                     <?php endforeach; ?>
                     
-                    <div class="seat-row-wrapper">
-                        <div class="row-label" data-row="P">P</div>
-                        <div class="seats-block">
+                    <div class="seat-row-wrapper" role="row">
+                        <div class="row-label" data-row="P" data-exact="true" tabindex="0" role="button" aria-label="Seleccionar fila P completa">P</div>
+                        <div class="seats-block" role="group" aria-label="Fila P">
                             <?php $n=1; for($i=0;$i<30;$i++): $na='P'.$n++; $ic=$mapa_guardado[$na]??0; ?>
-                            <div class="seat" style="background-color:<?= $colores_por_id[$ic]??'#e2e8f0' ?>" data-id="<?= $na ?>" data-cat="<?= $ic ?>"><?= $na ?></div>
+                            <div class="seat" style="background-color:<?= $colores_por_id[$ic]??'#e2e8f0' ?>" data-id="<?= $na ?>" data-cat="<?= $ic ?>" tabindex="0" role="button" aria-label="Asiento <?= $na ?>"><?= $na ?></div>
                             <?php endfor; ?>
                         </div>
-                        <div class="row-label" data-row="P">P</div>
+                        <div class="row-label" data-row="P" data-exact="true" tabindex="0" role="button" aria-label="Seleccionar fila P completa">P</div>
                     </div>
 
                 </div>
@@ -336,9 +499,9 @@ $conn->close();
         <?php endif; ?>
     </div>
 
-    <div class="sidebar card" id="sidebarPanel">
+    <aside class="sidebar card" id="sidebarPanel" role="complementary" aria-label="Panel de herramientas">
         <div class="palette-header">
-            <h4 class="m-0 fw-bold text-primary"><i class="bi bi-palette2 me-2"></i>Mapeador</h4>
+            <h1 class="m-0 fw-bold text-primary" style="font-size: 1.5rem;"><i class="bi bi-palette2 me-2" aria-hidden="true"></i>Mapeador</h1>
         </div>
         
         <div class="palette-body">
@@ -361,23 +524,26 @@ $conn->close();
                 <div class="fw-bold mb-2"><i class="bi bi-keyboard me-2"></i>Atajos de Teclado</div>
                 <ul class="m-0 ps-3">
                     <li><strong>Click:</strong> Pintar un asiento.</li>
-                    <li><strong>Ctrl + Click:</strong> Pintar rango desde el último.</li>
+                    <li><strong>Ctrl + Click:</strong> Previsualizar rango.</li>
+                    <li><strong>Enter:</strong> Confirmar selección de rango.</li>
+                    <li><strong>Escape:</strong> Cancelar selección.</li>
                     <li><strong>Click en Letra:</strong> Pintar fila completa.</li>
                 </ul>
             </div>
 
-            <h6 class="fw-bold small text-uppercase text-secondary mb-3 ls-1">Categorías</h6>
-            <div id="paletteContainer">
-                <div class="palette-item" data-color="#e2e8f0" data-cat-id="0">
-                    <div class="color-dot" style="background:#e2e8f0; border: 2px solid #cbd5e1;"></div>
+            <h2 class="fw-bold small text-uppercase text-secondary mb-3 ls-1" style="font-size: 0.875rem;">Categorías</h2>
+            <div id="paletteContainer" role="listbox" aria-label="Seleccionar categoría de asiento">
+                <div class="palette-item" data-color="#e2e8f0" data-cat-id="0" role="option" tabindex="0" aria-selected="false">
+                    <div class="color-dot" style="background:#e2e8f0; border: 2px solid #cbd5e1;" aria-hidden="true"></div>
                     <div class="palette-info text-secondary">Sin Asignar / Borrar</div>
                 </div>
 
-                <?php foreach ($categorias_palette as $c): ?>
-                <div class="palette-item <?= (strtolower($c['nombre_categoria'])==='general') ? 'active' : '' ?>" 
+                <?php foreach ($categorias_palette as $c): $isGeneral = strtolower($c['nombre_categoria'])==='general'; ?>
+                <div class="palette-item <?= $isGeneral ? 'active' : '' ?>" 
                      data-color="<?= htmlspecialchars($c['color']) ?>" 
-                     data-cat-id="<?= $c['id_categoria'] ?>">
-                    <div class="color-dot" style="background:<?= htmlspecialchars($c['color']) ?>"></div>
+                     data-cat-id="<?= $c['id_categoria'] ?>"
+                     role="option" tabindex="0" aria-selected="<?= $isGeneral ? 'true' : 'false' ?>">
+                    <div class="color-dot" style="background:<?= htmlspecialchars($c['color']) ?>" aria-hidden="true"></div>
                     <div class="palette-info"><?= htmlspecialchars($c['nombre_categoria']) ?></div>
                     <span class="badge bg-light text-dark border">$<?= number_format($c['precio'],0) ?></span>
                 </div>
@@ -396,15 +562,15 @@ $conn->close();
             </button>
         </div>
         <?php endif; ?>
-    </div>
+    </aside>
 </div>
 
-<div class="modal fade" id="modalNuevaCategoria" tabindex="-1">
+<div class="modal fade" id="modalNuevaCategoria" tabindex="-1" role="dialog" aria-labelledby="modalNuevaCategoriaLabel" aria-modal="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header border-bottom-0 pb-0">
-                <h5 class="modal-title fw-bold"><i class="bi bi-bookmark-plus-fill me-2 text-success"></i>Nueva Categoría</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h2 class="modal-title fw-bold" id="modalNuevaCategoriaLabel" style="font-size: 1.25rem;"><i class="bi bi-bookmark-plus-fill me-2 text-success" aria-hidden="true"></i>Nueva Categoría</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar modal"></button>
             </div>
             <div class="modal-body pt-4">
                 <form id="formNuevaCategoria">
@@ -438,6 +604,7 @@ $conn->close();
 
 <input type="hidden" id="current_event_id" value="<?= $id_evento_seleccionado ?>">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../vnt_interfaz/js/teatro-sync.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     
@@ -453,37 +620,209 @@ document.addEventListener('DOMContentLoaded', () => {
     const seatMapWrapper = document.querySelector('.seat-map-wrapper');
     const seatMapContent = document.getElementById('seatMapContent');
 
-    // --- 1. GESTIÓN DE PALETA ---
+    // Función para anuncios de accesibilidad
+    function announce(message) {
+        const announcer = document.getElementById('liveAnnouncer');
+        if (announcer) {
+            announcer.textContent = message;
+            setTimeout(() => announcer.textContent = '', 1000);
+        }
+    }
+
+    // --- 1. GESTIÓN DE PALETA (CON ACCESIBILIDAD) ---
     document.querySelectorAll('.palette-item').forEach(item => {
-        item.addEventListener('click', () => {
-            document.querySelectorAll('.palette-item').forEach(i => i.classList.remove('active'));
+        const selectPalette = () => {
+            document.querySelectorAll('.palette-item').forEach(i => {
+                i.classList.remove('active');
+                i.setAttribute('aria-selected', 'false');
+            });
             item.classList.add('active');
+            item.setAttribute('aria-selected', 'true');
             activeColor = item.dataset.color;
             activeCatId = item.dataset.catId;
+            const catName = item.querySelector('.palette-info')?.textContent || 'categoría';
+            announce(`Categoría seleccionada: ${catName}`);
+        };
+        item.addEventListener('click', selectPalette);
+        item.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                selectPalette();
+            }
         });
     });
 
-    // --- 2. INTERACCIÓN AVANZADA CON ASIENTOS ---
+    // --- 2. INTERACCIÓN AVANZADA CON ASIENTOS (CON PREVISUALIZACIÓN) ---
+    
+    // Estado de selección de rango
+    let pendingSelection = [];
+    let pendingColor = null;
+    let pendingCatId = null;
+    
+    // Elementos de la barra de confirmación
+    const confirmBar = document.getElementById('selectionConfirmBar');
+    const seatCountEl = document.getElementById('seatCount');
+    const previewColorDot = document.getElementById('previewColorDot');
+    const btnConfirm = document.getElementById('btnConfirmSelection');
+    const btnCancel = document.getElementById('btnCancelSelection');
+    
+    // Mostrar barra de confirmación
+    function showConfirmBar(count, color) {
+        if (confirmBar) {
+            seatCountEl.textContent = count;
+            previewColorDot.style.background = color;
+            confirmBar.classList.add('visible');
+            announce(`Previsualización: ${count} asientos seleccionados. Presiona Enter para confirmar o Escape para cancelar.`);
+        }
+    }
+    
+    // Ocultar barra de confirmación
+    function hideConfirmBar() {
+        if (confirmBar) {
+            confirmBar.classList.remove('visible');
+        }
+    }
+    
+    // Limpiar previsualización
+    function clearPreview() {
+        pendingSelection.forEach(seat => {
+            seat.classList.remove('preview-selection');
+            seat.style.removeProperty('--preview-color');
+        });
+        pendingSelection = [];
+        pendingColor = null;
+        pendingCatId = null;
+        hideConfirmBar();
+    }
+    
+    // Mostrar previsualización de rango
+    function showRangePreview(startIdx, endIdx) {
+        clearPreview(); // Limpiar previsualización anterior
+        
+        const start = Math.min(startIdx, endIdx);
+        const end = Math.max(startIdx, endIdx);
+        
+        pendingColor = activeColor;
+        pendingCatId = activeCatId;
+        
+        for (let i = start; i <= end; i++) {
+            const seat = allSeats[i];
+            if (seat.dataset.cat != activeCatId) { // Solo previsualizar los que cambiarán
+                seat.classList.add('preview-selection');
+                seat.style.setProperty('--preview-color', activeColor);
+                pendingSelection.push(seat);
+            }
+        }
+        
+        if (pendingSelection.length > 0) {
+            showConfirmBar(pendingSelection.length, activeColor);
+        } else {
+            announce('Todos los asientos ya tienen esta categoría');
+        }
+    }
+    
+    // Confirmar selección
+    function confirmSelection() {
+        if (pendingSelection.length === 0) return;
+        
+        const count = pendingSelection.length;
+        const colorToApply = pendingColor;
+        const catToApply = pendingCatId;
+        
+        // Primero limpiar la previsualización
+        pendingSelection.forEach(seat => {
+            seat.classList.remove('preview-selection');
+            seat.style.removeProperty('--preview-color');
+        });
+        
+        // Luego aplicar el color real
+        pendingSelection.forEach(seat => {
+            seat.style.backgroundColor = colorToApply;
+            seat.style.color = getContrastColor(colorToApply);
+            seat.dataset.cat = catToApply;
+            // Animación de confirmación
+            seat.animate([
+                { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(16, 185, 129, 0.7)' },
+                { transform: 'scale(1.15)', boxShadow: '0 0 20px 5px rgba(16, 185, 129, 0.5)' },
+                { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(16, 185, 129, 0)' }
+            ], { duration: 400, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' });
+        });
+        
+        announce(`¡${count} asientos pintados exitosamente!`);
+        pendingSelection = [];
+        pendingColor = null;
+        pendingCatId = null;
+        hideConfirmBar();
+    }
+    
+    // Cancelar selección
+    function cancelSelection() {
+        if (pendingSelection.length > 0) {
+            announce('Selección cancelada');
+        }
+        clearPreview();
+    }
+    
+    // Event listeners para botones de confirmación
+    btnConfirm?.addEventListener('click', confirmSelection);
+    btnCancel?.addEventListener('click', cancelSelection);
+    
+    // Teclas globales para confirmar/cancelar
+    document.addEventListener('keydown', (e) => {
+        if (pendingSelection.length > 0) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                confirmSelection();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelSelection();
+            }
+        }
+    });
+    
     allSeats.forEach((seat, index) => {
-        seat.addEventListener('click', (e) => {
-            // RANGO: Si presiona Ctrl o Shift y ya había hecho click antes
+        const handleSeatInteraction = (e) => {
+            // Si hay una selección pendiente y se hace click normal, cancelarla
+            if (pendingSelection.length > 0 && !e.ctrlKey && !e.shiftKey) {
+                clearPreview();
+            }
+            
+            // RANGO CON PREVISUALIZACIÓN: Si presiona Ctrl o Shift y ya había hecho click antes
             if ((e.ctrlKey || e.shiftKey) && lastClickedSeatIndex !== null) {
-                const start = Math.min(lastClickedSeatIndex, index);
-                const end = Math.max(lastClickedSeatIndex, index);
-                for (let i = start; i <= end; i++) {
-                    paintSeat(allSeats[i]);
-                }
+                showRangePreview(lastClickedSeatIndex, index);
             } else {
-                // CLICK NORMAL
+                // CLICK NORMAL - pintar inmediatamente
                 paintSeat(seat);
+                announce(`Asiento ${seat.dataset.id} pintado`);
             }
             lastClickedSeatIndex = index;
+        };
+        seat.addEventListener('click', handleSeatInteraction);
+        seat.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                // No prevenir default si hay selección pendiente (para que Enter confirme)
+                if (pendingSelection.length === 0) {
+                    e.preventDefault();
+                    handleSeatInteraction(e);
+                }
+            }
         });
     });
+
+    // Función para calcular contraste automático
+    function getContrastColor(hexcolor) {
+        const hex = hexcolor.replace('#', '');
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return luminance > 0.5 ? '#1e293b' : '#ffffff';
+    }
 
     function paintSeat(seatElement) {
         if (seatElement.dataset.cat == activeCatId) return; // Evitar repintar lo mismo
         seatElement.style.backgroundColor = activeColor;
+        seatElement.style.color = getContrastColor(activeColor); // Contraste automático
         seatElement.dataset.cat = activeCatId;
         // Animación visual "pop"
         seatElement.animate([
@@ -491,12 +830,35 @@ document.addEventListener('DOMContentLoaded', () => {
         ], { duration: 300, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' });
     }
 
-    // --- 3. PINTADO DE FILA COMPLETA ---
+    // --- 3. PINTADO DE FILA COMPLETA (CORREGIDO) ---
     document.querySelectorAll('.row-label').forEach(label => {
-        label.addEventListener('click', () => {
+        const handleRowSelect = () => {
             const rowName = label.dataset.row;
-            // Usar selector de atributo para mayor precisión
-            document.querySelectorAll(`.seat[data-id^="${rowName}"]`).forEach(s => paintSeat(s));
+            const isExact = label.dataset.exact === 'true';
+            // Selector corregido: para filas como 'P', solo seleccionar P1-P30, no PB1, etc.
+            const selector = isExact 
+                ? `.seat[data-id^="${rowName}"][data-id$=""]:not([data-id*="-"])`
+                : `.seat[data-id^="${rowName}"]`;
+            
+            // Filtrar correctamente los asientos de esta fila
+            const seatsInRow = allSeats.filter(s => {
+                const id = s.dataset.id;
+                if (isExact) {
+                    // Para fila P: solo P1, P2... P30 (sin guión)
+                    return id.match(new RegExp(`^${rowName}\\d+$`));
+                }
+                return id.startsWith(rowName);
+            });
+            
+            seatsInRow.forEach(s => paintSeat(s));
+            announce(`Fila ${rowName} pintada con ${seatsInRow.length} asientos`);
+        };
+        label.addEventListener('click', handleRowSelect);
+        label.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleRowSelect();
+            }
         });
     });
 
@@ -535,32 +897,68 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 5. NUEVA CATEGORÍA (AJAX) ---
+    // --- 5. NUEVA CATEGORÍA (AJAX) - Guarda el mapa primero ---
     const formCat = document.getElementById('formNuevaCategoria');
     const modalCat = new bootstrap.Modal(document.getElementById('modalNuevaCategoria'));
+    
+    // Función auxiliar para guardar el mapa (reutilizable)
+    async function saveMapData() {
+        const eventId = document.getElementById('current_event_id').value;
+        if (!eventId) return { status: 'error', message: 'No hay evento seleccionado' };
+        
+        const mapaArray = allSeats.map(s => ({ asiento: s.dataset.id, cat_id: s.dataset.cat }));
+        
+        try {
+            const res = await fetch('ajax_guardar_mapa.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id_evento: eventId, mapa: mapaArray })
+            });
+            return await res.json();
+        } catch (e) {
+            return { status: 'error', message: 'Error de conexión' };
+        }
+    }
+    
     if(formCat) {
         formCat.addEventListener('submit', async (e) => {
             e.preventDefault();
             overlay.classList.remove('d-none');
+            
             try {
+                // 1. PRIMERO guardar el mapa actual para no perder los asientos pintados
+                showToast('Guardando mapa actual...', 'info');
+                const saveResult = await saveMapData();
+                
+                if (saveResult.status !== 'success') {
+                    showToast('Advertencia: No se pudo guardar el mapa. ' + (saveResult.message || ''), 'warning');
+                    // Continuar de todos modos con la creación de categoría
+                }
+                
+                // 2. LUEGO crear la nueva categoría
                 const res = await fetch('ajax_guardar_categoria.php', { method: 'POST', body: new FormData(formCat) });
                 const data = await res.json();
+                
                 if(data.status === 'success') {
-                    window.location.reload(); // Recargar para actualizar paleta
+                    showToast('Categoría creada. Recargando página...', 'success');
+                    setTimeout(() => window.location.reload(), 500); // Pequeño delay para que se vea el toast
                 } else {
-                    alert('Error: ' + data.message);
+                    showToast('Error: ' + data.message, 'danger');
                     overlay.classList.add('d-none');
                 }
             } catch (e) {
-                alert('Error de conexión.');
+                showToast('Error de conexión.', 'danger');
                 overlay.classList.add('d-none');
             }
         });
     }
 
-    // --- UI: TOGGLE SIDEBAR & ESCALADO ---
-    document.getElementById('btnToggleSidebar')?.addEventListener('click', () => {
-        sidebar.classList.toggle('collapsed');
+    // --- UI: TOGGLE SIDEBAR & ESCALADO (CON ACCESIBILIDAD) ---
+    const btnToggle = document.getElementById('btnToggleSidebar');
+    btnToggle?.addEventListener('click', () => {
+        const isCollapsed = sidebar.classList.toggle('collapsed');
+        btnToggle.setAttribute('aria-expanded', !isCollapsed);
+        announce(isCollapsed ? 'Panel lateral oculto' : 'Panel lateral visible');
         setTimeout(escalarMapa, 350); // Reajustar mapa tras la animación
     });
 

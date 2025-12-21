@@ -4,6 +4,7 @@ session_start();
 // (Ajusta la ruta si es necesario, p.ej., ../../evt_interfaz/conexion.php)
 include "../../evt_interfaz/conexion.php"; 
 require_once '../../transacciones_helper.php';
+require_once __DIR__ . '/../../api/registrar_cambio.php';
 
 $accion = $_POST['accion'] ?? $_GET['accion'] ?? '';
 $id_evento_redirect = $_POST['id_evento'] ?? $_GET['id_evento'] ?? null;
@@ -23,9 +24,12 @@ function redirigir($base_url, $status, $mensaje, $id_evento = null) {
     
     // Notificar cambio en categorías para actualización en tiempo real
     if ($status === 'success' && $id_evento) {
+        // Registrar cambio en BD para SSE
+        registrar_cambio('categoria', intval($id_evento), null, ['mensaje' => $mensaje]);
+        
         echo "<!DOCTYPE html><html><head><title>Procesando...</title></head><body>";
         echo "<script>
-            // Notificar cambio en categorías
+            // Notificar cambio en categorías (compatibilidad)
             localStorage.setItem('categorias_actualizadas', JSON.stringify({
                 id_evento: " . intval($id_evento) . ",
                 timestamp: Date.now()

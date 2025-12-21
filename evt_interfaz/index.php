@@ -184,6 +184,7 @@ if ($tab === 'historial') {
             }
         };
     </script>
+    <script src="../vnt_interfaz/js/teatro-sync.js"></script>
 
 </body>
 </html>

@@ -129,6 +129,24 @@ if (!$mysqli && !$pdo) {
     throw new Exception('No se pudo establecer conexión a la base de datos');
 }
 
+// ============= CONFIGURACIÓN BD HISTÓRICA =============
+$db_mode = $_GET['db'] ?? 'ambas';
+$db_actual = 'trt_25';
+$db_historico = 'trt_historico_evento';
+
+// Función para agregar prefijo de BD a una tabla
+function db_table($table) {
+    global $db_mode, $db_actual, $db_historico;
+    
+    if ($db_mode === 'ambas') {
+        // Usar UNION para combinar ambas BDs
+        return "(SELECT * FROM {$db_actual}.{$table} UNION ALL SELECT * FROM {$db_historico}.{$table})";
+    }
+    
+    $db = ($db_mode === 'historico') ? $db_historico : $db_actual;
+    return "{$db}.{$table}";
+}
+
 // Helpers ==================================================
 function respond($ok, $data = []) {
     // Obtener todo el output capturado
@@ -300,13 +318,14 @@ if ($action === 'generar') {
         // Por ahora, filtramos por eventos que estén en el rango
 
         // ====== RESUMEN GENERAL ======
+        $tbl_boletos = db_table('boletos');
         $sql_resumen = "
             SELECT 
                 COUNT(*) as total_boletos,
                 COALESCE(SUM(b.precio_final), 0) as total_vendido,
                 COALESCE(SUM(b.descuento_aplicado), 0) as total_descuentos,
                 COALESCE(AVG(b.precio_final), 0) as promedio_por_boleto
-            FROM boletos b
+            FROM {$tbl_boletos} b
             WHERE $where_boletos
         ";
         
@@ -322,13 +341,15 @@ if ($action === 'generar') {
         // Verificar si existe columna fecha_compra
         $has_fecha_compra = false;
         try {
-            $check_fecha = exec_query("SHOW COLUMNS FROM boletos LIKE 'fecha_compra'");
+            $tbl_boletos_check = db_table('boletos');
+            $check_fecha = exec_query("SHOW COLUMNS FROM {$tbl_boletos_check} LIKE 'fecha_compra'");
             $has_fecha_compra = !empty($check_fecha);
         } catch (Exception $e) {
             // Si falla la consulta, asumir que no existe la columna
             $has_fecha_compra = false;
         }
         
+        $tbl_evento = db_table('evento');
         if ($has_fecha_compra) {
             $sql_ventas = "
                 SELECT 
@@ -338,8 +359,8 @@ if ($action === 'generar') {
                     COUNT(*) as cantidad,
                     SUM(b.precio_final) as total,
                     SUM(b.descuento_aplicado) as descuentos
-                FROM boletos b
-                INNER JOIN evento e ON b.id_evento = e.id_evento
+                FROM {$tbl_boletos} b
+                INNER JOIN {$tbl_evento} e ON b.id_evento = e.id_evento
                 WHERE $where_boletos
                 GROUP BY e.id_evento, e.titulo, DATE(b.fecha_compra)
                 ORDER BY fecha DESC, e.titulo ASC
@@ -354,8 +375,8 @@ if ($action === 'generar') {
                     COUNT(*) as cantidad,
                     SUM(b.precio_final) as total,
                     SUM(b.descuento_aplicado) as descuentos
-                FROM boletos b
-                INNER JOIN evento e ON b.id_evento = e.id_evento
+                FROM {$tbl_boletos} b
+                INNER JOIN {$tbl_evento} e ON b.id_evento = e.id_evento
                 WHERE $where_boletos
                 GROUP BY e.id_evento, e.titulo, e.inicio_venta
                 ORDER BY e.inicio_venta DESC, e.titulo ASC
@@ -365,15 +386,16 @@ if ($action === 'generar') {
         $ventas = exec_query($sql_ventas, $params);
 
         // ====== VENTAS POR CATEGORÍA ======
+        $tbl_categorias = db_table('categorias');
         $sql_categorias = "
             SELECT 
                 c.nombre_categoria,
                 e.titulo as titulo_evento,
                 COUNT(*) as cantidad,
                 SUM(b.precio_final) as total
-            FROM boletos b
-            INNER JOIN categorias c ON b.id_categoria = c.id_categoria
-            INNER JOIN evento e ON b.id_evento = e.id_evento
+            FROM {$tbl_boletos} b
+            INNER JOIN {$tbl_categorias} c ON b.id_categoria = c.id_categoria
+            INNER JOIN {$tbl_evento} e ON b.id_evento = e.id_evento
             WHERE $where_boletos
             GROUP BY c.id_categoria, c.nombre_categoria, e.titulo
             ORDER BY total DESC
@@ -382,6 +404,7 @@ if ($action === 'generar') {
         $categorias = exec_query($sql_categorias, $params);
 
         // ====== DESCUENTOS APLICADOS ======
+        $tbl_promociones = db_table('promociones');
         $sql_descuentos = "
             SELECT 
                 p.nombre as nombre_promocion,
@@ -389,9 +412,9 @@ if ($action === 'generar') {
                 COUNT(*) as cantidad,
                 SUM(b.descuento_aplicado) as total_descuento,
                 AVG(b.descuento_aplicado) as promedio
-            FROM boletos b
-            INNER JOIN promociones p ON b.id_promocion = p.id_promocion
-            INNER JOIN evento e ON b.id_evento = e.id_evento
+            FROM {$tbl_boletos} b
+            INNER JOIN {$tbl_promociones} p ON b.id_promocion = p.id_promocion
+            INNER JOIN {$tbl_evento} e ON b.id_evento = e.id_evento
             WHERE $where_boletos AND b.id_promocion IS NOT NULL
             GROUP BY p.id_promocion, p.nombre, e.titulo
             ORDER BY total_descuento DESC
@@ -407,8 +430,8 @@ if ($action === 'generar') {
                 e.titulo,
                 COUNT(DISTINCT b.id_asiento) as total_asientos,
                 COUNT(DISTINCT CASE WHEN b.estatus = 1 THEN b.id_asiento END) as vendidos
-            FROM evento e
-            LEFT JOIN boletos b ON b.id_evento = e.id_evento
+            FROM {$tbl_evento} e
+            LEFT JOIN {$tbl_boletos} b ON b.id_evento = e.id_evento
         ";
         
         $params_asientos = [];
@@ -432,8 +455,8 @@ if ($action === 'generar') {
                 COUNT(b.id_boleto) as total_boletos,
                 COALESCE(SUM(b.precio_final), 0) as total_vendido,
                 COALESCE(AVG(b.precio_final), 0) as promedio
-            FROM evento e
-            LEFT JOIN boletos b ON b.id_evento = e.id_evento AND b.estatus = 1
+            FROM {$tbl_evento} e
+            LEFT JOIN {$tbl_boletos} b ON b.id_evento = e.id_evento AND b.estatus = 1
         ";
         
         $params_eventos = [];

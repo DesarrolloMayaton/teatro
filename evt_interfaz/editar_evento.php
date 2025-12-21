@@ -6,6 +6,7 @@ ini_set('display_errors', 1);
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 include "../conexion.php";
 if(file_exists("../transacciones_helper.php")) { require_once "../transacciones_helper.php"; }
+require_once __DIR__ . "/../api/registrar_cambio.php";
 
 // Verificar permisos
 if (!isset($_SESSION['usuario_id']) || ($_SESSION['usuario_rol'] !== 'admin' && (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado']))) {
@@ -86,6 +87,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $conn->commit();
             if(function_exists('registrar_transaccion')) registrar_transaccion('evento_guardar', "Guardó evento: $titulo");
+            
+            // Notificar cambio para auto-actualización en tiempo real
+            $evt_id = $modo_reactivacion ? $new_id : $id_evento;
+            registrar_cambio('evento', $evt_id, null, ['accion' => $modo_reactivacion ? 'reactivar' : 'editar']);
+            registrar_cambio('funcion', $evt_id, null, ['accion' => 'modificar', 'cantidad' => count($_POST['funciones'])]);
 
             // PANTALLA DE ÉXITO ANIMADA
             ?>

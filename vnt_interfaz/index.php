@@ -15,8 +15,8 @@ $funciones_evento = [];
 $colores_por_id = []; 
 $categorias_js = []; 
 
-// 2. Cargar todos los eventos
-$res_eventos = $conn->query("SELECT id_evento, titulo, tipo, mapa_json FROM evento WHERE finalizado = 0 ORDER BY titulo ASC");
+// 2. Cargar todos los eventos (incluyendo imagen para el póster)
+$res_eventos = $conn->query("SELECT id_evento, titulo, tipo, mapa_json, imagen FROM evento WHERE finalizado = 0 ORDER BY titulo ASC");
 if ($res_eventos) {
     $eventos_lista = $res_eventos->fetch_all(MYSQLI_ASSOC);
 }
@@ -83,10 +83,11 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
         }
         // --- FIN: MODIFICADO ---
 
-        // 5. Cargar funciones disponibles para el evento (solo futuras)
-        $fecha_actual = date('Y-m-d H:i:s');
+        // 5. Cargar funciones disponibles para el evento
+        // Se permite vender hasta 2 horas después de iniciada la función
+        $fecha_limite = date('Y-m-d H:i:s', strtotime('-2 hours'));
         $stmt_fun = $conn->prepare("SELECT id_funcion, fecha_hora, estado FROM funciones WHERE id_evento = ? AND fecha_hora > ? ORDER BY fecha_hora ASC");
-        $stmt_fun->bind_param("is", $id_evento_seleccionado, $fecha_actual);
+        $stmt_fun->bind_param("is", $id_evento_seleccionado, $fecha_limite);
         $stmt_fun->execute();
         $res_funciones = $stmt_fun->get_result();
         if ($res_funciones) {
@@ -113,6 +114,52 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
         }
     }
 }
+
+// Cargar precios por tipo de boleto
+$precios_tipo_boleto = [
+    'adulto' => 80,
+    'nino' => 50,
+    'adulto_mayor' => 60,
+    'discapacitado' => 40,
+    'cortesia' => 0
+];
+
+// Verificar si existe la tabla de precios por tipo
+$check_table = $conn->query("SHOW TABLES LIKE 'precios_tipo_boleto'");
+if ($check_table && $check_table->num_rows > 0) {
+    // Primero intentar cargar precios específicos del evento
+    if ($id_evento_seleccionado) {
+        $stmt_precios = $conn->prepare("SELECT tipo_boleto, precio FROM precios_tipo_boleto WHERE id_evento = ?");
+        $stmt_precios->bind_param("i", $id_evento_seleccionado);
+        $stmt_precios->execute();
+        $res_precios = $stmt_precios->get_result();
+        
+        if ($res_precios && $res_precios->num_rows > 0) {
+            // Tiene precios específicos
+            while ($row = $res_precios->fetch_assoc()) {
+                $precios_tipo_boleto[$row['tipo_boleto']] = (float)$row['precio'];
+            }
+        } else {
+            // Usar precios globales
+            $res_global = $conn->query("SELECT tipo_boleto, precio FROM precios_tipo_boleto WHERE id_evento IS NULL");
+            if ($res_global) {
+                while ($row = $res_global->fetch_assoc()) {
+                    $precios_tipo_boleto[$row['tipo_boleto']] = (float)$row['precio'];
+                }
+            }
+        }
+        $stmt_precios->close();
+    } else {
+        // Sin evento seleccionado, usar globales
+        $res_global = $conn->query("SELECT tipo_boleto, precio FROM precios_tipo_boleto WHERE id_evento IS NULL");
+        if ($res_global) {
+            while ($row = $res_global->fetch_assoc()) {
+                $precios_tipo_boleto[$row['tipo_boleto']] = (float)$row['precio'];
+            }
+        }
+    }
+}
+
 $conn->close();
 ?>
 
@@ -123,11 +170,11 @@ $conn->close();
 <title>Punto de Venta</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<link rel="stylesheet" href="css/carrito.css">
+<link rel="stylesheet" href="css/carrito.css?v=2">
 <link rel="stylesheet" href="css/descuentos-modal.css">
 <link rel="stylesheet" href="css/notifications.css">
 <link rel="stylesheet" href="css/animations.css">
-<link rel="stylesheet" href="css/menu-mejoras.css">
+<link rel="stylesheet" href="css/menu-mejoras.css?v=2">
 <link rel="stylesheet" href="css/seleccion-multiple.css">
 <style>
 :root {
@@ -232,6 +279,7 @@ body {
   width: fit-content;
   min-height: min-content;
   transition: transform 0.3s ease;
+  margin: 0 auto; /* Centrar horizontalmente */
 }
 
 .screen {
@@ -378,6 +426,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  position: relative;
+  z-index: 200; /* Encima del overlay de asientos */
 }
 
 .controls-panel::-webkit-scrollbar {
@@ -1310,6 +1360,89 @@ hr {
     padding: 10px;
   }
 }
+
+/* Overlay para bloquear asientos cuando no hay horario seleccionado */
+.seat-map-wrapper {
+  position: relative;
+}
+
+.overlay-sin-horario {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  border-radius: var(--radius-lg);
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.overlay-sin-horario.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.overlay-sin-horario-content {
+  text-align: center;
+  color: white;
+  padding: 40px;
+  max-width: 400px;
+}
+
+.overlay-sin-horario-content i.bi-calendar-x {
+  font-size: 5rem;
+  color: #f59e0b;
+  display: block;
+  margin-bottom: 20px;
+  animation: pulse 2s infinite;
+}
+
+.overlay-sin-horario-content h3 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.overlay-sin-horario-content p {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 20px;
+}
+
+.overlay-sin-horario-content .arrow-indicator {
+  animation: bounceUp 1s infinite;
+}
+
+.overlay-sin-horario-content .arrow-indicator i {
+  font-size: 2rem;
+  color: #10b981;
+}
+
+@keyframes bounceUp {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-15px);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
 </style>
 </head>
 <body>
@@ -1358,12 +1491,25 @@ hr {
 
 <!-- Scripts para cartelera fullscreen -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="js/sync-sender.js"></script>
+<script src="js/sync-sender.js?v=2"></script>
 <script>
 // Función para seleccionar evento desde cartelera fullscreen
 function seleccionarEvento(idEvento) {
     if (!idEvento) return;
-    window.location.href = 'index.php?id_evento=' + idEvento;
+    
+    // Obtener título del evento si está disponible
+    const eventoCard = document.querySelector(`.evento-card-full[onclick*="${idEvento}"]`);
+    const titulo = eventoCard?.querySelector('.titulo')?.textContent || 'Cargando evento...';
+    
+    // Enviar notificación al visor cliente antes de redirigir
+    if (typeof enviarSeleccionEvento === 'function') {
+        enviarSeleccionEvento(idEvento, titulo);
+    }
+    
+    // Pequeño delay para que el mensaje llegue al visor
+    setTimeout(() => {
+        window.location.href = 'index.php?id_evento=' + idEvento;
+    }, 100);
 }
 </script>
 </body>
@@ -1385,7 +1531,21 @@ if ($evento_info):
   <div class="mapper-container">
     
     <?php if ($evento_info): ?>
-    <div class="seat-map-wrapper">
+    <div class="seat-map-wrapper" style="position: relative;">
+      <!-- Overlay de bloqueo cuando no hay horario seleccionado -->
+      <?php if (!$id_funcion_seleccionada): ?>
+      <div class="overlay-sin-horario" id="overlaySinHorario">
+        <div class="overlay-sin-horario-content">
+          <i class="bi bi-calendar-x"></i>
+          <h3>Seleccione un horario</h3>
+          <p>Para comenzar a vender, primero debe seleccionar un horario de función.</p>
+          <div class="arrow-indicator">
+            <i class="bi bi-arrow-up"></i>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+      
       <div class="seat-map-content" id="seatMapContent">
       <div class="screen"><?= ($evento_info['tipo']==1)?'ESCENARIO':'PASARELA / ESCENARIO' ?></div>
 
@@ -1588,9 +1748,14 @@ if ($evento_info):
             <input type="hidden" name="id_funcion" id="inputIdFuncion" value="<?= htmlspecialchars($id_funcion_seleccionada ?? '') ?>">
             <select id="selectFuncion" class="form-select" onchange="cambiarFuncion(this)">
                 <option value="">Seleccionar horario...</option>
-                <?php foreach ($funciones_evento as $funcion): 
+                <?php 
+                $dias_semana = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+                foreach ($funciones_evento as $funcion): 
                     $fecha_funcion = new DateTime($funcion['fecha_hora']);
-                    $texto_funcion = $fecha_funcion->format('d/m/Y H:i');
+                    $dia = $dias_semana[(int)$fecha_funcion->format('w')];
+                    $num = $fecha_funcion->format('d');
+                    $hora = $fecha_funcion->format('g:i A');
+                    $texto_funcion = "$dia $num - $hora";
                     $estado = (int)$funcion['estado'];
                     $es_vencida = $estado === 1;
                     $texto_estado = $es_vencida ? ' (Vencida)' : '';
@@ -1663,25 +1828,11 @@ if ($evento_info):
             <i class="bi bi-credit-card"></i> Procesar Pago
         </button>
         
-        <!-- Selector de Descuentos -->
-        <div class="descuento-selector-separado">
-            <label class="form-label">
-                <i class="bi bi-tag"></i> Descuento
-            </label>
-            <select id="selectDescuento" class="form-select form-select-sm" onchange="aplicarDescuento()">
-                <option value="">Sin descuento</option>
-            </select>
-            <small class="d-block mt-1" id="descuentoInfo"></small>
-        </div>
-        
         <!-- Acciones Rápidas -->
         <div class="acciones-rapidas">
-            <button class="btn btn-primary w-100 mb-2" onclick="abrirEscanerQR()">
-                <i class="bi bi-qr-code-scan"></i> Escanear Boleto QR
-            </button>
-            
-            <button class="btn btn-danger w-100 mb-2" onclick="abrirCancelarBoleto()">
-                <i class="bi bi-x-circle"></i> Cancelar/Devolver Boleto
+            <!-- Botón unificado de Gestión de Boletos -->
+            <button class="btn btn-primary w-100 mb-2" onclick="abrirGestionBoletos('verificar')">
+                <i class="bi bi-qr-code-scan"></i> Gestión de Boletos
             </button>
             
             <button class="btn btn-warning w-100 mb-2" onclick="verCategorias()">
@@ -1742,7 +1893,13 @@ if ($evento_info):
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <div id="qr-reader" style="width: 100%;"></div>
+        <!-- Contenedor del lector QR con altura mínima -->
+        <div id="qr-reader" style="width: 100%; min-height: 350px; background: #1e293b; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+          <div class="text-center text-white">
+            <i class="bi bi-camera-video fs-1"></i>
+            <p class="mt-2">Iniciando cámara...</p>
+          </div>
+        </div>
         <div id="qr-reader-results" class="mt-3"></div>
       </div>
       <div class="modal-footer">
@@ -1928,7 +2085,23 @@ if ($evento_info):
     function cambiarFuncion(select) {
     const idFuncion = select.value;
     
-    // Si no se seleccionó ninguna función, no hacer nada
+    console.log('Cambiando a función:', idFuncion);
+    
+    // Ocultar overlay inmediatamente al seleccionar un horario
+    const overlaySinHorario = document.getElementById('overlaySinHorario');
+    if (overlaySinHorario) {
+        console.log('Ocultando overlay...');
+        overlaySinHorario.classList.add('hidden');
+        // Remover después de la transición
+        setTimeout(() => {
+            if (overlaySinHorario.parentNode) {
+                overlaySinHorario.remove();
+                console.log('Overlay removido del DOM');
+            }
+        }, 350);
+    }
+    
+    // Si no se seleccionó ninguna función, no hacer nada más
     if (!idFuncion) {
         return;
     }
@@ -1980,21 +2153,59 @@ if ($evento_info):
         }
         
         // Reinitialize any necessary JavaScript
-        if (window.cargarAsientosVendidos) {
-            cargarAsientosVendidos();
-        }
-        if (window.cargarDescuentos) {
-            cargarDescuentos();
-        }
-        // Reinicializar event listeners de los asientos
-        if (window.inicializarEventListenersAsientos) {
-            inicializarEventListenersAsientos();
+        
+        // Limpiar carrito y selecciones al cambiar de función
+        // (los asientos vendidos pueden cambiar entre funciones)
+        if (typeof carrito !== 'undefined' && carrito.length > 0) {
+            document.querySelectorAll('.seat.selected').forEach(seat => {
+                seat.classList.remove('selected');
+            });
+            carrito = [];
+            if (typeof actualizarCarrito === 'function') {
+                actualizarCarrito();
+            }
         }
         
-        // Sincronizar con visor cliente
-        if (typeof enviarFuncion === 'function') {
-            enviarFuncion();
+        // Cargar asientos vendidos INMEDIATAMENTE (sin esperar)
+        if (window.cargarAsientosVendidos) {
+            console.log('Cargando asientos vendidos inmediatamente...');
+            cargarAsientosVendidos();
         }
+        
+        // Usar setTimeout para asegurar que el DOM se haya actualizado completamente
+        // antes de reinicializar los event listeners
+        setTimeout(() => {
+            // Re-escalar y centrar el mapa
+            if (typeof escalarMapa === 'function') {
+                escalarMapa();
+            }
+            
+            if (window.cargarAsientosVendidos) {
+                cargarAsientosVendidos();
+            }
+            if (window.cargarDescuentos) {
+                cargarDescuentos();
+            }
+            // Reinicializar event listeners de los asientos
+            if (window.inicializarEventListenersAsientos) {
+                inicializarEventListenersAsientos();
+                console.log('Event listeners reinicializados después de cambio de función');
+            }
+            // Marcar asientos de categoría "No Venta"
+            if (typeof marcarAsientosNoVenta === 'function') {
+                marcarAsientosNoVenta();
+            }
+            
+            // Sincronizar con visor cliente
+            if (typeof enviarFuncion === 'function') {
+                enviarFuncion();
+            }
+            
+            // Notificar al usuario
+            if (typeof notify !== 'undefined') {
+                notify.success('Horario seleccionado. ¡Listo para vender!');
+            }
+        }, 100);
     })
     .catch(error => {
         console.error('Error al cargar la función:', error);
@@ -2142,14 +2353,20 @@ if (document.readyState === 'loading') {
 // Detener cuando la página se descarga
 window.addEventListener('beforeunload', detenerActualizacionFunciones);
     
-    // Función para abrir el modal de cancelar boleto
-    function abrirCancelarBoleto() {
-        const modal = new bootstrap.Modal(document.getElementById('modalCancelarBoleto'));
-        document.getElementById('inputCodigoBoleto').value = '';
-        document.getElementById('infoBoletoACancelar').style.display = 'none';
-        document.getElementById('btnConfirmarCancelacion').disabled = true;
-        boletoACancelar = null;
-        modal.show();
+    // Función para abrir el modal de cancelar boleto (redirige al sistema unificado)
+    function abrirCancelarBoletoLegacy() {
+        // Usar el nuevo sistema unificado
+        if (typeof abrirGestionBoletos === 'function') {
+            abrirGestionBoletos('cancelar');
+        } else {
+            // Fallback al modal antiguo
+            const modal = new bootstrap.Modal(document.getElementById('modalCancelarBoleto'));
+            document.getElementById('inputCodigoBoleto').value = '';
+            document.getElementById('infoBoletoACancelar').style.display = 'none';
+            document.getElementById('btnConfirmarCancelacion').disabled = true;
+            boletoACancelar = null;
+            modal.show();
+        }
     }
     
     // Función para buscar boleto por código (con debounce para evitar múltiples llamadas)
@@ -2404,15 +2621,42 @@ window.addEventListener('beforeunload', detenerActualizacionFunciones);
     // La lógica de sincronización está en js/evento-sync.js
 </script>
 
+<!-- Biblioteca para escanear QR con cámara -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
 <script src="js/notifications.js"></script>
 <script src="js/evento-sync.js"></script>
-<script src="js/carrito.js?v=5"></script>
+<script src="js/teatro-sync.js"></script>
+<script>
+// Precios por tipo de boleto (cargados desde la BD)
+window.PRECIOS_TIPO_BOLETO = <?= json_encode($precios_tipo_boleto) ?>;
+</script>
+<script src="js/carrito.js?v=25"></script>
 <script src="js/carrito-patch.js"></script>
 <script src="js/descuentos-modal.js"></script>
-<script src="js/escaner_qr.js"></script>
+<script src="js/escaner_qr.js?v=4"></script>
 <script src="js/menu-mejoras.js?v=1"></script>
 <script src="js/seleccion-multiple.js?v=1"></script>
-<script src="js/sync-sender.js"></script>
+<script src="js/sync-sender.js?v=2"></script>
+
+<!-- Forzar carga de asientos vendidos al inicio -->
+<script>
+// Esperar a que todo esté cargado y forzar la visualización de asientos vendidos
+window.addEventListener('load', function() {
+    console.log('Página completamente cargada - forzando carga de asientos vendidos');
+    
+    // Dar un pequeño delay para asegurar que todo esté inicializado
+    setTimeout(function() {
+        if (typeof cargarAsientosVendidos === 'function') {
+            console.log('Ejecutando cargarAsientosVendidos...');
+            cargarAsientosVendidos();
+        }
+        if (typeof marcarAsientosVendidos === 'function') {
+            marcarAsientosVendidos();
+        }
+    }, 300);
+});
+</script>
 
 <script>
 // Función para abrir el visor cliente en una nueva ventana
@@ -2426,7 +2670,19 @@ function abrirVisorCliente() {
 // Función para seleccionar evento desde cartelera fullscreen
 function seleccionarEvento(idEvento) {
     if (!idEvento) return;
-    window.location.href = 'index.php?id_evento=' + idEvento;
+    
+    // Enviar notificación al visor cliente antes de redirigir
+    if (typeof enviarSeleccionEvento === 'function') {
+        // Obtener título del evento si está disponible
+        const eventoCard = document.querySelector(`.evento-card-full[onclick*="${idEvento}"]`);
+        const titulo = eventoCard?.querySelector('.titulo')?.textContent || 'Cargando...';
+        enviarSeleccionEvento(idEvento, titulo);
+    }
+    
+    // Pequeño delay para que el mensaje llegue al visor
+    setTimeout(() => {
+        window.location.href = 'index.php?id_evento=' + idEvento;
+    }, 100);
 }
 
 // Auto-escalado deshabilitado - el mapa usa scroll si no cabe
@@ -2434,6 +2690,19 @@ function seleccionarEvento(idEvento) {
 </script>
 
 <?php endif; // Fin de la vista de ventas (con evento) ?>
+
+<!-- Sistema de Auto-Actualización en Tiempo Real -->
+<script src="js/teatro-sync.js"></script>
+<script>
+// Configurar TeatroSync con el evento y función actual
+if (typeof TeatroSync !== 'undefined') {
+    TeatroSync.init({
+        eventoId: <?= $id_evento_seleccionado ?: 'null' ?>,
+        funcionId: <?= $id_funcion_seleccionada ?: 'null' ?>,
+        autoReload: true
+    });
+}
+</script>
 
 </body>
 </html>

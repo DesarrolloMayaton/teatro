@@ -1,478 +1,624 @@
 <?php
-// inicio.php (raíz)
-// Dashboard de estadísticas para eventos, categorías y (opcional) promociones
+/**
+ * Dashboard de Estadísticas para el Dueño del Negocio
+ * Soporta datos actuales (trt_25), históricos (trt_historico_evento), o ambos
+ */
 
-// === Conexión ===
-include "../../evt_interfaz/conexion.php"; 
+include "../../evt_interfaz/conexion.php";
 
+// Detectar qué base de datos usar
+$db_mode = $_GET['db'] ?? 'ambas';
+$db_actual = 'trt_25';
+$db_historico = 'trt_historico_evento';
 
-// Helper para verificar existencia de tabla
-function table_exists(mysqli $conn, string $table): bool {
-    $dbResult = $conn->query("SELECT DATABASE() AS dbn");
-    $dbName = $dbResult ? ($dbResult->fetch_assoc()['dbn'] ?? null) : null;
-    if (!$dbName) return false;
-    $stmt = $conn->prepare("SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema = ? AND table_name = ?");
-    $stmt->bind_param('ss', $dbName, $table);
-    $stmt->execute();
-    $res = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    return !empty($res['c']);
+// Configurar label y modo
+if ($db_mode === 'ambas') {
+    $db_label = 'Datos Combinados (Actual + Histórico)';
+} elseif ($db_mode === 'historico') {
+    $db_label = 'Datos Históricos';
+} else {
+    $db_label = 'Datos Actuales';
 }
 
-$has_promos = table_exists($conn, 'promociones');
-
-// === Métricas de eventos ===
-$eventos = [];
-$tot_eventos = 0;
-$tot_eventos_activos = 0;
-$tot_eventos_finalizados = 0;
-
-$resE = $conn->query("SELECT id_evento, titulo, finalizado FROM evento ORDER BY titulo ASC");
-if ($resE) {
-    while ($r = $resE->fetch_assoc()) {
-        $eventos[(int)$r['id_evento']] = [
-            'id_evento' => (int)$r['id_evento'],
-            'titulo' => $r['titulo'],
-            'finalizado' => (int)$r['finalizado'],
-            'categorias' => 0,
-            'precio_prom' => null,
-            'precio_min' => null,
-            'precio_max' => null,
-            'promos' => 0
-        ];
-        $tot_eventos++;
-        if ((int)$r['finalizado'] === 0) $tot_eventos_activos++; else $tot_eventos_finalizados++;
+// Funciones helper
+function query_db($conn, $sql) {
+    $result = $conn->query($sql);
+    if (!$result) return [];
+    $rows = [];
+    while ($row = $result->fetch_assoc()) {
+        $rows[] = $row;
     }
+    return $rows;
 }
 
-// === Métricas de categorías (por evento) ===
-$tot_categorias = 0;
-$resC = $conn->query("SELECT id_evento, COUNT(*) AS ncat, AVG(precio) AS pavg, MIN(precio) AS pmin, MAX(precio) AS pmax FROM categorias GROUP BY id_evento");
-if ($resC) {
-    while ($r = $resC->fetch_assoc()) {
-        $id = (int)$r['id_evento'];
-        if (isset($eventos[$id])) {
-            $eventos[$id]['categorias'] = (int)$r['ncat'];
-            $eventos[$id]['precio_prom'] = is_null($r['pavg']) ? null : (float)$r['pavg'];
-            $eventos[$id]['precio_min']  = is_null($r['pmin']) ? null : (float)$r['pmin'];
-            $eventos[$id]['precio_max']  = is_null($r['pmax']) ? null : (float)$r['pmax'];
-            $tot_categorias += (int)$r['ncat'];
-        }
-    }
+function query_value($conn, $sql, $default = 0) {
+    $result = $conn->query($sql);
+    if (!$result || $result->num_rows === 0) return $default;
+    $row = $result->fetch_row();
+    return $row[0] ?? $default;
 }
 
-// === Métricas de promociones (si existe tabla) ===
-$tot_promos = 0;
-$tot_promos_activas_hoy = 0;
-$tot_promos_globales = 0;
-$promos_proximas = []; // próximas a vencer (7 días)
-if ($has_promos) {
-    $hoy = date('Y-m-d');
-
-    // total promos
-    $resP = $conn->query("SELECT COUNT(*) AS n FROM promociones");
-    if ($resP) { $tot_promos = (int)$resP->fetch_assoc()['n']; }
-
-    // activas hoy
-    $sqlAct = "
-        SELECT COUNT(*) AS n 
-        FROM promociones 
-        WHERE (activo = 1)
-          AND (fecha_desde IS NULL OR DATE(fecha_desde) <= ?)
-          AND (fecha_hasta IS NULL OR DATE(fecha_hasta) >= ?)
-    ";
-    $stmt = $conn->prepare($sqlAct);
-    $stmt->bind_param('ss', $hoy, $hoy);
-    $stmt->execute();
-    $tot_promos_activas_hoy = (int)$stmt->get_result()->fetch_assoc()['n'];
-    $stmt->close();
-
-    // globales (id_evento NULL)
-    $resG = $conn->query("SELECT COUNT(*) AS n FROM promociones WHERE id_evento IS NULL");
-    if ($resG) { $tot_promos_globales = (int)$resG->fetch_assoc()['n']; }
-
-    // promos por evento (conteo)
-    $resPE = $conn->query("SELECT id_evento, COUNT(*) AS n FROM promociones WHERE id_evento IS NOT NULL GROUP BY id_evento");
-    if ($resPE) {
-        while ($r = $resPE->fetch_assoc()) {
-            $id = (int)$r['id_evento'];
-            if (isset($eventos[$id])) $eventos[$id]['promos'] = (int)$r['n'];
-        }
+// Helper para construir consultas según el modo
+function get_boletos_from($db_mode, $db_actual, $db_historico) {
+    if ($db_mode === 'ambas') {
+        return "(SELECT * FROM {$db_actual}.boletos UNION ALL SELECT * FROM {$db_historico}.boletos)";
     }
-
-    // próximas a vencer en 7 días
-    $sqlSoon = "
-        SELECT id_promocion, nombre, id_evento, fecha_hasta, modo_calculo, valor
-        FROM promociones
-        WHERE fecha_hasta IS NOT NULL 
-          AND DATE(fecha_hasta) >= ?
-          AND DATE(fecha_hasta) <= DATE_ADD(?, INTERVAL 7 DAY)
-        ORDER BY fecha_hasta ASC
-        LIMIT 12
-    ";
-    $stmt = $conn->prepare($sqlSoon);
-    $stmt->bind_param('ss', $hoy, $hoy);
-    $stmt->execute();
-    $rs = $stmt->get_result();
-    while ($r = $rs->fetch_assoc()) {
-        $evTitle = 'Global (Todos)';
-        if (!empty($r['id_evento']) && isset($eventos[(int)$r['id_evento']])) {
-            $evTitle = $eventos[(int)$r['id_evento']]['titulo'];
-        }
-        $promos_proximas[] = [
-            'id_promocion' => (int)$r['id_promocion'],
-            'nombre' => $r['nombre'],
-            'evento' => $evTitle,
-            'fecha_hasta' => substr($r['fecha_hasta'], 0, 10),
-            'modo' => $r['modo_calculo'],
-            'valor' => is_null($r['valor']) ? null : (float)$r['valor'],
-        ];
-    }
-    $stmt->close();
+    $db = ($db_mode === 'historico') ? $db_historico : $db_actual;
+    return "{$db}.boletos";
 }
 
-$conn->close();
+function get_evento_from($db_mode, $db_actual, $db_historico) {
+    if ($db_mode === 'ambas') {
+        return "(SELECT * FROM {$db_actual}.evento UNION ALL SELECT * FROM {$db_historico}.evento)";
+    }
+    $db = ($db_mode === 'historico') ? $db_historico : $db_actual;
+    return "{$db}.evento";
+}
+
+function get_categorias_from($db_mode, $db_actual, $db_historico) {
+    if ($db_mode === 'ambas') {
+        return "(SELECT * FROM {$db_actual}.categorias UNION SELECT * FROM {$db_historico}.categorias)";
+    }
+    $db = ($db_mode === 'historico') ? $db_historico : $db_actual;
+    return "{$db}.categorias";
+}
+
+$tbl_boletos = get_boletos_from($db_mode, $db_actual, $db_historico);
+$tbl_evento = get_evento_from($db_mode, $db_actual, $db_historico);
+$tbl_categorias = get_categorias_from($db_mode, $db_actual, $db_historico);
+
+// ============= KPIs =============
+
+// 1. Ingresos totales
+$total_ingresos = query_value($conn, "
+    SELECT COALESCE(SUM(precio_final), 0) FROM {$tbl_boletos} b WHERE estatus = 1
+");
+
+// 2. Total boletos vendidos
+$total_boletos = query_value($conn, "
+    SELECT COUNT(*) FROM {$tbl_boletos} b WHERE estatus = 1
+");
+
+// 3. Total eventos
+$total_eventos = query_value($conn, "
+    SELECT COUNT(*) FROM {$tbl_evento} e
+");
+
+// 4. Eventos con ventas
+$eventos_con_ventas = query_value($conn, "
+    SELECT COUNT(DISTINCT id_evento) FROM {$tbl_boletos} b WHERE estatus = 1
+");
+
+// 5. Promedio por evento (solo eventos con ventas)
+$promedio_por_evento = ($eventos_con_ventas > 0) 
+    ? $total_ingresos / $eventos_con_ventas 
+    : 0;
+
+// 6. Total descuentos otorgados
+$total_descuentos = query_value($conn, "
+    SELECT COALESCE(SUM(descuento_aplicado), 0) FROM {$tbl_boletos} b WHERE estatus = 1
+");
+
+// 7. Precio promedio real por boleto
+$precio_promedio = ($total_boletos > 0) ? $total_ingresos / $total_boletos : 0;
+
+// 8. Evento más vendido
+$evento_top = query_db($conn, "
+    SELECT e.titulo, COUNT(b.id_boleto) as ventas, SUM(b.precio_final) as ingresos
+    FROM {$tbl_boletos} b
+    JOIN {$tbl_evento} e ON b.id_evento = e.id_evento
+    WHERE b.estatus = 1
+    GROUP BY e.titulo
+    ORDER BY ventas DESC
+    LIMIT 1
+");
+$evento_top_nombre = $evento_top[0]['titulo'] ?? 'N/A';
+$evento_top_ventas = $evento_top[0]['ventas'] ?? 0;
+
+// 9. Top 5 eventos por ventas (para gráfico)
+$top_eventos = query_db($conn, "
+    SELECT e.titulo, COUNT(b.id_boleto) as ventas, SUM(b.precio_final) as ingresos
+    FROM {$tbl_boletos} b
+    JOIN {$tbl_evento} e ON b.id_evento = e.id_evento
+    WHERE b.estatus = 1
+    GROUP BY e.titulo
+    ORDER BY ingresos DESC
+    LIMIT 5
+");
+
+// 10. Ventas por categoría (para gráfico)
+$ventas_categoria = query_db($conn, "
+    SELECT c.nombre_categoria, COUNT(b.id_boleto) as ventas, SUM(b.precio_final) as ingresos, c.color
+    FROM {$tbl_boletos} b
+    JOIN {$tbl_categorias} c ON b.id_categoria = c.id_categoria
+    WHERE b.estatus = 1
+    GROUP BY c.nombre_categoria, c.color
+    ORDER BY ingresos DESC
+    LIMIT 6
+");
+
+// 11. Ventas por tipo de boleto
+$ventas_tipo = query_db($conn, "
+    SELECT tipo_boleto, COUNT(*) as cantidad, SUM(precio_final) as ingresos
+    FROM {$tbl_boletos} b
+    WHERE estatus = 1
+    GROUP BY tipo_boleto
+    ORDER BY cantidad DESC
+");
+
+// 12. Resumen por evento (tabla)
+$resumen_eventos = query_db($conn, "
+    SELECT e.titulo, e.finalizado,
+           COUNT(b.id_boleto) as boletos,
+           COALESCE(SUM(b.precio_final), 0) as ingresos,
+           COALESCE(SUM(b.descuento_aplicado), 0) as descuentos
+    FROM {$tbl_evento} e
+    LEFT JOIN {$tbl_boletos} b ON e.id_evento = b.id_evento AND b.estatus = 1
+    GROUP BY e.titulo, e.finalizado
+    ORDER BY ingresos DESC
+");
 
 // Preparar datos para JS
-$eventos_list = array_values($eventos);
+$top_eventos_json = json_encode($top_eventos, JSON_UNESCAPED_UNICODE);
+$ventas_categoria_json = json_encode($ventas_categoria, JSON_UNESCAPED_UNICODE);
+$ventas_tipo_json = json_encode($ventas_tipo, JSON_UNESCAPED_UNICODE);
+
+$conn->close();
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
-
-
     <meta charset="UTF-8">
-    <title>Inicio • Estadísticas</title>
+    <title>Dashboard · Estadísticas</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Bootstrap 5 + Icons (consistente con tus otras vistas) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
     <style>
         :root {
-            --primary-color: #2563eb; --primary-dark: #1e40af;
-            --success-color: #10b981; --danger-color: #ef4444;
-            --warning-color: #f59e0b; --info-color: #3b82f6;
-            --bg-primary: #f8fafc; --bg-secondary: #ffffff;
-            --text-primary: #0f172a; --text-secondary: #64748b;
-            --border-color: #e2e8f0;
-            --shadow-sm: 0 1px 2px 0 rgba(0,0,0,.05);
-            --shadow-md: 0 4px 6px -1px rgba(0,0,0,.1);
-            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.1);
-            --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #0ea5e9;
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border: #475569;
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,.3);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.3);
+            --radius-md: 12px;
+            --radius-lg: 16px;
         }
+        
+        * { box-sizing: border-box; }
+        
         body {
-            font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, var(--bg-primary), #e2e8f0);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg-main);
             color: var(--text-primary);
             padding: 20px;
             min-height: 100vh;
         }
+        
         .container-fluid { max-width: 1400px; margin: 0 auto; }
+        
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        
+        .page-header h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .page-header h2 i { color: var(--primary); }
+        
+        .db-badge {
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .db-badge.actual {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+        }
+        
+        .db-badge.historico {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+        }
+        
         .card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-md);
+            transition: all 0.2s ease;
         }
+        
         .card:hover { box-shadow: var(--shadow-lg); }
-        h2, h3 { font-weight: 700; letter-spacing: -0.5px; margin-bottom: .5rem; }
-        .muted { color: var(--text-secondary); font-size: .9rem; }
-        .kpi {
-            display: flex; align-items: center; gap: 14px;
+        
+        /* KPI Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
         }
-        .kpi .icon {
-            width: 44px; height: 44px; border-radius: 12px;
-            display: grid; place-items: center; font-size: 1.25rem;
-        }
-        .table thead { background: var(--bg-primary); }
-        .badge-soft { background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); }
-        .list-group-item { border-color: var(--border-color); }
-        .empty {
-            border: 1px dashed var(--border-color);
+        
+        .kpi-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
             border-radius: var(--radius-md);
-            padding: 16px; text-align: center; color: var(--text-secondary);
+            padding: 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
         }
-        .footnote { color: var(--text-secondary); font-size: .8rem; }
-
-        /* === FIX DE GRÁFICAS: contenedor controla la altura === */
-        .chart-box{
+        
+        .kpi-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            flex-shrink: 0;
+        }
+        
+        .kpi-content { flex: 1; min-width: 0; }
+        
+        .kpi-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        
+        .kpi-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        
+        .kpi-detail {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+        
+        /* Gráficos */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .chart-card {
+            padding: 20px;
+        }
+        
+        .chart-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .chart-card h3 i { color: var(--primary); }
+        
+        .chart-container {
             position: relative;
-            width: 100%;
-            height: 320px;       /* Ajusta aquí el alto visual */
+            height: 280px;
         }
-        @media (max-width: 992px){
-            .chart-box{ height: 280px; }
+        
+        canvas {
+            background: transparent !important;
+            border: none !important;
         }
-        canvas { background: #fff; border: 1px solid var(--border-color); border-radius: var(--radius-md); }
+        
+        /* Tabla */
+        .table-card { padding: 20px; }
+        
+        .table-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .table-card h3 i { color: var(--primary); }
+        
+        .table {
+            color: var(--text-primary);
+            margin: 0;
+        }
+        
+        .table thead { background: var(--bg-input); }
+        
+        .table th {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            border-color: var(--border);
+            padding: 10px 12px;
+        }
+        
+        .table td {
+            border-color: var(--border);
+            padding: 10px 12px;
+            vertical-align: middle;
+        }
+        
+        .badge-status {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        
+        .badge-status.activo {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+        }
+        
+        .badge-status.finalizado {
+            background: rgba(100, 116, 139, 0.2);
+            color: var(--text-secondary);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state i {
+            font-size: 3rem;
+            opacity: 0.3;
+            margin-bottom: 12px;
+        }
     </style>
 </head>
 <body>
 
 <div class="container-fluid">
-
-    <!-- TÍTULO -->
-    <div class="mb-4">
-        <h2 class="text-primary d-flex align-items-center gap-2">
-            <i class="bi bi-house-door-fill"></i>
-            Inicio · Estadísticas
-        </h2>
-        <div class="muted">Resumen general de tus eventos, categorías y promociones.</div>
+    
+    <!-- Header -->
+    <div class="page-header">
+        <h2><i class="bi bi-speedometer2"></i> Dashboard</h2>
+        <span class="db-badge <?= $db_mode ?>">
+            <i class="bi bi-<?= $db_mode === 'historico' ? 'archive' : 'database' ?>"></i>
+            <?= $db_label ?>
+        </span>
     </div>
-
+    
     <!-- KPIs -->
-    <div class="row g-3">
-        <div class="col-sm-6 col-lg-3">
-            <div class="card p-3">
-                <div class="kpi">
-                    <div class="icon" style="background:#dbeafe;color:#1d4ed8"><i class="bi bi-collection"></i></div>
-                    <div>
-                        <div class="muted text-uppercase">Eventos (Total)</div>
-                        <div class="h4 mb-0"><?php echo number_format($tot_eventos); ?></div>
-                        <span class="badge badge-soft mt-1"><?php echo number_format($tot_eventos_activos); ?> activos · <?php echo number_format($tot_eventos_finalizados); ?> finalizados</span>
-                    </div>
-                </div>
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background: rgba(16, 185, 129, 0.15); color: var(--success);">
+                <i class="bi bi-currency-dollar"></i>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Ingresos Totales</div>
+                <div class="kpi-value">$<?= number_format($total_ingresos, 2) ?></div>
+                <div class="kpi-detail"><?= $eventos_con_ventas ?> eventos con ventas</div>
             </div>
         </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card p-3">
-                <div class="kpi">
-                    <div class="icon" style="background:#dcfce7;color:#166534"><i class="bi bi-tags-fill"></i></div>
-                    <div>
-                        <div class="muted text-uppercase">Categorías (Total)</div>
-                        <div class="h4 mb-0"><?php echo number_format($tot_categorias); ?></div>
-                        <span class="badge badge-soft mt-1">Prom · Min · Max por evento</span>
-                    </div>
-                </div>
+        
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background: rgba(99, 102, 241, 0.15); color: var(--primary);">
+                <i class="bi bi-ticket-perforated"></i>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Boletos Vendidos</div>
+                <div class="kpi-value"><?= number_format($total_boletos) ?></div>
+                <div class="kpi-detail">$<?= number_format($precio_promedio, 2) ?> promedio</div>
             </div>
         </div>
-        <?php if ($has_promos): ?>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card p-3">
-                <div class="kpi">
-                    <div class="icon" style="background:#fee2e2;color:#991b1b"><i class="bi bi-percent"></i></div>
-                    <div>
-                        <div class="muted text-uppercase">Promociones (Total)</div>
-                        <div class="h4 mb-0"><?php echo number_format($tot_promos); ?></div>
-                        <span class="badge badge-soft mt-1"><?php echo number_format($tot_promos_activas_hoy); ?> activas hoy · <?php echo number_format($tot_promos_globales); ?> globales</span>
-                    </div>
-                </div>
+        
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background: rgba(14, 165, 233, 0.15); color: var(--info);">
+                <i class="bi bi-graph-up-arrow"></i>
             </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Promedio por Evento</div>
+                <div class="kpi-value">$<?= number_format($promedio_por_evento, 2) ?></div>
+                <div class="kpi-detail"><?= $total_eventos ?> eventos totales</div>
+            </div>
+        </div>
+        
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background: rgba(245, 158, 11, 0.15); color: var(--warning);">
+                <i class="bi bi-tag"></i>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Descuentos Otorgados</div>
+                <div class="kpi-value">$<?= number_format($total_descuentos, 2) ?></div>
+                <div class="kpi-detail"><?= $total_boletos > 0 ? round(($total_descuentos / ($total_ingresos + $total_descuentos)) * 100, 1) : 0 ?>% del precio base</div>
+            </div>
+        </div>
+        
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background: rgba(236, 72, 153, 0.15); color: #ec4899;">
+                <i class="bi bi-trophy"></i>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Evento Más Vendido</div>
+                <div class="kpi-value" style="font-size: 1.1rem; word-break: break-word;"><?= htmlspecialchars($evento_top_nombre) ?></div>
+                <div class="kpi-detail"><?= number_format($evento_top_ventas) ?> boletos</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Gráficos -->
+    <div class="charts-grid">
+        <div class="card chart-card">
+            <h3><i class="bi bi-bar-chart"></i> Top Eventos por Ingresos</h3>
+            <div class="chart-container">
+                <canvas id="chartTopEventos"></canvas>
+            </div>
+        </div>
+        
+        <div class="card chart-card">
+            <h3><i class="bi bi-pie-chart"></i> Ventas por Categoría</h3>
+            <div class="chart-container">
+                <canvas id="chartCategorias"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tabla resumen -->
+    <div class="card table-card">
+        <h3><i class="bi bi-table"></i> Resumen por Evento</h3>
+        
+        <?php if (empty($resumen_eventos)): ?>
+        <div class="empty-state">
+            <i class="bi bi-inbox d-block"></i>
+            <p>No hay datos de eventos</p>
         </div>
         <?php else: ?>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card p-3">
-                <div class="kpi">
-                    <div class="icon" style="background:#fef9c3;color:#854d0e"><i class="bi bi-percent"></i></div>
-                    <div>
-                        <div class="muted text-uppercase">Promociones</div>
-                        <div class="h6 mb-0">No se encontró la tabla <code>promociones</code></div>
-                        <span class="badge badge-soft mt-1">Se omitieron KPIs de promos</span>
-                    </div>
-                </div>
-            </div>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Evento</th>
+                        <th>Estado</th>
+                        <th class="text-end">Boletos</th>
+                        <th class="text-end">Ingresos</th>
+                        <th class="text-end">Descuentos</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($resumen_eventos as $ev): ?>
+                    <tr>
+                        <td class="fw-semibold"><?= htmlspecialchars($ev['titulo']) ?></td>
+                        <td>
+                            <span class="badge-status <?= $ev['finalizado'] ? 'finalizado' : 'activo' ?>">
+                                <?= $ev['finalizado'] ? 'Finalizado' : 'Activo' ?>
+                            </span>
+                        </td>
+                        <td class="text-end"><?= number_format($ev['boletos']) ?></td>
+                        <td class="text-end text-success fw-bold">$<?= number_format($ev['ingresos'], 2) ?></td>
+                        <td class="text-end" style="color: var(--warning);">$<?= number_format($ev['descuentos'], 2) ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
         <?php endif; ?>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card p-3">
-                <div class="kpi">
-                    <div class="icon" style="background:#ede9fe;color:#5b21b6"><i class="bi bi-graph-up"></i></div>
-                    <div>
-                        <div class="muted text-uppercase">Promedio (MXN)</div>
-                        <div class="h4 mb-0">
-                            <?php
-                            // promedio global de promedios (solo eventos con categorías)
-                            $promedios = array_values(array_filter(array_map(fn($e)=>$e['precio_prom'], $eventos_list), fn($v)=>$v!==null));
-                            echo count($promedios) ? number_format(array_sum($promedios)/count($promedios), 2) : '—';
-                            ?>
-                        </div>
-                        <span class="badge badge-soft mt-1">Precios de categorías</span>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
-
-    <!-- FILA: Gráficos -->
-    <div class="row g-3 mt-1">
-        <div class="col-lg-7">
-            <div class="card p-3">
-                <h3 class="mb-2"><i class="bi bi-bar-chart"></i> Precio promedio por evento</h3>
-                <div class="muted mb-3">Comparativa del precio promedio de categorías por evento.</div>
-                <div class="chart-box"><canvas id="chartPromedios"></canvas></div>
-                <div class="footnote mt-2">Solo se consideran eventos con al menos una categoría.</div>
-            </div>
-        </div>
-        <div class="col-lg-5">
-            <div class="card p-3">
-                <h3 class="mb-2"><i class="bi bi-pie-chart"></i> Estado de eventos</h3>
-                <div class="muted mb-3">Distribución de eventos activos vs finalizados.</div>
-                <div class="chart-box"><canvas id="chartEventos"></canvas></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- FILA: Tabla resumen + Próximas a vencer -->
-    <div class="row g-3 mt-1">
-        <div class="col-lg-8">
-            <div class="card p-3">
-                <h3 class="mb-2"><i class="bi bi-table"></i> Resumen por evento</h3>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle">
-                        <thead>
-                            <tr>
-                                <th>Evento</th>
-                                <th class="text-center">Categorías</th>
-                                <th class="text-end">Promedio</th>
-                                <th class="text-end">Mínimo</th>
-                                <th class="text-end">Máximo</th>
-                                <?php if ($has_promos): ?><th class="text-center">Promos</th><?php endif; ?>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        <?php
-                        $tieneFilas = false;
-                        foreach ($eventos_list as $e):
-                            $tieneFilas = true;
-                            $prom = $e['precio_prom']; $min = $e['precio_min']; $max = $e['precio_max'];
-                        ?>
-                            <tr>
-                                <td class="fw-semibold">
-                                    <?php echo htmlspecialchars($e['titulo']); ?>
-                                    <?php if ((int)$e['finalizado'] === 1): ?>
-                                        <span class="badge bg-secondary ms-2">Finalizado</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-success-subtle text-success ms-2">Activo</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td class="text-center"><?php echo number_format((int)$e['categorias']); ?></td>
-                                <td class="text-end"><?php echo is_null($prom) ? '—' : '$'.number_format($prom, 2); ?></td>
-                                <td class="text-end"><?php echo is_null($min)  ? '—' : '$'.number_format($min, 2); ?></td>
-                                <td class="text-end"><?php echo is_null($max)  ? '—' : '$'.number_format($max, 2); ?></td>
-                                <?php if ($has_promos): ?><td class="text-center"><?php echo number_format((int)$e['promos']); ?></td><?php endif; ?>
-                            </tr>
-                        <?php endforeach; ?>
-                        <?php if (!$tieneFilas): ?>
-                            <tr><td colspan="<?php echo $has_promos ? 6 : 5; ?>"><div class="empty">Aún no hay eventos.</div></td></tr>
-                        <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="footnote">Consejo: usa <em>Categorías</em> para definir precios base, y <em>Descuentos</em> para reglas dinámicas.</div>
-            </div>
-        </div>
-
-        <div class="col-lg-4">
-            <div class="card p-3">
-                <h3 class="mb-2"><i class="bi bi-clock-history"></i> Próximas a vencer</h3>
-                <?php if ($has_promos): ?>
-                    <?php if (count($promos_proximas)): ?>
-                        <ul class="list-group">
-                        <?php foreach ($promos_proximas as $p): ?>
-                            <li class="list-group-item d-flex justify-content-between align-items-start">
-                                <div class="me-2">
-                                    <div class="fw-semibold"><?php echo htmlspecialchars($p['nombre']); ?></div>
-                                    <div class="muted small">
-                                        <?php echo htmlspecialchars($p['evento']); ?> · Vence: 
-                                        <strong><?php echo htmlspecialchars($p['fecha_hasta']); ?></strong>
-                                        <?php if ($p['valor'] !== null): ?>
-                                            · <?php echo ($p['modo']==='porcentaje' ? number_format($p['valor']).'%' : '$'.number_format($p['valor'],2)); ?>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                                <span class="badge bg-warning text-dark">¡Atención!</span>
-                            </li>
-                        <?php endforeach; ?>
-                        </ul>
-                    <?php else: ?>
-                        <div class="empty">No hay promociones próximas a vencer en los próximos 7 días.</div>
-                    <?php endif; ?>
-                <?php else: ?>
-                    <div class="empty">La tabla <code>promociones</code> no está disponible.</div>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div>
-
-    <!-- Nota inferior -->
-    <div class="mt-3 footnote">
-        * Si agregas o cambias datos en <em>Categorías</em> o <em>Descuentos</em>, vuelve a esta vista para ver las métricas actualizadas.
-    </div>
-
+    
 </div>
 
-<!-- JS -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<!-- Chart.js para gráficos -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 // Datos desde PHP
-const EVENTOS = <?php echo json_encode($eventos_list, JSON_UNESCAPED_UNICODE); ?>;
-const KPI = {
-    tot_eventos: <?php echo (int)$tot_eventos; ?>,
-    activos: <?php echo (int)$tot_eventos_activos; ?>,
-    finalizados: <?php echo (int)$tot_eventos_finalizados; ?>
-};
+const TOP_EVENTOS = <?= $top_eventos_json ?>;
+const VENTAS_CATEGORIA = <?= $ventas_categoria_json ?>;
 
-// Utilidad: destruir instancia previa si recargas dentro del iframe
-function ensureDestroy(canvas) {
-  const inst = window.Chart && Chart.getChart ? Chart.getChart(canvas) : null;
-  if (inst) inst.destroy();
-}
+// Colores para gráficos
+const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#0ea5e9', '#ec4899'];
 
-// === Chart: Precio promedio por evento (responsive sin loop) ===
+// Gráfico Top Eventos
 (() => {
-    const canvas = document.getElementById('chartPromedios');
-    if (!canvas) return;
+    const canvas = document.getElementById('chartTopEventos');
+    if (!canvas || !TOP_EVENTOS.length) return;
 
-    const rows = (Array.isArray(EVENTOS) ? EVENTOS : [])
-      .filter(e => e && e.precio_prom !== null && e.precio_prom !== undefined && !isNaN(parseFloat(e.precio_prom)));
-
-    if (!rows.length) return;
-
-    ensureDestroy(canvas);
     new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
-            labels: rows.map(e => String(e.titulo)),
+            labels: TOP_EVENTOS.map(e => e.titulo.substring(0, 20) + (e.titulo.length > 20 ? '...' : '')),
             datasets: [{
-                label: 'Precio promedio (MXN)',
-                data: rows.map(e => Math.round(parseFloat(e.precio_prom) * 100) / 100),
-                borderWidth: 1
+                label: 'Ingresos',
+                data: TOP_EVENTOS.map(e => parseFloat(e.ingresos)),
+                backgroundColor: CHART_COLORS,
+                borderRadius: 6
             }]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false, // el alto lo define .chart-box
-            animation: false,
-            scales: { y: { beginAtZero: true } },
-            plugins: { legend: { position: 'bottom' } }
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => '$' + ctx.raw.toLocaleString('es-MX', {minimumFractionDigits: 2})
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(71, 85, 105, 0.3)' },
+                    ticks: { color: '#94a3b8', callback: v => '$' + (v/1000) + 'k' }
+                },
+                y: {
+                    grid: { display: false },
+                    ticks: { color: '#f1f5f9' }
+                }
+            }
         }
     });
 })();
 
-// === Chart: Activos vs Finalizados (responsive sin loop) ===
+// Gráfico Categorías
 (() => {
-    const canvas = document.getElementById('chartEventos');
-    if (!canvas) return;
+    const canvas = document.getElementById('chartCategorias');
+    if (!canvas || !VENTAS_CATEGORIA.length) return;
 
-    const act = Number(KPI.activos || 0);
-    const fin = Number(KPI.finalizados || 0);
-    if (act + fin === 0) return;
+    const colors = VENTAS_CATEGORIA.map((c, i) => c.color || CHART_COLORS[i % CHART_COLORS.length]);
 
-    ensureDestroy(canvas);
     new Chart(canvas.getContext('2d'), {
         type: 'doughnut',
         data: {
-            labels: ['Activos', 'Finalizados'],
-            datasets: [{ data: [act, fin] }]
+            labels: VENTAS_CATEGORIA.map(c => c.nombre_categoria),
+            datasets: [{
+                data: VENTAS_CATEGORIA.map(c => parseFloat(c.ingresos)),
+                backgroundColor: colors,
+                borderWidth: 0
+            }]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false, // el alto lo define .chart-box
-            animation: false,
+            maintainAspectRatio: false,
             cutout: '60%',
-            plugins: { legend: { position: 'bottom' } }
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: { color: '#f1f5f9', padding: 12 }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ctx.label + ': $' + ctx.raw.toLocaleString('es-MX', {minimumFractionDigits: 2})
+                    }
+                }
+            }
         }
     });
 })();

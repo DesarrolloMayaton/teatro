@@ -10,6 +10,8 @@ if(file_exists("../transacciones_helper.php")) {
     require_once "../transacciones_helper.php";
 }
 
+require_once __DIR__ . "/../api/registrar_cambio.php";
+
 // ==================================================================
 // VERIFICACIÓN DE SESIÓN
 // ==================================================================
@@ -26,21 +28,52 @@ $conn->query("UPDATE funciones SET estado = 1 WHERE fecha_hora < NOW() AND estad
 
 // ==================================================================
 // FUNCIÓN PARA ARCHIVAR (MOVER A HISTÓRICO)
+// Copia TODA la información a trt_historico_evento y borra de producción
 // ==================================================================
 function archivar_evento_completo($id, $conn) {
-    // 1. COPIAR A HISTÓRICO
-    $conn->query("INSERT IGNORE INTO trt_historico_evento.evento SELECT * FROM trt_25.evento WHERE id_evento = $id");
-    // No copiamos funciones al histórico
-    $conn->query("INSERT IGNORE INTO trt_historico_evento.categorias SELECT * FROM trt_25.categorias WHERE id_evento = $id");
-    $conn->query("INSERT IGNORE INTO trt_historico_evento.promociones SELECT * FROM trt_25.promociones WHERE id_evento = $id");
-    $conn->query("INSERT IGNORE INTO trt_historico_evento.boletos SELECT * FROM trt_25.boletos WHERE id_evento = $id");
+    // Nombre de la base de datos histórica
+    $db_historico = 'trt_historico_evento';
+    $db_principal = 'trt_25';
+    
+    // 1. COPIAR TODO A HISTÓRICO (en orden de dependencias)
+    // Primero el evento
+    $result = $conn->query("INSERT IGNORE INTO {$db_historico}.evento SELECT * FROM {$db_principal}.evento WHERE id_evento = $id");
+    if (!$result) {
+        throw new Exception("Error copiando evento: " . $conn->error);
+    }
+    
+    // Funciones del evento
+    $result = $conn->query("INSERT IGNORE INTO {$db_historico}.funciones SELECT * FROM {$db_principal}.funciones WHERE id_evento = $id");
+    if (!$result) {
+        throw new Exception("Error copiando funciones: " . $conn->error);
+    }
+    
+    // Categorías
+    $result = $conn->query("INSERT IGNORE INTO {$db_historico}.categorias SELECT * FROM {$db_principal}.categorias WHERE id_evento = $id");
+    if (!$result) {
+        throw new Exception("Error copiando categorías: " . $conn->error);
+    }
+    
+    // Promociones/Descuentos
+    $result = $conn->query("INSERT IGNORE INTO {$db_historico}.promociones SELECT * FROM {$db_principal}.promociones WHERE id_evento = $id");
+    if (!$result) {
+        throw new Exception("Error copiando promociones: " . $conn->error);
+    }
+    
+    // Boletos (todos los vendidos)
+    $result = $conn->query("INSERT IGNORE INTO {$db_historico}.boletos SELECT * FROM {$db_principal}.boletos WHERE id_evento = $id");
+    if (!$result) {
+        throw new Exception("Error copiando boletos: " . $conn->error);
+    }
 
-    // 2. BORRAR DE PRODUCCIÓN
-    $conn->query("DELETE FROM trt_25.boletos WHERE id_evento = $id");
-    $conn->query("DELETE FROM trt_25.promociones WHERE id_evento = $id");
-    $conn->query("DELETE FROM trt_25.categorias WHERE id_evento = $id");
-    $conn->query("DELETE FROM trt_25.funciones WHERE id_evento = $id");
-    $conn->query("DELETE FROM trt_25.evento WHERE id_evento = $id");
+    // 2. BORRAR DE PRODUCCIÓN (en orden inverso de dependencias)
+    $conn->query("DELETE FROM {$db_principal}.boletos WHERE id_evento = $id");
+    $conn->query("DELETE FROM {$db_principal}.promociones WHERE id_evento = $id");
+    $conn->query("DELETE FROM {$db_principal}.categorias WHERE id_evento = $id");
+    $conn->query("DELETE FROM {$db_principal}.funciones WHERE id_evento = $id");
+    $conn->query("DELETE FROM {$db_principal}.evento WHERE id_evento = $id");
+    
+    return true;
 }
 
 // ==================================================================
@@ -71,6 +104,9 @@ if (isset($_POST['accion'])) {
             if(function_exists('registrar_transaccion')) {
                 registrar_transaccion('evento_archivar', 'Archivó evento ID ' . $id . ' (Autorizado por: '.$user.')');
             }
+            
+            // Notificar cambio para auto-actualización en tiempo real
+            registrar_cambio('evento', $id, null, ['accion' => 'archivar']);
         }
         $conn->commit();
         echo json_encode(['status'=>'success']);

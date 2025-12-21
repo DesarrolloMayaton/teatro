@@ -23,6 +23,7 @@ header('Content-Type: application/json');
 // Iniciar sesión para obtener el usuario que está vendiendo
 session_start();
 require_once __DIR__ . '/../transacciones_helper.php';
+require_once __DIR__ . '/../api/registrar_cambio.php';
 
 // Obtener ID del usuario logueado
 $id_usuario_vendedor = isset($_SESSION['usuario_id']) ? (int)$_SESSION['usuario_id'] : null;
@@ -231,7 +232,7 @@ try {
                     WHERE id_boleto = ?
                 ");
                 
-                $stmt->bind_param("iiisdddssii", 
+                $stmt->bind_param("iiisdddsii", 
                     $id_funcion,
                     $categoria_id,
                     $id_promocion,
@@ -260,7 +261,7 @@ try {
                     WHERE id_boleto = ?
                 ");
                 
-                $stmt->bind_param("iisdddssii", 
+                $stmt->bind_param("iisdddsii", 
                     $id_funcion,
                     $categoria_id,
                     $codigo_unico,
@@ -298,7 +299,7 @@ try {
                 ";
                 
                 $stmt = $conn->prepare($sql);
-                $stmt->bind_param("iiiiisdddssi", 
+                $stmt->bind_param("iiiiisdddsi", 
                     $id_evento, 
                     $id_funcion,
                     $id_asiento, 
@@ -328,7 +329,7 @@ try {
                 ";
                 
                 $stmt = $conn->prepare($sql);
-                $stmt->bind_param("iiiisdddss", 
+                $stmt->bind_param("iiiisdddsi", 
                     $id_evento, 
                     $id_funcion,
                     $id_asiento, 
@@ -381,6 +382,12 @@ try {
     
     $cantidad_boletos = count($boletos_generados);
     registrar_transaccion('venta', 'Venta de ' . $cantidad_boletos . ' boleto(s) para evento ID ' . $id_evento);
+    
+    // Notificar cambio para auto-actualización en tiempo real
+    registrar_cambio('venta', $id_evento, $id_funcion, [
+        'asientos' => array_column($boletos_generados, 'asiento'),
+        'cantidad' => $cantidad_boletos
+    ]);
     
     ob_clean();
     echo json_encode([

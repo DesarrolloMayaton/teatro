@@ -7,27 +7,93 @@
   background-color: #d1fae5 !important;
 }
 
+/* Asientos vendidos - tachados */
 .seat.vendido {
   background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
   cursor: not-allowed !important;
   opacity: 0.7;
   position: relative;
+  pointer-events: none;
+}
+
+.seat.vendido::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #ef4444;
+  transform: rotate(-45deg);
+  z-index: 1;
 }
 
 .seat.vendido::after {
-  content: '✕';
+  content: '';
   position: absolute;
   top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 20px;
-  color: #ef4444;
-  font-weight: bold;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #ef4444;
+  transform: rotate(45deg);
+  z-index: 1;
+}
+
+/* Tooltip para asientos vendidos */
+.seat.vendido {
+  pointer-events: auto !important;
+  /* Permitir hover para tooltip */
+  cursor: not-allowed !important;
+}
+
+.seat.vendido:hover::before,
+.seat.vendido:hover::after {
+  opacity: 0;
+  /* Ocultar X al hacer hover */
+}
+
+.seat.vendido .tooltip-vendido,
+.seat.vendido:hover .tooltip-vendido {
+  display: none;
 }
 
 .seat.vendido:hover {
   transform: none !important;
-  box-shadow: none !important;
+  box-shadow: 0 0 0 2px #ef4444 !important;
+}
+
+/* Tooltip usando title nativo - agregar via JS */
+.seat.vendido[title]:hover {
+  position: relative;
+}
+
+/* Asientos NO VENTA - bloqueados permanentemente */
+.seat.no-venta {
+  background: repeating-linear-gradient(45deg,
+      #9ca3af,
+      #9ca3af 4px,
+      #6b7280 4px,
+      #6b7280 8px) !important;
+  cursor: not-allowed !important;
+  opacity: 0.5;
+  pointer-events: auto !important;
+  /* Permitir hover para tooltip */
+  color: transparent !important;
+  position: relative;
+}
+
+.seat.no-venta:hover {
+  box-shadow: 0 0 0 2px #6b7280 !important;
+}
+
+.seat.no-venta::after {
+  content: '🚫';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
 }
 
 .carrito-item {
@@ -48,6 +114,7 @@
     opacity: 0;
     transform: translateX(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);

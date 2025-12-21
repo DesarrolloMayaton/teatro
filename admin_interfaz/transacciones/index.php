@@ -63,101 +63,140 @@ $stmt->close();
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         :root {
-            --primary-color: #2563eb;
-            --bg-primary: #f8fafc;
-            --bg-secondary: #ffffff;
-            --text-primary: #0f172a;
-            --text-secondary: #64748b;
-            --border-color: #e2e8f0;
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #0ea5e9;
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border: #475569;
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
             --radius-lg: 16px;
         }
+        
+        * { box-sizing: border-box; }
+        
         body {
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(135deg, var(--bg-primary), #e2e8f0);
+            background: var(--bg-main);
             color: var(--text-primary);
-            padding: 30px;
+            padding: 20px;
             min-height: 100vh;
         }
+        
         .container-fluid {
             max-width: 1200px;
             margin: 0 auto;
         }
+        
         .card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-md);
             margin-bottom: 24px;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
         }
-        .card:hover {
-            box-shadow: var(--shadow-lg);
-        }
+        
+        .card:hover { box-shadow: var(--shadow-lg); }
+        
         h2, h3 {
             color: var(--text-primary);
             font-weight: 700;
             letter-spacing: -0.5px;
         }
-        .table thead {
-            background: var(--bg-primary);
+        
+        .table {
+            color: var(--text-primary);
+            margin: 0;
         }
+        
+        .table thead { background: var(--bg-input); }
+        
         .table th {
             color: var(--text-secondary);
             text-transform: uppercase;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             letter-spacing: 0.5px;
+            border-color: var(--border);
         }
+        
+        .table td {
+            border-color: var(--border);
+        }
+        
         .badge-accion {
-            background: rgba(37, 99, 235, 0.1);
-            color: var(--primary-color);
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--primary);
             border-radius: 999px;
             padding: 4px 10px;
             font-size: 0.75rem;
             font-weight: 600;
         }
+        
         .descripcion {
             max-width: 320px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            color: var(--text-secondary);
         }
+        
         tbody tr {
             cursor: pointer;
             transition: all 0.2s ease;
         }
+        
         tbody tr:hover {
-            background-color: rgba(37, 99, 235, 0.05);
-            transform: translateX(4px);
+            background-color: rgba(99, 102, 241, 0.08);
         }
+        
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+        
+        .modal-header, .modal-footer {
+            border-color: var(--border);
+        }
+        
         .modal-body {
             max-height: 70vh;
             overflow-y: auto;
         }
+        
         .detalle-item {
             display: flex;
             justify-content: space-between;
             padding: 12px 0;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border);
         }
-        .detalle-item:last-child {
-            border-bottom: none;
-        }
+        
+        .detalle-item:last-child { border-bottom: none; }
+        
         .detalle-label {
             font-weight: 600;
             color: var(--text-secondary);
             min-width: 150px;
         }
+        
         .detalle-valor {
             color: var(--text-primary);
             word-break: break-word;
             flex: 1;
             text-align: right;
         }
+        
         .json-viewer {
-            background: var(--bg-primary);
-            border: 1px solid var(--border-color);
+            background: var(--bg-input);
+            border: 1px solid var(--border);
             border-radius: 8px;
             padding: 12px;
             font-family: 'Courier New', monospace;
@@ -165,35 +204,74 @@ $stmt->close();
             overflow-x: auto;
             max-height: 300px;
             overflow-y: auto;
+            color: var(--text-primary);
         }
+        
         .badge-accion-modal {
             display: inline-block;
-            background: rgba(37, 99, 235, 0.1);
-            color: var(--primary-color);
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--primary);
             border-radius: 999px;
             padding: 6px 14px;
             font-size: 0.85rem;
             font-weight: 600;
         }
+        
         .filtros-label {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             font-weight: 600;
             color: var(--text-secondary);
         }
+        
+        .form-control {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            border-radius: 8px;
+        }
+        
+        .form-control:focus {
+            background: var(--bg-input);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            color: var(--text-primary);
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+        
+        .btn-outline-secondary {
+            color: var(--text-secondary);
+            border-color: var(--border);
+        }
+        
+        .btn-outline-secondary:hover {
+            background: var(--bg-input);
+            color: var(--text-primary);
+        }
+        
+        .btn-outline-primary {
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+        
+        .btn-outline-primary:hover {
+            background: var(--primary);
+            color: white;
+        }
+        
         .nueva-transaccion {
             animation: slideInDown 0.5s ease-out;
-            background: #dbeafe !important;
+            background: rgba(99, 102, 241, 0.1) !important;
         }
+        
         @keyframes slideInDown {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
+        
         .status-indicator {
             display: inline-flex;
             align-items: center;
@@ -203,14 +281,17 @@ $stmt->close();
             font-size: 0.75rem;
             font-weight: 600;
         }
+        
         .status-indicator.active {
-            background: rgba(16, 185, 129, 0.1);
-            color: #059669;
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
         }
+        
         .status-indicator.paused {
-            background: rgba(245, 158, 11, 0.1);
-            color: #d97706;
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
         }
+        
         .status-indicator .pulse {
             width: 8px;
             height: 8px;
@@ -218,10 +299,14 @@ $stmt->close();
             background: currentColor;
             animation: pulse 2s infinite;
         }
+        
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
+        
+        .text-secondary { color: var(--text-secondary) !important; }
+        .btn-close { filter: invert(1); }
     </style>
 </head>
 <body>

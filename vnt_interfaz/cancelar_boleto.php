@@ -5,6 +5,7 @@ header('Content-Type: application/json');
 include "../conexion.php";
 session_start();
 require_once "../transacciones_helper.php";
+require_once "../api/registrar_cambio.php";
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Método no permitido']);
@@ -23,7 +24,10 @@ $conn->begin_transaction();
 
 try {
     // Verificar que el boleto existe y está activo (estatus = 1)
-    $stmt = $conn->prepare("SELECT id_boleto, estatus FROM boletos WHERE id_boleto = ?");
+    $stmt = $conn->prepare("SELECT b.id_boleto, b.estatus, b.id_evento, b.id_funcion, a.codigo_asiento 
+                           FROM boletos b 
+                           LEFT JOIN asientos a ON b.id_asiento = a.id_asiento 
+                           WHERE b.id_boleto = ?");
     $stmt->bind_param("i", $id_boleto);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -58,6 +62,12 @@ try {
     $conn->commit();
 
     registrar_transaccion('boleto_cancelar', 'Canceló boleto ID ' . $id_boleto);
+    
+    // Notificar cambio para auto-actualización en tiempo real
+    registrar_cambio('cancelacion', $boleto['id_evento'], $boleto['id_funcion'], [
+        'asiento' => $boleto['codigo_asiento'],
+        'id_boleto' => $id_boleto
+    ]);
     
     echo json_encode([
         'success' => true,

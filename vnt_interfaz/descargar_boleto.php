@@ -27,7 +27,6 @@ $stmt = $conn->prepare("
         e.imagen,
         c.nombre_categoria,
         f.fecha_hora as funcion_fecha,
-        f.nombre as funcion_nombre,
         TRIM(CONCAT(COALESCE(u.nombre, ''), ' ', COALESCE(u.apellido, ''))) AS vendedor_nombre
     FROM boletos b
     INNER JOIN asientos a ON b.id_asiento = a.id_asiento
@@ -145,8 +144,7 @@ $pdf->SetFont('Arial', 'B', 11);
 $pdf->Cell(45, 7, 'Función:', 0, 0);
 $pdf->SetFont('Arial', '', 11);
 $fecha_funcion = new DateTime($boleto['funcion_fecha']);
-$pdf->Cell(0, 7, $fecha_funcion->format('d/m/Y H:i') . 
-    (!empty($boleto['funcion_nombre']) ? ' - ' . convertirTexto($boleto['funcion_nombre']) : ''), 0, 1);
+$pdf->Cell(0, 7, $fecha_funcion->format('d/m/Y H:i'), 0, 1);
 
 $pdf->SetFont('Arial', 'B', 11);
 $pdf->Cell(45, 7, convertirTexto('Vendido por:'), 0, 0);
