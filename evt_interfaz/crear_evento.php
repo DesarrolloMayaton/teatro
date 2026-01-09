@@ -169,29 +169,104 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
-    :root { --primary-color: #2563eb; --primary-dark: #1e40af; --success-color: #10b981; --danger-color: #ef4444; --bg-primary: #f8fafc; --bg-secondary: #ffffff; --text-primary: #0f172a; --border-color: #e2e8f0; --radius-lg: 16px; }
-    body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, var(--bg-primary), #e2e8f0); color: var(--text-primary); padding: 30px 20px; min-height: 100vh; opacity: 0; transition: opacity 0.4s ease; }
+    :root { 
+        --primary-color: #1561f0; 
+        --primary-dark: #0d4fc4; 
+        --success-color: #32d74b; 
+        --danger-color: #ff453a; 
+        --bg-primary: #131313; 
+        --bg-secondary: #1c1c1e; 
+        --text-primary: #ffffff; 
+        --text-secondary: #86868b;
+        --border-color: #3a3a3c; 
+        --radius-lg: 16px; 
+    }
+    body { 
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
+        background: var(--bg-primary); 
+        color: var(--text-primary); 
+        padding: 30px 20px; 
+        min-height: 100vh; 
+        opacity: 0; 
+        transition: opacity 0.4s ease; 
+    }
     body.loaded { opacity: 1; }
     body.exiting { opacity: 0; }
 
     .main-wrapper { max-width: 850px; margin: 0 auto; }
-    .card { background: white; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); padding: 40px; border: 1px solid var(--border-color); }
+    .card { 
+        background: var(--bg-secondary); 
+        border-radius: 16px; 
+        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); 
+        padding: 40px; 
+        border: 1px solid var(--border-color); 
+    }
     
-    .form-control, .form-select { border-radius: 8px; padding: 12px; border: 1px solid var(--border-color); background: #fff; }
-    .form-control:focus { border-color: var(--primary-color); box-shadow: 0 0 0 4px rgba(37,99,235,0.1); }
+    .form-control, .form-select { 
+        border-radius: 8px; 
+        padding: 12px; 
+        border: 1px solid var(--border-color); 
+        background: #2b2b2b; 
+        color: var(--text-primary);
+    }
+    .form-control:focus { 
+        border-color: var(--primary-color); 
+        box-shadow: 0 0 0 4px rgba(21,97,240,0.2); 
+        background: #2b2b2b;
+        color: var(--text-primary);
+    }
+    .form-control::placeholder { color: var(--text-secondary); }
+    .form-label { color: var(--text-primary); }
+    .fw-bold { color: var(--text-primary); }
+    .text-muted { color: var(--text-secondary) !important; }
     
     .btn { padding: 12px 24px; border-radius: 8px; font-weight: 600; border: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
-    .btn-primary { background: var(--primary-color); color: white; } .btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); }
-    .btn-secondary { background: #fff; color: var(--text-primary); border: 1px solid var(--border-color); } .btn-secondary:hover { background: #f1f5f9; }
-    .btn-danger { background: #ef4444; color: white; } .btn-danger:hover { background: #dc2626; }
+    .btn-primary { background: var(--primary-color); color: white; } 
+    .btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); }
+    .btn-secondary { background: #2b2b2b; color: var(--text-primary); border: 1px solid var(--border-color); } 
+    .btn-secondary:hover { background: #3a3a3c; }
+    .btn-danger { background: #ff453a; color: white; } 
+    .btn-danger:hover { background: #e03e34; }
+    .btn-success { background: var(--success-color); color: white; }
 
-    .input-error { border-color: #ef4444 !important; background: #fef2f2 !important; }
-    .tooltip-error { color: #ef4444; font-size: 0.85em; margin-top: 5px; display: none; font-weight: 600; }
+    .input-error { border-color: #ff453a !important; background: rgba(255,69,58,0.15) !important; }
+    .tooltip-error { color: #ff453a; font-size: 0.85em; margin-top: 5px; display: none; font-weight: 600; }
     
-    #lista-funciones { background: #f8fafc; border: 2px dashed var(--border-color); border-radius: 8px; padding: 15px; min-height: 70px; display: flex; flex-wrap: wrap; gap: 10px; }
-    .funcion-item { background: white; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--primary-color); color: var(--primary-color); font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .funcion-item button { background: none; border: none; color: #ef4444; font-size: 1.1em; padding: 0; cursor: pointer; line-height: 1; }
+    #lista-funciones { 
+        background: #2b2b2b; 
+        border: 2px dashed var(--border-color); 
+        border-radius: 8px; 
+        padding: 15px; 
+        min-height: 70px; 
+        display: flex; 
+        flex-wrap: wrap; 
+        gap: 10px; 
+    }
+    .funcion-item { 
+        background: var(--bg-secondary); 
+        padding: 6px 12px; 
+        border-radius: 20px; 
+        border: 1px solid var(--primary-color); 
+        color: var(--primary-color); 
+        font-weight: 600; 
+        display: flex; 
+        align-items: center; 
+        gap: 8px; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2); 
+    }
+    .funcion-item button { background: none; border: none; color: #ff453a; font-size: 1.1em; padding: 0; cursor: pointer; line-height: 1; }
     .funcion-item button:hover { transform: scale(1.2); }
+
+    .bg-light { background: #2b2b2b !important; }
+    .border { border-color: var(--border-color) !important; }
+    .border-bottom { border-color: var(--border-color) !important; }
+    .text-primary { color: var(--primary-color) !important; }
+    .form-text { color: var(--text-secondary) !important; }
+    .alert-danger { background: rgba(255,69,58,0.15) !important; border-color: rgba(255,69,58,0.3) !important; color: #ff453a !important; }
+
+    /* Modal */
+    .modal-content { background: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary); }
+    .modal-header, .modal-footer { border-color: var(--border-color); }
 </style>
 </head>
 <body>

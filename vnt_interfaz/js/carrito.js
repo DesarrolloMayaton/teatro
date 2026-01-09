@@ -1260,6 +1260,18 @@ async function confirmarYProcesarPago() {
     btnPagar.disabled = true;
     btnPagar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
 
+    // BLOQUEO TOTAL: Marcar que vamos a abrir el modal de venta exitosa
+    // Esto bloquea TODAS las actualizaciones automáticas hasta que el usuario presione un botón
+    window.TEATRO_VENTA_MODAL_ABIERTO = true;
+    console.log('[Carrito] BLOQUEO DE ACTUALIZACIONES ACTIVADO');
+
+    // IMPORTANTE: Pausar recargas automáticas ANTES de procesar la venta
+    // Esto evita que el sistema detecte el cambio y recargue la página
+    if (typeof TeatroSync !== 'undefined' && TeatroSync.pauseReloads) {
+        TeatroSync.pauseReloads(300000); // 5 minutos para dar tiempo a imprimir/descargar
+        console.log('[Carrito] Recargas automáticas pausadas');
+    }
+
     // Preparar datos con descuentos y tipo de boleto
     const asientosConDescuento = carrito.map(item => {
         const descuentoItem = calcularDescuentoItem(item);
@@ -1297,11 +1309,6 @@ async function confirmarYProcesarPago() {
             console.log('Boletos recibidos:', data.boletos);
             notify.success(`¡Compra exitosa! Se generaron ${data.boletos.length} boleto(s)`);
 
-            // IMPORTANTE: Pausar recargas automáticas para poder imprimir
-            if (typeof TeatroSync !== 'undefined' && TeatroSync.pauseReloads) {
-                TeatroSync.pauseReloads(120000); // 2 minutos
-            }
-
             // Calcular total de la compra
             const totalCompra = data.boletos.reduce((sum, b) => sum + parseFloat(b.precio), 0);
 
@@ -1331,10 +1338,14 @@ async function confirmarYProcesarPago() {
             mostrarBoletosGenerados(data.boletos);
         } else {
             notify.error('Error al procesar la compra: ' + data.message);
+            // Liberar bloqueo si la venta falló
+            window.TEATRO_VENTA_MODAL_ABIERTO = false;
         }
     } catch (error) {
         console.error('Error completo:', error);
         notify.error('Error al procesar la compra: ' + error.message);
+        // Liberar bloqueo si hubo error
+        window.TEATRO_VENTA_MODAL_ABIERTO = false;
     } finally {
         btnPagar.disabled = false;
         btnPagar.innerHTML = '<i class="bi bi-credit-card"></i> Procesar Pago';
@@ -1502,6 +1513,10 @@ function mostrarBoletosGenerados(boletos) {
                             <i class="bi bi-whatsapp"></i>
                             <span>WhatsApp</span>
                         </button>
+                        <button type="button" class="accion-btn btn btn-danger" onclick="cancelarVentaDesdeModal()">
+                            <i class="bi bi-x-circle"></i>
+                            <span>Cancelar Venta</span>
+                        </button>
                     </div>
                 </div>
 
@@ -1531,20 +1546,20 @@ function mostrarBoletosGenerados(boletos) {
 
     // Guardar boletos en variable global para acciones
     window.boletosActuales = boletos;
+    console.log('[Boletos] Boletos guardados para acciones:', window.boletosActuales);
 
-    // Limpiar al cerrar y recargar asientos vendidos
+    // Limpiar al cerrar el modal
     document.getElementById('modalBoletosNuevo').addEventListener('hidden.bs.modal', function () {
         this.remove();
         delete window.boletosActuales;
-        // Recargar asientos vendidos para asegurar visualización
-        if (typeof cargarAsientosVendidos === 'function') {
-            cargarAsientosVendidos();
-        }
+        // Liberar el bloqueo de actualizaciones - la recarga se hace en los botones
+        window.TEATRO_VENTA_MODAL_ABIERTO = false;
+        console.log('[Carrito] BLOQUEO DE ACTUALIZACIONES LIBERADO');
     });
 }
 
 // Función para continuar vendiendo desde el modal de boletos
-function continuarVendiendoDesdeModal() {
+async function continuarVendiendoDesdeModal() {
     const modalBoletos = bootstrap.Modal.getInstance(document.getElementById('modalBoletosNuevo'));
     if (modalBoletos) {
         modalBoletos.hide();
@@ -1553,11 +1568,72 @@ function continuarVendiendoDesdeModal() {
     if (typeof enviarRegresarCartelera === 'function') {
         enviarRegresarCartelera();
     }
-    // Recargar asientos vendidos para reflejar la venta
-    if (typeof cargarAsientosVendidos === 'function') {
-        cargarAsientosVendidos();
+
+    // Limpiar el horario seleccionado para que el usuario deba seleccionar uno nuevo
+    const selectFuncion = document.getElementById('selectFuncion');
+    if (selectFuncion) {
+        selectFuncion.value = ''; // Limpiar selección
     }
-    notify.success('¡Listo para la siguiente venta!');
+
+    // Limpiar el input hidden de función
+    const inputFuncion = document.getElementById('inputIdFuncion');
+    if (inputFuncion) {
+        inputFuncion.value = '';
+    }
+
+    // Resetear la variable global de función
+    if (typeof ID_FUNCION !== 'undefined') {
+        ID_FUNCION = null;
+    }
+
+    // Mostrar el overlay de "Seleccione un horario"
+    let overlay = document.getElementById('overlaySinHorario');
+
+    // Si el overlay no existe (porque se entró con un horario ya seleccionado), crearlo
+    if (!overlay) {
+        const seatMapWrapper = document.querySelector('.seat-map-wrapper');
+        if (seatMapWrapper) {
+            overlay = document.createElement('div');
+            overlay.id = 'overlaySinHorario';
+            overlay.className = 'overlay-sin-horario';
+            overlay.innerHTML = `
+                <div class="overlay-sin-horario-content">
+                    <i class="bi bi-calendar-x"></i>
+                    <h3>Seleccione un horario</h3>
+                    <p>Para comenzar a vender, primero debe seleccionar un horario de función.</p>
+                    <div class="arrow-indicator">
+                        <i class="bi bi-arrow-up"></i>
+                    </div>
+                </div>
+            `;
+            seatMapWrapper.insertBefore(overlay, seatMapWrapper.firstChild);
+        }
+    }
+
+    // Mostrar el overlay
+    if (overlay) {
+        overlay.classList.remove('hidden');
+    }
+
+    // Limpiar el carrito por si quedó algo
+    if (typeof carrito !== 'undefined') {
+        carrito = [];
+    }
+    document.querySelectorAll('.seat.selected').forEach(s => s.classList.remove('selected'));
+    if (typeof actualizarCarrito === 'function') {
+        actualizarCarrito();
+    }
+
+    // Limpiar asientos vendidos del mapa (se cargarán nuevamente cuando se seleccione un horario)
+    document.querySelectorAll('.seat.vendido').forEach(s => s.classList.remove('vendido'));
+    if (typeof asientosVendidos !== 'undefined') {
+        asientosVendidos = new Set();
+    }
+
+    // Liberar el bloqueo de actualizaciones
+    window.TEATRO_VENTA_MODAL_ABIERTO = false;
+
+    notify.success('Seleccione un horario para continuar vendiendo');
 }
 
 // Función para cambiar de evento desde el modal de boletos
@@ -1570,9 +1646,107 @@ function cambiarDeEventoDesdeModal() {
     if (typeof enviarRegresarCartelera === 'function') {
         enviarRegresarCartelera();
     }
+    // Redirigir a la selección de eventos
     setTimeout(() => {
-        window.location.href = 'index.php';
+        window.location.href = window.URL_REGRESAR || 'index.php';
     }, 300);
+}
+
+// Función para cancelar la venta recién realizada desde el modal de boletos
+async function cancelarVentaDesdeModal() {
+    if (!window.boletosActuales || window.boletosActuales.length === 0) {
+        notify.warning('No hay boletos para cancelar');
+        return;
+    }
+
+    // Confirmar cancelación
+    const cantidadBoletos = window.boletosActuales.length;
+    const confirmar = confirm(`¿Estás seguro de que deseas CANCELAR ${cantidadBoletos} boleto(s)?\n\nEsta acción liberará los asientos y anulará la venta.`);
+
+    if (!confirmar) {
+        return;
+    }
+
+    // Mostrar loading
+    const btnCancelar = document.querySelector('.accion-btn.btn-danger');
+    if (btnCancelar) {
+        btnCancelar.disabled = true;
+        btnCancelar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Cancelando...';
+    }
+
+    try {
+        // Cancelar cada boleto
+        const codigos = window.boletosActuales.map(b => b.codigo_unico);
+        let cancelados = 0;
+        let errores = [];
+
+        for (const codigo of codigos) {
+            try {
+                const response = await fetch('cancelar_boleto.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ codigo_unico: codigo })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    cancelados++;
+                } else {
+                    errores.push(data.message || 'Error desconocido');
+                }
+            } catch (error) {
+                errores.push(error.message);
+            }
+        }
+
+        // Cerrar el modal de boletos SIN eliminar el elemento para evitar problemas
+        const modalElement = document.getElementById('modalBoletosNuevo');
+        const modalBoletos = bootstrap.Modal.getInstance(modalElement);
+        if (modalBoletos) {
+            modalBoletos.hide();
+        }
+        // Remover el modal después de que se oculte
+        if (modalElement) {
+            modalElement.addEventListener('hidden.bs.modal', function () {
+                this.remove();
+            }, { once: true });
+        }
+
+        // Liberar bloqueo
+        window.TEATRO_VENTA_MODAL_ABIERTO = false;
+
+        // Limpiar la variable de boletos actuales
+        delete window.boletosActuales;
+
+        // Actualizar el mapa de asientos SIN cambiar el horario seleccionado
+        if (typeof cargarAsientosVendidos === 'function') {
+            await cargarAsientosVendidos();
+        }
+
+        // Mostrar resultado
+        if (cancelados === codigos.length) {
+            notify.success(`¡Venta cancelada! Se liberaron ${cancelados} asiento(s). Puedes continuar vendiendo.`);
+        } else if (cancelados > 0) {
+            notify.warning(`Se cancelaron ${cancelados} de ${codigos.length} boletos. Algunos tuvieron errores.`);
+        } else {
+            notify.error('No se pudo cancelar ningún boleto. ' + errores.join(', '));
+        }
+
+        // NO llamamos a enviarRegresarCartelera() para mantener el horario seleccionado
+
+    } catch (error) {
+        console.error('Error al cancelar venta:', error);
+        notify.error('Error al cancelar la venta: ' + error.message);
+
+        // Restaurar botón
+        if (btnCancelar) {
+            btnCancelar.disabled = false;
+            btnCancelar.innerHTML = '<i class="bi bi-x-circle"></i><span>Cancelar Venta</span>';
+        }
+    }
 }
 
 // Mostrar modal para elegir siguiente acción después de una venta
@@ -1638,19 +1812,86 @@ function cambiarDeEvento() {
     modal.hide();
     document.getElementById('modalSiguienteAccion').addEventListener('hidden.bs.modal', function () {
         this.remove();
-        window.location.href = 'index.php';
+        window.location.href = window.URL_REGRESAR || 'index.php';
     });
 }
 
-// Descargar todos los boletos en un solo PDF
-function descargarTodosBoletos() {
-    if (!window.boletosActuales || window.boletosActuales.length === 0) return;
+// Descargar todos los boletos en un solo PDF usando fetch + Blob
+async function descargarTodosBoletos() {
+    console.log('[Boletos] Intentando descargar PDF. boletosActuales:', window.boletosActuales);
+
+    if (!window.boletosActuales || window.boletosActuales.length === 0) {
+        notify.warning('No hay boletos para descargar');
+        return;
+    }
 
     // Crear string con todos los códigos separados por comas
-    const codigos = window.boletosActuales.map(b => b.codigo_unico).join(',');
+    const codigos = window.boletosActuales.map(b => {
+        console.log('[Boletos] Procesando boleto:', b);
+        return b.codigo_unico;
+    }).filter(c => c); // Filtrar valores vacíos
 
-    // Abrir el PDF con todos los boletos
-    window.open(`descargar_todos_boletos.php?codigos=${codigos}`, '_blank');
+    if (codigos.length === 0) {
+        notify.error('Error: Los boletos no tienen código único');
+        return;
+    }
+
+    const url = `descargar_todos_boletos.php?codigos=${codigos.join(',')}`;
+    console.log('[Boletos] URL de descarga:', url);
+
+    notify.info('Generando PDF...');
+
+    try {
+        // Usar fetch para obtener el PDF como blob
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            throw new Error('Error al generar el PDF');
+        }
+
+        const blob = await response.blob();
+
+        // Crear URL de objeto temporal
+        const blobUrl = URL.createObjectURL(blob);
+
+        // Generar nombre de archivo basado en evento y fecha
+        const eventoNombre = document.querySelector('.evento-badge')?.textContent?.trim() || 'Evento';
+        const funcionSelect = document.getElementById('selectFuncion');
+        let funcionTexto = '';
+        if (funcionSelect && funcionSelect.selectedIndex > 0) {
+            funcionTexto = funcionSelect.options[funcionSelect.selectedIndex].text.trim();
+        }
+
+        // Formatear fecha actual
+        const ahora = new Date();
+        const dia = String(ahora.getDate()).padStart(2, '0');
+        const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+        const anio = ahora.getFullYear();
+        const hora = String(ahora.getHours()).padStart(2, '0');
+        const minutos = String(ahora.getMinutes()).padStart(2, '0');
+
+        // Limpiar nombre de evento para uso en archivo
+        const eventoLimpio = eventoNombre.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '').replace(/\s+/g, '_').substring(0, 30);
+
+        // Nombre del archivo: Boletos_Evento_Fecha_Hora.pdf
+        const nombreArchivo = `Boletos_${eventoLimpio}_${dia}-${mes}-${anio}_${hora}${minutos}.pdf`;
+
+        // Crear enlace con nombre basado en evento
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = nombreArchivo;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // Limpiar URL de objeto
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+
+        notify.success('¡PDF descargado correctamente!');
+    } catch (error) {
+        console.error('[Boletos] Error al descargar PDF:', error);
+        notify.error('Error al descargar el PDF: ' + error.message);
+    }
 }
 
 // Imprimir todos los boletos (abre cada uno en una nueva ventana)
@@ -1677,12 +1918,21 @@ function enviarBoletoPorWhatsApp(codigoBoleto) {
 
 // Función para abrir WhatsApp con todos los boletos
 function enviarTodosBoletosPorWhatsApp() {
+    console.log('[WhatsApp] Intentando enviar boletos. boletosActuales:', window.boletosActuales);
+
     if (!window.boletosActuales || window.boletosActuales.length === 0) {
         notify.warning('No hay boletos para enviar');
         return;
     }
 
-    const codigos = window.boletosActuales.map(b => b.codigo_unico);
+    const codigos = window.boletosActuales.map(b => b.codigo_unico).filter(c => c);
+    console.log('[WhatsApp] Códigos a enviar:', codigos);
+
+    if (codigos.length === 0) {
+        notify.error('Error: Los boletos no tienen código único');
+        return;
+    }
+
     abrirWhatsAppWeb(codigos, true);
 }
 
@@ -1726,7 +1976,7 @@ async function abrirWhatsAppWeb(codigosBoletos, esMultiple) {
 
     try {
         const codigosStr = codigosBoletos.join(',');
-        const response = await fetch(`obtener_info_boletos.php ? codigos = ${codigosStr} `);
+        const response = await fetch(`obtener_info_boletos.php?codigos=${codigosStr}`);
         const data = await response.json();
 
         if (data.success) {
@@ -1741,11 +1991,11 @@ async function abrirWhatsAppWeb(codigosBoletos, esMultiple) {
     let opcionesPais = '';
     CODIGOS_PAIS.forEach(pais => {
         const selected = pais.codigo === '52' ? 'selected' : '';
-        opcionesPais += `< option value = "${pais.codigo}" ${selected}> ${pais.pais}</option > `;
+        opcionesPais += `<option value="${pais.codigo}" ${selected}>${pais.pais}</option>`;
     });
 
     const modalHTML = `
-        < div class="modal fade" id = "modalWhatsApp" tabindex = "-1" aria - hidden="true" >
+        <div class="modal fade" id="modalWhatsApp" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content shadow-lg border-0">
                     <div class="modal-header bg-success text-white">
@@ -1810,7 +2060,7 @@ async function abrirWhatsAppWeb(codigosBoletos, esMultiple) {
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
         `;
 
     document.body.insertAdjacentHTML('beforeend', modalHTML);
@@ -1855,7 +2105,7 @@ async function abrirWhatsAppWeb(codigosBoletos, esMultiple) {
 }
 
 // Función para confirmar y abrir WhatsApp
-function confirmarAbrirWhatsApp() {
+async function confirmarAbrirWhatsApp() {
     const inputTelefono = document.getElementById('telefonoWhatsApp');
     const selectCodigoPais = document.getElementById('codigoPais');
     const telefono = inputTelefono.value.trim().replace(/[^0-9]/g, '');
@@ -1925,40 +2175,44 @@ function confirmarAbrirWhatsApp() {
     // Construir URL de WhatsApp
     const urlWhatsApp = `https://api.whatsapp.com/send/?phone=${numeroCompleto}&text=${mensajeCodificado}&type=phone_number&app_absent=0`;
 
-    // Descargar PDF del boleto(s) automáticamente
+    // Descargar PDF del boleto(s) automáticamente usando fetch + Blob
+    let urlDescarga;
+    let nombreArchivo;
+
+    // Generar nombre de archivo basado en evento y fecha
+    const eventoNombre = infoEvento?.titulo || document.querySelector('.evento-badge')?.textContent?.trim() || 'Evento';
+    const ahora = new Date();
+    const dia = String(ahora.getDate()).padStart(2, '0');
+    const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+    const anio = ahora.getFullYear();
+    const hora = String(ahora.getHours()).padStart(2, '0');
+    const minutos = String(ahora.getMinutes()).padStart(2, '0');
+    const eventoLimpio = eventoNombre.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '').replace(/\s+/g, '_').substring(0, 30);
+
     if (esMultiple && codigosBoletos.length > 1) {
-        // Descargar todos los boletos en un solo PDF
         const codigosStr = codigosBoletos.join(',');
-        const urlDescargar = `descargar_todos_boletos.php?codigos=${codigosStr}`;
-
-        // Crear un enlace temporal para descargar
-        const linkDescarga = document.createElement('a');
-        linkDescarga.href = urlDescargar;
-        linkDescarga.target = '_blank';
-        linkDescarga.style.display = 'none';
-        document.body.appendChild(linkDescarga);
-        linkDescarga.click();
-
-        // Remover el enlace después de un momento
-        setTimeout(() => {
-            document.body.removeChild(linkDescarga);
-        }, 1000);
+        urlDescarga = `descargar_todos_boletos.php?codigos=${codigosStr}`;
+        nombreArchivo = `Boletos_${eventoLimpio}_${dia}-${mes}-${anio}_${hora}${minutos}.pdf`;
     } else {
-        // Descargar un solo boleto
-        const urlDescargar = `descargar_boleto.php?codigo=${codigosBoletos[0]}`;
+        urlDescarga = `descargar_boleto.php?codigo=${codigosBoletos[0]}`;
+        nombreArchivo = `Boleto_${eventoLimpio}_${dia}-${mes}-${anio}_${hora}${minutos}.pdf`;
+    }
 
-        // Crear un enlace temporal para descargar
-        const linkDescarga = document.createElement('a');
-        linkDescarga.href = urlDescargar;
-        linkDescarga.target = '_blank';
-        linkDescarga.style.display = 'none';
-        document.body.appendChild(linkDescarga);
-        linkDescarga.click();
-
-        // Remover el enlace después de un momento
-        setTimeout(() => {
-            document.body.removeChild(linkDescarga);
-        }, 1000);
+    try {
+        const response = await fetch(urlDescarga);
+        if (response.ok) {
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = nombreArchivo;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+        }
+    } catch (error) {
+        console.error('Error al descargar PDF:', error);
     }
 
     // Cerrar modal

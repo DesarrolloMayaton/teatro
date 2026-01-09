@@ -1,7 +1,12 @@
 <?php
-// 1. CONEXIÓN
+// 1. CONEXIÓN y SESIÓN
+session_start();
 // Ajusta la ruta si es necesario. Asumo que está en /vnt_interfaz/
 include "../conexion.php"; 
+
+// Detectar si es empleado o admin para redirigir al lugar correcto
+$es_empleado = isset($_SESSION['usuario_rol']) && $_SESSION['usuario_rol'] !== 'admin';
+$url_regresar = $es_empleado ? '../index_empleado.php' : 'index.php';
 
 $id_evento_seleccionado = null;
 $id_funcion_seleccionada = null;
@@ -84,9 +89,9 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
         // --- FIN: MODIFICADO ---
 
         // 5. Cargar funciones disponibles para el evento
-        // Se permite vender hasta 2 horas después de iniciada la función
+        // Se permite vender hasta 2 horas después de iniciada la función O si es del día de hoy
         $fecha_limite = date('Y-m-d H:i:s', strtotime('-2 hours'));
-        $stmt_fun = $conn->prepare("SELECT id_funcion, fecha_hora, estado FROM funciones WHERE id_evento = ? AND fecha_hora > ? ORDER BY fecha_hora ASC");
+        $stmt_fun = $conn->prepare("SELECT id_funcion, fecha_hora, estado FROM funciones WHERE id_evento = ? AND (fecha_hora > ? OR DATE(fecha_hora) = CURDATE()) ORDER BY fecha_hora ASC");
         $stmt_fun->bind_param("is", $id_evento_seleccionado, $fecha_limite);
         $stmt_fun->execute();
         $res_funciones = $stmt_fun->get_result();
@@ -176,21 +181,22 @@ $conn->close();
 <link rel="stylesheet" href="css/animations.css">
 <link rel="stylesheet" href="css/menu-mejoras.css?v=2">
 <link rel="stylesheet" href="css/seleccion-multiple.css">
+<link rel="stylesheet" href="../assets/css/seat-map.css?v=1">
 <style>
 :root {
-  --primary-color: #2563eb;
-  --primary-dark: #1e40af;
-  --success-color: #10b981;
-  --danger-color: #ef4444;
-  --warning-color: #f59e0b;
-  --bg-primary: #f8fafc;
-  --bg-secondary: #ffffff;
-  --text-primary: #0f172a;
-  --text-secondary: #64748b;
-  --border-color: #e2e8f0;
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --primary-color: #1561f0;
+  --primary-dark: #0d4fc4;
+  --success-color: #32d74b;
+  --danger-color: #ff453a;
+  --warning-color: #ff9f0a;
+  --bg-primary: #131313;
+  --bg-secondary: #1c1c1e;
+  --text-primary: #ffffff;
+  --text-secondary: #86868b;
+  --border-color: #3a3a3c;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -208,8 +214,8 @@ html, body {
 }
 
 body {
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  background: var(--bg-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: var(--text-primary);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -218,10 +224,9 @@ body {
 
 .container-fluid {
   display: flex;
-  flex-direction: column;
   height: 100vh;
-  padding: 8px;
-  gap: 8px;
+  padding: 20px;
+  gap: 20px;
   overflow: hidden;
 }
 
@@ -234,25 +239,24 @@ body {
 }
 
 .mapper-container {
-  display: flex;
-  gap: 8px;
   flex: 1;
-  min-height: 0;
+  display: flex;
+  gap: 20px;
   overflow: hidden;
+  position: relative;
 }
 
 .seat-map-wrapper {
   flex: 1;
-  min-width: 0;
   background: var(--bg-secondary);
   border-radius: var(--radius-lg);
-  padding: 16px;
+  padding: 40px;
   overflow: auto;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-md);
+  display: flex;
+  justify-content: center;
+  position: relative;
 }
 
 .seat-map-wrapper::-webkit-scrollbar {
@@ -275,72 +279,64 @@ body {
 }
 
 .seat-map-content {
+  min-width: min-content;
   transform-origin: top center;
-  width: fit-content;
-  min-height: min-content;
   transition: transform 0.3s ease;
-  margin: 0 auto; /* Centrar horizontalmente */
 }
 
 .screen {
-  background: linear-gradient(135deg, var(--text-primary) 0%, #334155 100%);
+  background: linear-gradient(135deg, #1c1c1e 0%, #334155 100%);
   color: white;
-  padding: 16px 24px;
+  padding: 10px 20px;
   text-align: center;
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin-bottom: 32px;
-  border-radius: var(--radius-md);
-  position: sticky;
-  top: -32px;
-  z-index: 10;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+  border-radius: 8px;
+  margin-bottom: 20px;
   box-shadow: var(--shadow-lg);
-  letter-spacing: 0.5px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border: 1px solid var(--border-color);
 }
 
 .seat {
-  width: 24px;
-  height: 24px;
-  background: #e2e8f0;
-  color: var(--text-primary);
+  width: 22px;
+  height: 22px;
+  background: #0066ff;
+  color: #000000;
   border-radius: 3px;
-  font-size: 7px;
-  font-weight: 600;
+  font-size: 6px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid transparent;
+  border: none;
   cursor: pointer;
   transition: all 0.15s ease;
-  padding: 0;
+  padding: 1px;
   box-sizing: border-box;
   text-align: center;
   line-height: 1;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
 }
 
-.seat:hover {
-  border-color: var(--primary-color);
-  box-shadow: 0 2px 4px rgba(37,99,235,0.25);
+.seat:hover, .seat:focus {
+  background: #0052cc;
+  transform: scale(1.1);
+  outline: none;
 }
 
 .seat.selected {
-  border: 3px solid var(--success-color) !important;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
-  transform: scale(1.05);
+  background: #32d74b !important;
+  transform: scale(1.1);
 }
 
 .seat.vendido {
-  background: repeating-linear-gradient(
-    45deg,
-    #ef4444,
-    #ef4444 10px,
-    #dc2626 10px,
-    #dc2626 20px
-  ) !important;
-  color: white !important;
+  background: #1c1c1e !important;
+  color: #666 !important;
   cursor: not-allowed !important;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 .seat:active {
@@ -348,13 +344,13 @@ body {
 }
 
 .row-label {
-  width: 48px;
+  width: 30px;
   text-align: center;
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 0.55rem;
   color: var(--text-secondary);
-  border-radius: var(--radius-sm);
-  padding: 8px 0;
+  border-radius: 3px;
+  padding: 3px 0;
   cursor: pointer;
   transition: all 0.2s ease;
   user-select: none;
@@ -368,18 +364,18 @@ body {
 
 .pasarela-container {
   position: relative;
-  width: 100px;
+  width: 50px;
   flex-shrink: 0;
 }
 
 .pasarela {
-  width: 100px;
+  width: 50px;
   background: linear-gradient(180deg, var(--text-primary) 0%, #334155 100%);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   position: absolute;
   top: 0;
   left: 0;
@@ -390,48 +386,47 @@ body {
   writing-mode: vertical-rl;
   text-orientation: mixed;
   font-weight: 700;
-  letter-spacing: 6px;
-  font-size: 1rem;
+  letter-spacing: 3px;
+  font-size: 0.6rem;
 }
 
 .seats-block {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
 }
 
 .seat-row-wrapper {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
-.pasillo {
-  width: 8px;
+.pasillo, .aisle {
+  width: 12px;
 }
 
 .controls-panel {
-  width: 320px;
-  min-width: 300px;
-  max-width: 350px;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-  padding: 12px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  flex-shrink: 0;
-  border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-md);
+  width: 280px;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px;
+  gap: 10px;
+  z-index: 200;
   position: relative;
-  z-index: 200; /* Encima del overlay de asientos */
 }
 
 .controls-panel::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 .controls-panel::-webkit-scrollbar-track {
@@ -449,10 +444,26 @@ body {
   background: var(--text-secondary);
 }
 
-.panel-header {
-  padding-bottom: 12px;
-  margin-bottom: 4px;
+.panel-header, .palette-header {
+  padding: 12px;
   border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(to right, var(--bg-primary), var(--bg-secondary));
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.palette-body, .panel-body {
+  padding: 10px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.palette-footer, .panel-footer {
+  padding: 12px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  border-radius: 8px;
+  margin-top: 8px;
 }
 
 .controls-panel h2 {
@@ -487,31 +498,32 @@ body {
 }
 
 .form-select {
-  border: 1px solid var(--border-color);
+  border: 1px solid #4a4a4c;
   border-radius: var(--radius-sm);
   padding: 8px 12px;
   font-size: 0.9rem;
   transition: all 0.2s;
-  background-color: var(--bg-primary);
+  background-color: #2b2b2b;
+  color: #ffffff;
 }
 
 .form-select:focus {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: #1561f0;
+  box-shadow: 0 0 0 3px rgba(21, 97, 240, 0.3);
   outline: none;
 }
 
 /* Estilos para opciones deshabilitadas (funciones vencidas) */
 .form-select option:disabled {
-  color: #9ca3af !important;
-  background-color: #f3f4f6 !important;
+  color: #666 !important;
+  background-color: #1c1c1e !important;
   font-style: italic;
   cursor: not-allowed;
 }
 
 #selectFuncion option:disabled {
-  color: #9ca3af !important;
-  background-color: #f3f4f6 !important;
+  color: #666 !important;
+  background-color: #1c1c1e !important;
 }
 
 /* === CARTELERA DE EVENTOS === */
@@ -525,8 +537,8 @@ body {
 }
 
 .evento-mini-card {
-  background: var(--bg-secondary);
-  border: 2px solid var(--border-color);
+  background: #2b2b2b;
+  border: 2px solid #4a4a4c;
   border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
@@ -534,14 +546,14 @@ body {
 }
 
 .evento-mini-card:hover {
-  border-color: var(--primary-color);
+  border-color: #1561f0;
   transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(37,99,235,0.15);
+  box-shadow: 0 8px 20px rgba(21,97,240,0.3);
 }
 
 .evento-mini-card.selected {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(37,99,235,0.2);
+  border-color: #1561f0;
+  box-shadow: 0 0 0 3px rgba(21,97,240,0.3);
 }
 
 .evento-mini-poster {
@@ -554,11 +566,11 @@ body {
 .evento-mini-poster-placeholder {
   width: 100%;
   aspect-ratio: 2/3;
-  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+  background: linear-gradient(135deg, #3a3a3c 0%, #2b2b2b 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-secondary);
+  color: #86868b;
   font-size: 1.5rem;
 }
 
@@ -935,31 +947,32 @@ hr {
 }
 
 .seccion-categorias-separada .seccion-header {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  border-bottom: 1px solid #fbbf24;
+  background: linear-gradient(135deg, #0066ff 0%, #0052cc 100%);
+  border-bottom: 1px solid #003d99;
 }
 
 .seccion-categorias-separada .seccion-header:hover {
-  background: linear-gradient(135deg, #fde68a 0%, #fcd34d 100%);
+  background: linear-gradient(135deg, #0052cc 0%, #003d99 100%);
 }
 
 .seccion-categorias-separada .seccion-header h5 {
-  color: #92400e;
+  color: #ffffff;
 }
 
 .seccion-categorias-separada .seccion-header .toggle-icon {
-  color: #92400e;
+  color: #ffffff;
 }
 
 .categorias-info-text {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: #1c1c1e;
+  border: 1px solid #3a3a3c;
   border-radius: 6px;
   padding: 8px 12px;
+  color: #ffffff;
 }
 
 .categorias-info-text i {
-  color: #2563eb;
+  color: #0066ff;
 }
 
 /* Mejoras visuales adicionales */
@@ -1003,21 +1016,22 @@ hr {
 }
 
 .evento-badge {
-  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-  border: 1px solid #93c5fd;
+  background: #0066ff;
+  border: 1px solid #0052cc;
   border-radius: 8px;
   padding: 8px 12px;
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 0.85rem;
-  color: #1e40af;
+  color: #ffffff;
   font-weight: 600;
   margin-top: 8px;
 }
 
 .evento-badge i {
   font-size: 1rem;
+  color: #ffffff;
 }
 
 .seccion-evento {
@@ -1039,8 +1053,8 @@ hr {
 }
 
 .stat-card {
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 1px solid var(--border-color);
+  background: #0066ff;
+  border: 1px solid #0052cc;
   border-radius: 10px;
   padding: 14px;
   display: flex;
@@ -1050,26 +1064,26 @@ hr {
 }
 
 .stat-card:hover {
-  border-color: var(--primary-color);
+  border-color: #ffffff;
   box-shadow: var(--shadow-md);
   transform: translateY(-2px);
 }
 
 .stat-card i {
   font-size: 1.8rem;
-  color: var(--primary-color);
+  color: #ffffff;
 }
 
 .stat-value {
   font-size: 1.3rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #ffffff;
   line-height: 1;
 }
 
 .stat-label {
   font-size: 0.75rem;
-  color: var(--text-secondary);
+  color: rgba(255,255,255,0.8);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-top: 2px;
@@ -1078,19 +1092,19 @@ hr {
 /* Secciones Colapsables */
 .seccion-carrito,
 .seccion-categorias-separada {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
   background: var(--bg-secondary);
 }
 
 /* Contenedor de items del carrito con scroll */
 .carrito-items-container {
-  max-height: 400px;
+  max-height: 150px;
   overflow-y: auto;
   overflow-x: hidden;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   padding-right: 4px;
 }
 
@@ -1122,7 +1136,7 @@ hr {
 }
 
 .seccion-header {
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  background: linear-gradient(135deg, #0066ff 0%, #0052cc 100%);
   padding: 12px 16px;
   cursor: pointer;
   display: flex;
@@ -1133,13 +1147,14 @@ hr {
 }
 
 .seccion-header:hover {
-  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  background: linear-gradient(135deg, #0052cc 0%, #003d99 100%);
 }
 
 .seccion-header h5 {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
+  color: #ffffff;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1147,7 +1162,7 @@ hr {
 
 .seccion-header .toggle-icon {
   transition: transform 0.3s ease;
-  color: var(--text-secondary);
+  color: #ffffff;
 }
 
 .seccion-header.collapsed .toggle-icon {
@@ -1155,15 +1170,15 @@ hr {
 }
 
 .seccion-content {
-  padding: 16px;
-  max-height: 1000px;
+  padding: 10px;
+  max-height: 800px;
   overflow: hidden;
   transition: max-height 0.3s ease, padding 0.3s ease;
 }
 
 .seccion-content.collapsed {
   max-height: 0;
-  padding: 0 16px;
+  padding: 0 10px;
 }
 
 /* Selector de Descuentos Minimalista */
@@ -1370,14 +1385,16 @@ hr {
   position: absolute;
   top: 0;
   left: 0;
+  right: 0;
+  bottom: 0;
   width: 100%;
   height: 100%;
-  background: rgba(15, 23, 42, 0.9);
-  backdrop-filter: blur(6px);
+  background: rgba(19, 19, 19, 0.95);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 50;
+  z-index: 100;
   border-radius: var(--radius-lg);
   transition: opacity 0.3s ease, visibility 0.3s ease;
 }
@@ -1532,6 +1549,7 @@ if ($evento_info):
     
     <?php if ($evento_info): ?>
     <div class="seat-map-wrapper" style="position: relative;">
+      
       <!-- Overlay de bloqueo cuando no hay horario seleccionado -->
       <?php if (!$id_funcion_seleccionada): ?>
       <div class="overlay-sin-horario" id="overlaySinHorario">
@@ -1540,7 +1558,7 @@ if ($evento_info):
           <h3>Seleccione un horario</h3>
           <p>Para comenzar a vender, primero debe seleccionar un horario de función.</p>
           <div class="arrow-indicator">
-            <i class="bi bi-arrow-up"></i>
+            <i class="bi bi-arrow-right"></i>
           </div>
         </div>
       </div>
@@ -1572,7 +1590,7 @@ if ($evento_info):
                 <?= $nombre_asiento ?>
             </div>
           <?php endfor; ?>
-          <div style="width: 100px; flex-shrink: 0;"></div>
+          <div style="width: 60px; flex-shrink: 0;"></div>
           <?php for ($i=1; $i<=6; $i++): 
                   $nombre_asiento = $nombre_fila . '-' . $numero_en_fila_pb++;
                   // --- MODIFICADO: Default a $id_categoria_general ---
@@ -1589,8 +1607,8 @@ if ($evento_info):
       <?php endfor; ?>
       
       <!-- Pasarela posicionada absolutamente sobre todas las filas -->
-      <div class="pasarela" style="position: absolute; width: 100px; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); background: linear-gradient(180deg, var(--text-primary) 0%, #334155 100%); color: #fff; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-md); box-shadow: var(--shadow-md);">
-        <span class="pasarela-text">PASARELA</span>
+      <div class="pasarela" style="position: absolute; width: 60px; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); background: linear-gradient(180deg, #1c1c1e 0%, #334155 100%); color: #fff; display: flex; align-items: center; justify-content: center; border-radius: 6px; box-shadow: var(--shadow-md);">
+        <span class="pasarela-text" style="font-size: 0.5rem; letter-spacing: 2px;">PASARELA</span>
       </div>
       </div>
       <hr style="margin-top: 20px; margin-bottom: 20px; border-width: 2px;">
@@ -1733,7 +1751,7 @@ if ($evento_info):
                     <i class="bi bi-ticket-perforated text-primary"></i> 
                     <?= htmlspecialchars($evento_info['titulo']) ?>
                 </h5>
-                <button class="btn btn-sm btn-outline-primary" onclick="location.href='index.php'" title="Cambiar evento">
+                <button class="btn btn-sm btn-outline-primary" onclick="location.href='<?= $url_regresar ?>'" title="Cambiar evento">
                     <i class="bi bi-arrow-left-right"></i>
                 </button>
             </div>
@@ -1779,81 +1797,41 @@ if ($evento_info):
         
         <?php if ($evento_info): ?>
         
-        <!-- Estadísticas Rápidas -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <i class="bi bi-ticket-perforated"></i>
-                <div>
-                    <div class="stat-value" id="statAsientos">0</div>
-                    <div class="stat-label">Asientos</div>
-                </div>
+        <!-- Carrito de Compras (siempre visible) -->
+        <div class="carrito-simple" style="background: var(--bg-primary); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+            <h6 style="margin: 0 0 8px 0; color: #0066ff; font-size: 0.85rem;"><i class="bi bi-cart3"></i> Carrito</h6>
+            <div id="carritoItems" style="max-height: 140px; overflow-y: auto; margin-bottom: 8px; scrollbar-width: thin;">
+                <div class="carrito-vacio" style="font-size: 0.8rem; padding: 30px 10px; text-align: center; color: #86868b;">Selecciona asientos en el mapa</div>
             </div>
-            <div class="stat-card">
-                <i class="bi bi-cash-coin"></i>
-                <div>
-                    <div class="stat-value" id="statTotal">$0</div>
-                    <div class="stat-label">Total</div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Carrito de Compras -->
-        <div class="seccion-carrito">
-            <div class="seccion-header" onclick="toggleSeccion('carrito')">
-                <h5><i class="bi bi-cart3"></i> Carrito de Compras</h5>
-                <i class="bi bi-chevron-down toggle-icon"></i>
-            </div>
-            <div class="seccion-content" id="seccion-carrito">
-                <!-- Lista de items con scroll -->
-                <div class="carrito-items-container">
-                    <div id="carritoItems">
-                        <div class="carrito-vacio">Selecciona asientos en el mapa</div>
-                    </div>
-                </div>
-                
-                <!-- Solo el total -->
-                <div class="carrito-footer">
-                    <div class="total-section">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h4>Total a Pagar</h4>
-                            <h4 id="totalCompra">$0.00</h4>
-                        </div>
-                    </div>
+            <div style="background: linear-gradient(135deg, #0066ff 0%, #0052cc 100%); padding: 12px; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: white; font-weight: 600; font-size: 0.9rem;"><span id="statAsientos">0</span> asientos</span>
+                    <span style="color: white; font-weight: 700; font-size: 1.1rem;">Total: <span id="totalCompra">$0</span></span>
                 </div>
             </div>
         </div>
         
         <!-- Botón de Pago Principal -->
-        <button id="btnPagar" class="btn btn-success btn-lg w-100 mb-3" onclick="procesarPago()" disabled style="padding: 16px; font-size: 1.1rem; font-weight: 700; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3);">
-            <i class="bi bi-credit-card"></i> Procesar Pago
+        <button id="btnPagar" class="btn w-100 mb-2" onclick="procesarPago()" disabled style="background: linear-gradient(135deg, #32d74b 0%, #1f9d3c 100%); color: white; padding: 16px 20px; font-size: 1.1rem; font-weight: 700; border: 2px solid #28a745; border-radius: 10px; box-shadow: 0 6px 20px rgba(50, 215, 75, 0.4); text-transform: uppercase; letter-spacing: 1px;">
+            <i class="bi bi-credit-card-fill"></i> Procesar Pago
         </button>
         
         <!-- Acciones Rápidas -->
-        <div class="acciones-rapidas">
-            <!-- Botón unificado de Gestión de Boletos -->
-            <button class="btn btn-primary w-100 mb-2" onclick="abrirGestionBoletos('verificar')">
+        <div class="acciones-rapidas" style="display: flex; flex-direction: column; gap: 6px;">
+            <button class="btn btn-primary btn-sm w-100" onclick="abrirGestionBoletos('verificar')" style="font-size: 0.8rem; padding: 8px;">
                 <i class="bi bi-qr-code-scan"></i> Gestión de Boletos
             </button>
             
-            <button class="btn btn-warning w-100 mb-2" onclick="verCategorias()">
+            <button class="btn btn-warning btn-sm w-100" onclick="verCategorias()" style="font-size: 0.8rem; padding: 8px;">
                 <i class="bi bi-palette"></i> Categorías
             </button>
             
-            <!-- Selección Múltiple -->
-            <div class="alert alert-info p-2 mb-2" style="font-size: 0.85rem;">
-                <i class="bi bi-info-circle"></i> 
-                <strong>Selección rápida:</strong><br>
-                • <strong>Ctrl + Click:</strong> Seleccionar rango<br>
-                • <strong>Doble Click:</strong> Seleccionar fila completa
-            </div>
-            
-            <button class="btn btn-outline-secondary w-100 mb-2" onclick="limpiarSeleccion()">
+            <button class="btn btn-outline-secondary btn-sm w-100" onclick="limpiarSeleccion()" style="font-size: 0.8rem; padding: 8px;">
                 <i class="bi bi-arrow-counterclockwise"></i> Limpiar Selección
             </button>
             
-            <!-- Botón Pantalla Cliente -->
-            <button class="btn btn-dark w-100" onclick="abrirVisorCliente()">
-                <i class="bi bi-display"></i> Abrir Pantalla Cliente
+            <button class="btn btn-dark btn-sm w-100" onclick="abrirVisorCliente()" style="font-size: 0.8rem; padding: 8px;">
+                <i class="bi bi-display"></i> Pantalla Cliente
             </button>
         </div>
 
@@ -2128,7 +2106,7 @@ if ($evento_info):
         }
     })
     .then(response => response.text())
-    .then(html => {
+    .then(async html => {
         // Create a temporary container to hold the new content
         const temp = document.createElement('div');
         temp.innerHTML = html;
@@ -2143,7 +2121,7 @@ if ($evento_info):
         }
         
         // Update the function dropdown to maintain the selected value
-        const newSelect = temp.getElementById('selectFuncion');
+        const newSelect = temp.querySelector('#selectFuncion');
         if (newSelect) {
             const currentSelect = document.getElementById('selectFuncion');
             if (currentSelect) {
@@ -2151,8 +2129,6 @@ if ($evento_info):
                 currentSelect.value = idFuncion; // Maintain the selected value
             }
         }
-        
-        // Reinitialize any necessary JavaScript
         
         // Limpiar carrito y selecciones al cambiar de función
         // (los asientos vendidos pueden cambiar entre funciones)
@@ -2166,10 +2142,16 @@ if ($evento_info):
             }
         }
         
-        // Cargar asientos vendidos INMEDIATAMENTE (sin esperar)
+        // IMPORTANTE: Cargar asientos vendidos DESPUÉS de actualizar el DOM
+        // y ESPERAR a que termine para marcarlos correctamente
+        console.log('Cargando asientos vendidos para la nueva función...');
         if (window.cargarAsientosVendidos) {
-            console.log('Cargando asientos vendidos inmediatamente...');
-            cargarAsientosVendidos();
+            try {
+                await cargarAsientosVendidos();
+                console.log('Asientos vendidos cargados y marcados');
+            } catch (e) {
+                console.error('Error cargando asientos vendidos:', e);
+            }
         }
         
         // Usar setTimeout para asegurar que el DOM se haya actualizado completamente
@@ -2180,9 +2162,11 @@ if ($evento_info):
                 escalarMapa();
             }
             
-            if (window.cargarAsientosVendidos) {
-                cargarAsientosVendidos();
+            // Volver a marcar asientos vendidos (por si acaso)
+            if (typeof marcarAsientosVendidos === 'function') {
+                marcarAsientosVendidos();
             }
+            
             if (window.cargarDescuentos) {
                 cargarDescuentos();
             }
@@ -2205,7 +2189,7 @@ if ($evento_info):
             if (typeof notify !== 'undefined') {
                 notify.success('Horario seleccionado. ¡Listo para vender!');
             }
-        }, 100);
+        }, 150);
     })
     .catch(error => {
         console.error('Error al cargar la función:', error);
@@ -2216,6 +2200,7 @@ if ($evento_info):
         if (loading) loading.style.display = 'none';
     });
 }
+
 
 // Add popstate event listener for browser back/forward buttons
 window.addEventListener('popstate', function() {
@@ -2630,6 +2615,8 @@ window.addEventListener('beforeunload', detenerActualizacionFunciones);
 <script>
 // Precios por tipo de boleto (cargados desde la BD)
 window.PRECIOS_TIPO_BOLETO = <?= json_encode($precios_tipo_boleto) ?>;
+// URL para regresar (empleado vs admin)
+window.URL_REGRESAR = '<?= $url_regresar ?>';
 </script>
 <script src="js/carrito.js?v=25"></script>
 <script src="js/carrito-patch.js"></script>

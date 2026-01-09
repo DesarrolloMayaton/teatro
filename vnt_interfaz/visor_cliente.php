@@ -14,9 +14,9 @@ if ($id_evento > 0) {
         $evento_info = $fila;
         $mapa_guardado = json_decode($fila['mapa_json'], true) ?: [];
     }
-    // Se permite vender hasta 2 horas después de iniciada la función
+    // Se permite vender hasta 2 horas después de iniciada la función O si es del día de hoy
     $fecha_limite = date('Y-m-d H:i:s', strtotime('-2 hours'));
-    $stmt_fun = $conn->prepare("SELECT id_funcion, fecha_hora FROM funciones WHERE id_evento = ? AND fecha_hora > ? AND estado = 0 ORDER BY fecha_hora ASC");
+    $stmt_fun = $conn->prepare("SELECT id_funcion, fecha_hora FROM funciones WHERE id_evento = ? AND (fecha_hora > ? OR DATE(fecha_hora) = CURDATE()) AND estado = 0 ORDER BY fecha_hora ASC");
     $stmt_fun->bind_param("is", $id_evento, $fecha_limite);
     $stmt_fun->execute();
     $res_fun = $stmt_fun->get_result();
@@ -36,12 +36,12 @@ if ($id_evento > 0) {
 }
 
 if (!$evento_info) {
-    // Se permite vender hasta 2 horas después de iniciada la función
+    // Se permite vender hasta 2 horas después de iniciada la función O si es del día de hoy
     $fecha_limite = date('Y-m-d H:i:s', strtotime('-2 hours'));
     $sql = "SELECT e.id_evento, e.titulo, e.descripcion, e.imagen, e.tipo,
                    f.id_funcion, f.fecha_hora, f.estado
             FROM evento e
-            LEFT JOIN funciones f ON e.id_evento = f.id_evento AND f.fecha_hora > ?
+            LEFT JOIN funciones f ON e.id_evento = f.id_evento AND (f.fecha_hora > ? OR DATE(f.fecha_hora) = CURDATE())
             WHERE e.finalizado = 0
             ORDER BY e.titulo ASC, f.fecha_hora ASC";
     
@@ -166,6 +166,36 @@ foreach ($categorias_evento as $cat) {
             margin-top: 30px;
             animation: fadeInUp 0.8s ease 0.9s both;
             text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        /* Barra de progreso para transición automática */
+        .gracias-progress {
+            width: 300px;
+            height: 6px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 3px;
+            margin-top: 50px;
+            overflow: hidden;
+            animation: fadeInUp 0.8s ease 1.1s both;
+        }
+
+        .gracias-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #fbbf24, #f59e0b, #fbbf24);
+            background-size: 200% 100%;
+            border-radius: 3px;
+            width: 0%;
+            animation: progressGrow 5s linear forwards, shimmer 1.5s infinite;
+        }
+
+        @keyframes progressGrow {
+            0% { width: 0%; }
+            100% { width: 100%; }
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
         }
 
         .confetti {
@@ -1039,6 +1069,9 @@ foreach ($categorias_evento as $cat) {
     <p class="gracias-mensaje">Su compra ha sido procesada exitosamente</p>
     <div class="gracias-total" id="graciasTotal">$0.00</div>
     <p class="gracias-disfrute">🎭 ¡Que disfrute la función!</p>
+    <div class="gracias-progress">
+        <div class="gracias-progress-bar" id="graciasProgressBar"></div>
+    </div>
 </div>
 
 <!-- Overlay de Transición (Evento/Horario) -->
@@ -1360,13 +1393,43 @@ function crearConfetti() {
 // Mostrar animación de gracias por la compra
 function mostrarGracias(total) {
     const overlay = document.getElementById('overlayGracias');
+    const progressBar = document.getElementById('graciasProgressBar');
+    
     document.getElementById('graciasTotal').textContent = '$' + parseFloat(total).toFixed(2);
+    
+    // Reiniciar la animación de la barra de progreso
+    if (progressBar) {
+        progressBar.style.animation = 'none';
+        progressBar.offsetHeight; // Forzar reflow
+        progressBar.style.animation = 'progressGrow 5s linear forwards, shimmer 1.5s infinite';
+    }
+    
     overlay.classList.add('active');
     crearConfetti();
     
+    // Transición automática después de 5 segundos (sincronizado con la barra de progreso)
     setTimeout(() => {
-        window.location.href = 'visor_cliente.php';
-    }, 4000);
+        cerrarGraciasYContinuar();
+    }, 5000);
+}
+
+// Cerrar overlay de gracias y mostrar vista de horarios
+function cerrarGraciasYContinuar() {
+    const overlay = document.getElementById('overlayGracias');
+    overlay.classList.remove('active');
+    
+    // Cambiar a vista de horarios en lugar de ir a cartelera
+    funcionSeleccionada = false;
+    const viewHorarios = document.getElementById('viewHorarios');
+    const viewMapa = document.getElementById('viewMapa');
+    
+    if (viewMapa) viewMapa.classList.add('hidden');
+    if (viewHorarios) viewHorarios.classList.remove('hidden');
+    
+    // Resetear la vista
+    resetearVista();
+    
+    console.log('🕐 Vista de horarios mostrada después de venta');
 }
 
 // ===== MANEJO DE MENSAJES =====
@@ -1441,6 +1504,28 @@ canal.onmessage = (event) => {
     if (data.accion === 'REGRESAR_CARTELERA') {
         console.log('🏠 Regresando a cartelera');
         window.location.href = 'visor_cliente.php';
+    }
+    
+    // Mostrar horarios (después de una venta, sin cambiar de evento)
+    if (data.accion === 'MOSTRAR_HORARIOS') {
+        console.log('🕐 Mostrando vista de horarios');
+        funcionSeleccionada = false;
+        
+        // Ocultar overlay de gracias si está activo
+        const overlayGracias = document.getElementById('overlayGracias');
+        if (overlayGracias) overlayGracias.classList.remove('active');
+        
+        // Cambiar a vista de horarios
+        const viewHorarios = document.getElementById('viewHorarios');
+        const viewMapa = document.getElementById('viewMapa');
+        
+        if (viewMapa) viewMapa.classList.add('hidden');
+        if (viewHorarios) viewHorarios.classList.remove('hidden');
+        
+        // Resetear la vista del mapa
+        resetearVista();
+        
+        console.log('🕐 Vista de horarios mostrada');
     }
 };
 

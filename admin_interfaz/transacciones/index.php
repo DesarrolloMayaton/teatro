@@ -63,20 +63,20 @@ $stmt->close();
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         :root {
-            --primary: #6366f1;
-            --primary-dark: #4f46e5;
-            --success: #10b981;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --info: #0ea5e9;
-            --bg-main: #0f172a;
-            --bg-card: #1e293b;
-            --bg-input: #334155;
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --border: #475569;
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            --primary: #1561f0;
+            --primary-dark: #0d4fc4;
+            --success: #32d74b;
+            --danger: #ff453a;
+            --warning: #ff9f0a;
+            --info: #64d2ff;
+            --bg-main: #131313;
+            --bg-card: #1c1c1e;
+            --bg-input: #2b2b2b;
+            --text-primary: #ffffff;
+            --text-secondary: #86868b;
+            --border: #3a3a3c;
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
             --radius-lg: 16px;
         }
         

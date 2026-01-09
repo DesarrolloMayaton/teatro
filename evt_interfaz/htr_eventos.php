@@ -58,12 +58,18 @@ $historial = $conn->query("SELECT * FROM trt_historico_evento.evento ORDER BY ci
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
     :root {
-        --primary-color: #2563eb; --bg-primary: #f8fafc;
-        --radius-md: 10px;
+        --primary-color: #1561f0; 
+        --bg-primary: #131313;
+        --bg-card: #1c1c1e;
+        --text-primary: #ffffff;
+        --text-secondary: #86868b;
+        --border-color: #3a3a3c;
+        --radius-md: 12px;
     }
     body { 
         background-color: var(--bg-primary); 
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+        color: var(--text-primary);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
         opacity: 0; transition: opacity 0.4s;
     }
     body.loaded { opacity: 1; }
@@ -72,22 +78,29 @@ $historial = $conn->query("SELECT * FROM trt_historico_evento.evento ORDER BY ci
     
     /* --- TARJETA --- */
     .card { 
-        border: none; border-radius: var(--radius-md); 
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
-        background: white; overflow: hidden;
+        border: 1px solid var(--border-color); 
+        border-radius: var(--radius-md); 
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3); 
+        background: var(--bg-card); 
+        overflow: hidden;
         transition: transform 0.2s, box-shadow 0.2s;
         animation: cardEntry 0.4s ease forwards;
         opacity: 0; transform: translateY(15px);
     }
     @keyframes cardEntry { to { opacity: 1; transform: translateY(0); } }
     
-    .card:hover { transform: translateY(-3px); box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+    .card:hover { 
+        transform: translateY(-3px); 
+        box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        border-color: var(--primary-color);
+    }
     
-    /* Estilo blanco y negro para histórico */
+    /* Estilo para histórico */
     .card-img-container {
         width: 100%;
         aspect-ratio: 3 / 4; 
-        background-color: #e2e8f0; position: relative;
+        background-color: #2b2b2b; 
+        position: relative;
         display: flex; align-items: center; justify-content: center;
         overflow: hidden;
     }
@@ -95,15 +108,20 @@ $historial = $conn->query("SELECT * FROM trt_historico_evento.evento ORDER BY ci
     .card-img-top { 
         width: 100%; height: 100%; object-fit: cover; 
         transition: transform 0.4s, filter 0.4s;
-        filter: grayscale(100%) contrast(0.9); /* B/N por defecto */
+        filter: grayscale(100%) contrast(0.9);
     }
     .card:hover .card-img-top { 
         transform: scale(1.08); 
-        filter: grayscale(0%) contrast(1); /* Color al hover */
+        filter: grayscale(0%) contrast(1);
     }
 
     .card-body { padding: 0.8rem; display: flex; flex-direction: column; gap: 5px; } 
-    .card-title { font-size: 0.95rem; margin-bottom: 0.2rem; line-height: 1.2; color: #64748b; }
+    .card-title { 
+        font-size: 0.95rem; 
+        margin-bottom: 0.2rem; 
+        line-height: 1.2; 
+        color: var(--text-secondary) !important;
+    }
     
     /* --- CONTENEDOR DE FUNCIONES --- */
     .funcs-container {
@@ -112,19 +130,58 @@ $historial = $conn->query("SELECT * FROM trt_historico_evento.evento ORDER BY ci
         padding-right: 2px;
     }
     .funcs-container::-webkit-scrollbar { width: 3px; }
-    .funcs-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .funcs-container::-webkit-scrollbar-thumb { background: #3a3a3c; border-radius: 3px; }
 
     .func-badge {
         font-size: 0.65rem; 
-        background: #f1f5f9; color: #94a3b8; /* Color apagado para histórico */
+        background: #2b2b2b; 
+        color: var(--text-secondary);
         padding: 2px 6px; border-radius: 4px;
-        border: 1px solid #e2e8f0;
+        border: 1px solid var(--border-color);
         white-space: nowrap; font-weight: 600;
     }
     
-    .card-footer { padding: 0.6rem 0.8rem; }
+    .card-footer { 
+        padding: 0.6rem 0.8rem; 
+        background: var(--bg-card) !important;
+        border-top: 1px solid var(--border-color) !important;
+    }
     .btn-sm-custom { padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 6px; }
-    .badge-archived { font-size: 0.65rem; background: #e2e8f0; color: #64748b; padding: 2px 6px; border-radius: 4px; font-weight: bold; width: fit-content; }
+    .badge-archived { font-size: 0.65rem; background: #2b2b2b; color: var(--text-secondary); padding: 2px 6px; border-radius: 4px; font-weight: bold; width: fit-content; }
+
+    /* Título y badge */
+    .text-secondary { color: var(--text-secondary) !important; }
+    .badge { background: #2b2b2b !important; color: var(--text-secondary) !important; }
+
+    /* Botones */
+    .btn-outline-primary {
+        border-color: var(--primary-color) !important;
+        color: var(--primary-color) !important;
+    }
+    .btn-outline-primary:hover {
+        background: var(--primary-color) !important;
+        color: white !important;
+    }
+    .btn-light {
+        background: #2b2b2b !important;
+        border-color: var(--border-color) !important;
+    }
+    .text-danger { color: #ff453a !important; }
+
+    /* Alerta vacía */
+    .alert-light {
+        background: var(--bg-card) !important;
+        border-color: var(--border-color) !important;
+        color: var(--text-secondary) !important;
+    }
+
+    /* Modal */
+    .modal-content { background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); }
+    .modal-header, .modal-footer { border-color: var(--border-color); }
+    .form-control { background: #2b2b2b; border-color: var(--border-color); color: var(--text-primary); }
+    .form-control:focus { background: #2b2b2b; border-color: var(--primary-color); color: var(--text-primary); }
+    .bg-light { background: #2b2b2b !important; }
+    .alert-warning { background: rgba(255, 159, 10, 0.15) !important; border-color: rgba(255, 159, 10, 0.3) !important; color: #ff9f0a !important; }
 </style>
 </head>
 <body>

@@ -1,19 +1,21 @@
 /* Estilos minimalistas para el carrito de compras */
 
 .seat.selected {
-  border: 2px solid #10b981 !important;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2), 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border: 2px solid #32d74b !important;
+  box-shadow: 0 0 0 3px rgba(50, 215, 75, 0.3);
   transform: translateY(-2px) scale(1.05);
-  background-color: #d1fae5 !important;
+  background-color: #32d74b !important;
+  color: #000000 !important;
 }
 
 /* Asientos vendidos - tachados */
 .seat.vendido {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+  background: #1c1c1e !important;
   cursor: not-allowed !important;
-  opacity: 0.7;
+  opacity: 0.6;
   position: relative;
   pointer-events: none;
+  color: #666 !important;
 }
 
 .seat.vendido::before {
@@ -97,11 +99,11 @@
 }
 
 .carrito-item {
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin-bottom: 6px;
+  background: #2b2b2b;
+  border: 1px solid #3a3a3c;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 4px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -122,34 +124,35 @@
 }
 
 .carrito-item:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  transform: translateX(2px);
+  border-color: #0066ff;
+  box-shadow: 0 2px 4px rgba(0, 102, 255, 0.2);
 }
 
 .carrito-item .asiento-info {
   flex-grow: 1;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  line-height: 1.3;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.2;
 }
 
 .carrito-item .asiento-nombre {
   font-weight: 700;
-  font-size: 0.95rem;
-  color: #0f172a;
+  font-size: 0.9rem;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .carrito-item .asiento-categoria {
-  font-size: 0.8rem;
-  color: #64748b;
+  font-size: 0.7rem;
+  color: #86868b;
+  display: none;
 }
 
 .carrito-item .asiento-precio {
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  color: #10b981;
+  color: #32d74b;
 }
 
 .carrito-item .btn-remove {
@@ -179,8 +182,8 @@
 }
 
 .total-section {
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-  border: 1px solid #a7f3d0;
+  background: linear-gradient(135deg, #0066ff 0%, #0052cc 100%);
+  border: none;
   border-radius: 12px;
   padding: 14px 16px;
   margin-top: 0;
@@ -189,7 +192,7 @@
 
 .total-section h4 {
   margin: 0;
-  color: #059669;
+  color: #ffffff;
   font-size: 1.4rem;
   font-weight: 700;
 }
@@ -206,28 +209,31 @@
   justify-content: center;
   gap: 8px;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3);
+  background: #32d74b;
+  color: #000000;
+  box-shadow: 0 4px 6px -1px rgba(50, 215, 75, 0.3);
 }
 
 #btnPagar:not(:disabled):hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 10px 15px -3px rgba(50, 215, 75, 0.4);
 }
 
 #btnPagar:disabled {
-  background: #cbd5e1;
+  background: #3a3a3c;
+  color: #666;
   cursor: not-allowed;
   box-shadow: none;
 }
 
 .carrito-vacio {
   text-align: center;
-  color: #94a3b8;
+  color: #86868b;
   padding: 32px 20px;
   font-size: 0.95rem;
-  background: #f8fafc;
+  background: #2b2b2b;
   border-radius: 10px;
-  border: 2px dashed #e2e8f0;
+  border: 2px dashed #3a3a3c;
 }
 
 .carrito-vacio::before {

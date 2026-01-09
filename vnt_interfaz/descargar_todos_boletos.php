@@ -1,12 +1,25 @@
 <?php
-// Evitar cualquier output antes del PDF
+/**
+ * Descarga todos los boletos en un solo PDF
+ * VERSIÓN CORREGIDA
+ */
+
+// Limpiar cualquier buffer existente
+while (ob_get_level()) {
+    ob_end_clean();
+}
+
+// Configuración de errores
 error_reporting(0);
 ini_set('display_errors', 0);
 
+// Cargar dependencias
 require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/../conexion.php';
 
+// Verificar parámetros
 if (!isset($_GET['codigos']) || empty($_GET['codigos'])) {
+    header('Content-Type: text/plain');
     die('Códigos de boletos no proporcionados');
 }
 
@@ -19,6 +32,7 @@ function convertirTexto($texto) {
 $codigos = explode(',', $_GET['codigos']);
 
 if (empty($codigos)) {
+    header('Content-Type: text/plain');
     die('No se proporcionaron códigos válidos');
 }
 
@@ -51,6 +65,7 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 if ($result->num_rows === 0) {
+    header('Content-Type: text/plain');
     die('No se encontraron boletos');
 }
 
@@ -58,7 +73,7 @@ $boletos = $result->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 $conn->close();
 
-// Crear PDF
+// ===== CREAR PDF =====
 $pdf = new FPDF('P', 'mm', 'A4');
 
 foreach ($boletos as $index => $boleto) {
@@ -71,51 +86,39 @@ foreach ($boletos as $index => $boleto) {
     $pdf->Cell(0, 12, 'BOLETO DE ENTRADA', 0, 1, 'C', true);
     $pdf->Ln(8);
 
-    // Imagen del evento (si existe) - Dimensionada para que quepa en una sola hoja
-    // La imagen se guarda en evt_interfaz/imagenes/ y en la BD se guarda como "imagenes/evt_xxx.jpg"
+    // Imagen del evento (si existe)
     $imagen_path = __DIR__ . '/../evt_interfaz/' . $boleto['imagen'];
     if (!empty($boleto['imagen']) && file_exists($imagen_path)) {
-        // Obtener dimensiones de la imagen
         $imagen_info = getimagesize($imagen_path);
         if ($imagen_info) {
             $ancho_imagen = $imagen_info[0];
             $alto_imagen = $imagen_info[1];
             
-            // Ancho máximo disponible
             $ancho_maximo = 140;
-            $alto_maximo = 70; // Altura máxima para la imagen
+            $alto_maximo = 70;
             
-            // Calcular dimensiones manteniendo proporción
             $ratio = $ancho_imagen / $alto_imagen;
             
             if ($ancho_imagen > $alto_imagen) {
-                // Imagen horizontal
                 $ancho_final = min($ancho_maximo, $ancho_imagen);
                 $alto_final = $ancho_final / $ratio;
-                
-                // Si la altura excede el máximo, ajustar
                 if ($alto_final > $alto_maximo) {
                     $alto_final = $alto_maximo;
                     $ancho_final = $alto_final * $ratio;
                 }
             } else {
-                // Imagen vertical
                 $alto_final = min($alto_maximo, $alto_imagen);
                 $ancho_final = $alto_final * $ratio;
-                
-                // Si el ancho excede el máximo, ajustar
                 if ($ancho_final > $ancho_maximo) {
                     $ancho_final = $ancho_maximo;
                     $alto_final = $ancho_final / $ratio;
                 }
             }
             
-            // Centrar la imagen
             $x_centrado = (210 - $ancho_final) / 2;
             $pdf->Image($imagen_path, $x_centrado, $pdf->GetY(), $ancho_final, $alto_final);
             $pdf->Ln($alto_final + 8);
         } else {
-            // Si no se pueden obtener las dimensiones, usar tamaño fijo
             $pdf->Image($imagen_path, 35, $pdf->GetY(), 140, 70);
             $pdf->Ln(78);
         }
@@ -133,7 +136,7 @@ foreach ($boletos as $index => $boleto) {
     $pdf->Line(15, $pdf->GetY(), 195, $pdf->GetY());
     $pdf->Ln(8);
 
-    // Detalles del boleto en formato más compacto
+    // Detalles del boleto
     $pdf->SetFont('Arial', 'B', 11);
     $pdf->Cell(45, 7, 'Asiento:', 0, 0);
     $pdf->SetFont('Arial', '', 11);
@@ -158,14 +161,13 @@ foreach ($boletos as $index => $boleto) {
 
     $pdf->Ln(8);
 
-    // Código QR - Reducido de tamaño
+    // Código QR
     $qr_path = __DIR__ . '/../boletos_qr/' . $boleto['codigo_unico'] . '.png';
     if (file_exists($qr_path)) {
         $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell(0, 6, convertirTexto('Código de verificación:'), 0, 1, 'C');
         $pdf->Ln(3);
         
-        // QR más pequeño (50mm en lugar de 80mm) y centrado
         $qr_size = 50;
         $qr_x = (210 - $qr_size) / 2;
         $pdf->Image($qr_path, $qr_x, $pdf->GetY(), $qr_size, $qr_size);
@@ -194,6 +196,11 @@ foreach ($boletos as $index => $boleto) {
     }
 }
 
-// Salida del PDF
-$pdf->Output('D', 'Boletos_' . date('YmdHis') . '.pdf');
-?>
+// ===== GENERAR NOMBRE DEL ARCHIVO =====
+$nombre_evento = isset($boletos[0]['evento_nombre']) ? preg_replace('/[^a-zA-Z0-9]/', '_', $boletos[0]['evento_nombre']) : 'Evento';
+$nombre_archivo = 'Boletos_' . $nombre_evento . '_' . date('d-m-Y_His') . '.pdf';
+
+// ===== SALIDA DEL PDF USANDO EL MÉTODO CORRECTO DE FPDF =====
+// El método 'D' de FPDF envía los headers correctos automáticamente
+$pdf->Output('D', $nombre_archivo);
+exit;

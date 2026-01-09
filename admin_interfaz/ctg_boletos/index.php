@@ -116,18 +116,18 @@ $conn->close();
     
     <style>
         :root {
-            --primary: #6366f1;
-            --primary-dark: #4f46e5;
-            --success: #10b981;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --info: #0ea5e9;
-            --bg-main: #0f172a;
-            --bg-card: #1e293b;
-            --bg-input: #334155;
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --border: #475569;
+            --primary: #1561f0;
+            --primary-dark: #0d4fc4;
+            --success: #32d74b;
+            --danger: #ff453a;
+            --warning: #ff9f0a;
+            --info: #64d2ff;
+            --bg-main: #131313;
+            --bg-card: #1c1c1e;
+            --bg-input: #2b2b2b;
+            --text-primary: #ffffff;
+            --text-secondary: #86868b;
+            --border: #3a3a3c;
             --radius-sm: 6px;
             --radius-md: 10px;
             --radius-lg: 16px;

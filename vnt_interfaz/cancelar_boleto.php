@@ -4,18 +4,29 @@ header('Content-Type: application/json');
 
 include "../conexion.php";
 session_start();
-require_once "../transacciones_helper.php";
-require_once "../api/registrar_cambio.php";
+
+// Verificar si existen los helpers
+if (file_exists("../transacciones_helper.php")) {
+    require_once "../transacciones_helper.php";
+}
+if (file_exists("../api/registrar_cambio.php")) {
+    require_once "../api/registrar_cambio.php";
+}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Método no permitido']);
     exit;
 }
 
-$id_boleto = $_POST['id_boleto'] ?? 0;
+// Obtener datos del body JSON
+$input = json_decode(file_get_contents('php://input'), true);
 
-if (empty($id_boleto)) {
-    echo json_encode(['success' => false, 'message' => 'ID de boleto requerido']);
+// Aceptar tanto id_boleto como codigo_unico
+$id_boleto = $input['id_boleto'] ?? $_POST['id_boleto'] ?? 0;
+$codigo_unico = $input['codigo_unico'] ?? $_POST['codigo_unico'] ?? '';
+
+if (empty($id_boleto) && empty($codigo_unico)) {
+    echo json_encode(['success' => false, 'message' => 'ID de boleto o código único requerido']);
     exit;
 }
 
@@ -24,11 +35,22 @@ $conn->begin_transaction();
 
 try {
     // Verificar que el boleto existe y está activo (estatus = 1)
-    $stmt = $conn->prepare("SELECT b.id_boleto, b.estatus, b.id_evento, b.id_funcion, a.codigo_asiento 
-                           FROM boletos b 
-                           LEFT JOIN asientos a ON b.id_asiento = a.id_asiento 
-                           WHERE b.id_boleto = ?");
-    $stmt->bind_param("i", $id_boleto);
+    if (!empty($codigo_unico)) {
+        // Buscar por código único
+        $stmt = $conn->prepare("SELECT b.id_boleto, b.estatus, b.id_evento, b.id_funcion, a.codigo_asiento 
+                               FROM boletos b 
+                               LEFT JOIN asientos a ON b.id_asiento = a.id_asiento 
+                               WHERE b.codigo_unico = ?");
+        $stmt->bind_param("s", $codigo_unico);
+    } else {
+        // Buscar por ID
+        $stmt = $conn->prepare("SELECT b.id_boleto, b.estatus, b.id_evento, b.id_funcion, a.codigo_asiento 
+                               FROM boletos b 
+                               LEFT JOIN asientos a ON b.id_asiento = a.id_asiento 
+                               WHERE b.id_boleto = ?");
+        $stmt->bind_param("i", $id_boleto);
+    }
+    
     $stmt->execute();
     $result = $stmt->get_result();
     
@@ -37,6 +59,7 @@ try {
     }
     
     $boleto = $result->fetch_assoc();
+    $id_boleto = $boleto['id_boleto']; // Asegurar que tenemos el ID
     
     if ($boleto['estatus'] == 0) {
         throw new Exception('El boleto ya fue usado y no puede ser cancelado');
@@ -61,17 +84,22 @@ try {
     // Confirmar transacción
     $conn->commit();
 
-    registrar_transaccion('boleto_cancelar', 'Canceló boleto ID ' . $id_boleto);
+    if (function_exists('registrar_transaccion')) {
+        registrar_transaccion('boleto_cancelar', 'Canceló boleto ID ' . $id_boleto);
+    }
     
     // Notificar cambio para auto-actualización en tiempo real
-    registrar_cambio('cancelacion', $boleto['id_evento'], $boleto['id_funcion'], [
-        'asiento' => $boleto['codigo_asiento'],
-        'id_boleto' => $id_boleto
-    ]);
+    if (function_exists('registrar_cambio')) {
+        registrar_cambio('cancelacion', $boleto['id_evento'], $boleto['id_funcion'], [
+            'asiento' => $boleto['codigo_asiento'],
+            'id_boleto' => $id_boleto
+        ]);
+    }
     
     echo json_encode([
         'success' => true,
-        'message' => 'Boleto cancelado exitosamente'
+        'message' => 'Boleto cancelado exitosamente',
+        'asiento' => $boleto['codigo_asiento']
     ]);
     
 } catch (Exception $e) {
@@ -85,4 +113,3 @@ try {
 }
 
 $conn->close();
-?>

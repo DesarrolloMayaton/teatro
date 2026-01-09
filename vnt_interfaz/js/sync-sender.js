@@ -111,6 +111,27 @@ function enviarRegresarCartelera() {
     console.log('📤 Enviando regreso a cartelera al visor');
 }
 
+// 6b. Enviar a cliente a la vista de horarios (después de una venta)
+function enviarMostrarHorarios() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const idEvento = urlParams.get('id_evento');
+
+    if (idEvento) {
+        const tituloEvento = document.querySelector('.panel-header h5')?.textContent?.trim() ||
+            document.querySelector('.evento-badge')?.textContent?.trim() ||
+            'Evento';
+
+        canalSender.postMessage({
+            accion: 'MOSTRAR_HORARIOS',
+            id_evento: idEvento,
+            titulo: tituloEvento.replace(/[\u{1F3AB}\u{1F39F}]/gu, '').trim(),
+            timestamp: Date.now()
+        });
+
+        console.log('📤 Enviando mostrar horarios al visor');
+    }
+}
+
 // 7. Nueva función: Enviar selección de evento (desde cartelera)
 function enviarSeleccionEvento(idEvento, titulo) {
     canalSender.postMessage({
@@ -159,4 +180,5 @@ window.enviarCarrito = enviarCarrito;
 window.enviarVendidos = enviarVendidos;
 window.enviarCompraExitosa = enviarCompraExitosa;
 window.enviarRegresarCartelera = enviarRegresarCartelera;
+window.enviarMostrarHorarios = enviarMostrarHorarios;
 window.enviarSeleccionEvento = enviarSeleccionEvento;

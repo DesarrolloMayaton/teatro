@@ -72,8 +72,12 @@
         reloadCooldown: false, // Evitar recargas en cascada
         lastNotification: 0, // Timestamp de la última notificación (para debounce)
         pendingReload: false, // Si ya estamos esperando para recargar
-        saleInProgress: false // Si acabamos de hacer una venta propia (no recargar)
+        saleInProgress: false, // Si acabamos de hacer una venta propia (no recargar)
+        ventaModalAbierto: false // Si el modal de venta exitosa está abierto (BLOQUEO TOTAL)
     };
+
+    // Variable global accesible desde fuera para bloquear actualizaciones
+    window.TEATRO_VENTA_MODAL_ABIERTO = false;
 
     // ============================================
     // BROADCAST CHANNEL (comunicación entre pestañas)
@@ -376,6 +380,12 @@
      * Manejar recarga automática según tipo de cambio
      */
     function handleAutoReload(tipo, data) {
+        // BLOQUEO TOTAL: Si el modal de venta exitosa está abierto, NO hacer nada
+        if (window.TEATRO_VENTA_MODAL_ABIERTO === true || state.ventaModalAbierto === true) {
+            console.log('[TeatroSync] Modal de venta exitosa abierto - BLOQUEANDO recarga');
+            return;
+        }
+
         // Evitar recargas en cascada
         if (state.reloadCooldown) {
             console.log('[TeatroSync] En cooldown, ignorando recarga');
@@ -385,6 +395,14 @@
         // NO recargar si acabamos de hacer una venta propia (para poder imprimir)
         if (state.saleInProgress) {
             console.log('[TeatroSync] Venta propia en progreso, ignorando recarga');
+            return;
+        }
+
+        // NO recargar si hay un modal de boletos abierto (verificación adicional por DOM)
+        const modalBoletos = document.getElementById('modalBoletosNuevo');
+        const modalTipoBoleto = document.getElementById('modalTipoBoleto');
+        if (modalBoletos || modalTipoBoleto) {
+            console.log('[TeatroSync] Modal de venta detectado en DOM, ignorando recarga');
             return;
         }
 

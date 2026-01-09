@@ -89,13 +89,21 @@ if (isset($_POST['accion'])) {
             $user = $_POST['auth_user'] ?? '';
             $pass = $_POST['auth_pass'] ?? '';
 
-            $stmt = $conn->prepare("SELECT id_usuario FROM usuarios WHERE nombre = ? AND password = ? AND rol = 'admin' AND activo = 1");
-            $stmt->bind_param("ss", $user, $pass);
+            // Buscar admin por nombre (sin comparar contraseña en SQL)
+            $stmt = $conn->prepare("SELECT id_usuario, password FROM usuarios WHERE nombre = ? AND rol = 'admin' AND activo = 1");
+            $stmt->bind_param("s", $user);
             $stmt->execute();
-            $stmt->store_result();
+            $result = $stmt->get_result();
 
-            if ($stmt->num_rows === 0) {
-                throw new Exception("Credenciales incorrectas o insuficientes.");
+            if ($result->num_rows === 0) {
+                throw new Exception("Usuario no encontrado o no es administrador.");
+            }
+            
+            $admin = $result->fetch_assoc();
+            
+            // Verificar contraseña con hash seguro
+            if (!password_verify($pass, $admin['password'])) {
+                throw new Exception("Contraseña incorrecta.");
             }
             $stmt->close();
 
@@ -129,12 +137,18 @@ $activos = $conn->query("SELECT * FROM trt_25.evento WHERE finalizado = 0 ORDER 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
     :root {
-        --primary-color: #2563eb; --bg-primary: #f8fafc;
-        --radius-md: 10px;
+        --primary-color: #1561f0; 
+        --bg-primary: #131313;
+        --bg-card: #1c1c1e;
+        --text-primary: #ffffff;
+        --text-secondary: #86868b;
+        --border-color: #3a3a3c;
+        --radius-md: 12px;
     }
     body { 
         background-color: var(--bg-primary); 
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+        color: var(--text-primary);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
         opacity: 0; transition: opacity 0.4s;
     }
     body.loaded { opacity: 1; }
@@ -143,21 +157,28 @@ $activos = $conn->query("SELECT * FROM trt_25.evento WHERE finalizado = 0 ORDER 
     
     /* --- TARJETA --- */
     .card { 
-        border: none; border-radius: var(--radius-md); 
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
-        background: white; overflow: hidden;
+        border: 1px solid var(--border-color); 
+        border-radius: var(--radius-md); 
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3); 
+        background: var(--bg-card); 
+        overflow: hidden;
         transition: transform 0.2s, box-shadow 0.2s;
         animation: cardEntry 0.4s ease forwards;
         opacity: 0; transform: translateY(15px);
     }
     @keyframes cardEntry { to { opacity: 1; transform: translateY(0); } }
     
-    .card:hover { transform: translateY(-3px); box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+    .card:hover { 
+        transform: translateY(-3px); 
+        box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        border-color: var(--primary-color);
+    }
     
     .card-img-container {
         width: 100%;
         aspect-ratio: 3 / 4; 
-        background-color: #e2e8f0; position: relative;
+        background-color: #2b2b2b; 
+        position: relative;
         display: flex; align-items: center; justify-content: center;
     }
     
@@ -168,7 +189,12 @@ $activos = $conn->query("SELECT * FROM trt_25.evento WHERE finalizado = 0 ORDER 
     .card:hover .card-img-top { transform: scale(1.08); }
 
     .card-body { padding: 0.8rem; display: flex; flex-direction: column; gap: 5px; } 
-    .card-title { font-size: 0.95rem; margin-bottom: 0.2rem; line-height: 1.2; } 
+    .card-title { 
+        font-size: 0.95rem; 
+        margin-bottom: 0.2rem; 
+        line-height: 1.2; 
+        color: var(--text-primary) !important;
+    } 
     
     /* --- CONTENEDOR DE FUNCIONES --- */
     .funcs-container {
@@ -177,7 +203,7 @@ $activos = $conn->query("SELECT * FROM trt_25.evento WHERE finalizado = 0 ORDER 
         padding-right: 2px;
     }
     .funcs-container::-webkit-scrollbar { width: 3px; }
-    .funcs-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .funcs-container::-webkit-scrollbar-thumb { background: #3a3a3c; border-radius: 3px; }
 
     /* Estilos dinámicos para badges de función */
     .func-badge {
@@ -188,21 +214,57 @@ $activos = $conn->query("SELECT * FROM trt_25.evento WHERE finalizado = 0 ORDER 
     }
     
     .func-badge.active {
-        background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;
+        background: #2b2b2b; 
+        color: #ffffff; 
+        border: 1px solid #3a3a3c;
     }
     
     /* Estilo para funciones vencidas (estado 1) */
     .func-badge.expired {
-        background: #fef2f2; color: #dc2626; border: 1px solid #fecaca;
-        text-decoration: line-through; opacity: 0.7;
+        background: rgba(255, 69, 58, 0.2); 
+        color: #ff453a; 
+        border: 1px solid rgba(255, 69, 58, 0.4);
+        text-decoration: line-through; 
+        opacity: 0.7;
     }
     
-    .card-footer { padding: 0.6rem 0.8rem; }
+    .card-footer { 
+        padding: 0.6rem 0.8rem; 
+        background: var(--bg-card) !important;
+        border-top: 1px solid var(--border-color) !important;
+    }
     .btn-sm-custom { padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 6px; }
 
+    /* Título y badge */
+    .text-primary { color: var(--primary-color) !important; }
+    .badge { background: #2b2b2b !important; color: var(--text-secondary) !important; }
+
+    /* Botones */
+    .btn-outline-primary {
+        border-color: var(--primary-color) !important;
+        color: var(--primary-color) !important;
+    }
+    .btn-outline-primary:hover {
+        background: var(--primary-color) !important;
+        color: white !important;
+    }
+    .btn-outline-danger {
+        border-color: #ff453a !important;
+        color: #ff453a !important;
+    }
+    .btn-outline-danger:hover {
+        background: #ff453a !important;
+        color: white !important;
+    }
+
     /* Estilos Modal Seguridad */
-    .modal-auth-header { background-color: #dc3545; color: white; }
-    .modal-auth-icon { font-size: 3rem; color: #dc3545; margin-bottom: 15px; }
+    .modal-auth-header { background-color: #ff453a; color: white; }
+    .modal-auth-icon { font-size: 3rem; color: #ff453a; margin-bottom: 15px; }
+    .modal-content { background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); }
+    .modal-header, .modal-footer { border-color: var(--border-color); }
+    .form-control { background: #2b2b2b; border-color: var(--border-color); color: var(--text-primary); }
+    .form-control:focus { background: #2b2b2b; border-color: var(--primary-color); color: var(--text-primary); }
+    .form-label { color: var(--text-secondary); }
 </style>
 </head>
 <body>

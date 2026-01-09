@@ -6,32 +6,33 @@
     <title>Página de Inicio</title>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f4f7f6;
-            color: #333;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #131313;
+            color: #ffffff;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 90vh; /* Ocupa casi toda la altura del iframe */
+            height: 90vh;
             margin: 0;
             padding: 20px;
             box-sizing: border-box;
         }
         .welcome-container {
             text-align: center;
-            background-color: #ffffff;
+            background-color: #1c1c1e;
             padding: 40px 60px;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            border: 1px solid #3a3a3c;
         }
         h1 {
-            color: #2c3e50;
+            color: #ffffff;
             font-size: 2.5em;
             margin-bottom: 10px;
         }
         p {
             font-size: 1.2em;
-            color: #555;
+            color: #86868b;
         }
     </style>
 </head>

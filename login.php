@@ -1,7 +1,6 @@
 <?php
 session_start();
 
-// Si ya está logueado, redirigir al sistema
 if (isset($_SESSION['usuario_id'])) {
     header("Location: index.php");
     exit();
@@ -19,7 +18,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($nombre) || empty($password)) {
         $error = 'Por favor, ingrese nombre y contraseña';
     } else {
-        // Buscar usuario en la base de datos
         $stmt = $conn->prepare("SELECT id_usuario, nombre, apellido, password, rol, activo FROM usuarios WHERE nombre = ? AND activo = 1");
         $stmt->bind_param("s", $nombre);
         $stmt->execute();
@@ -28,9 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($result->num_rows === 1) {
             $usuario = $result->fetch_assoc();
             
-            // Verificar contraseña (comparación directa - en producción usar password_verify)
-            if ($password === $usuario['password']) {
-                // Login exitoso - crear sesión
+            if (password_verify($password, $usuario['password'])) {
                 $_SESSION['usuario_id'] = $usuario['id_usuario'];
                 $_SESSION['usuario_nombre'] = $usuario['nombre'];
                 $_SESSION['usuario_apellido'] = $usuario['apellido'];
@@ -38,7 +34,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['login_time'] = time();
                 registrar_transaccion('login', 'Inicio de sesión');
                 
-                header("Location: index.php");
+                if ($usuario['rol'] === 'admin') {
+                    header("Location: index.php");
+                } else {
+                    header("Location: index_empleado.php");
+                }
                 exit();
             } else {
                 $error = 'Contraseña incorrecta';
@@ -46,7 +46,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $error = 'Usuario no encontrado o inactivo';
         }
-        
         $stmt->close();
     }
 }
@@ -58,16 +57,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Sistema de Teatro</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="assets/css/teatro-style.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--bg-primary);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -76,62 +69,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .login-container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            background: var(--bg-secondary);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-xl);
             overflow: hidden;
             max-width: 400px;
             width: 100%;
-            animation: slideIn 0.5s ease-out;
+            border: 1px solid var(--border-color);
+            animation: slideIn 0.4s ease;
         }
 
         @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .login-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 40px 30px;
+            background: var(--gradient-primary);
+            padding: 40px 32px;
             text-align: center;
         }
 
-        .login-header i {
-            font-size: 3em;
-            margin-bottom: 10px;
+        .login-logo {
+            width: 72px;
+            height: 72px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            font-size: 2rem;
+            color: white;
         }
 
         .login-header h1 {
-            font-size: 1.8em;
-            margin-bottom: 5px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 4px;
         }
 
         .login-header p {
-            font-size: 0.9em;
-            opacity: 0.9;
+            color: rgba(255,255,255,0.8);
+            font-size: 0.9rem;
         }
 
         .login-body {
-            padding: 40px 30px;
+            padding: 32px;
         }
 
         .form-group {
-            margin-bottom: 25px;
+            margin-bottom: 20px;
         }
 
         .form-group label {
             display: block;
             margin-bottom: 8px;
-            color: #333;
+            color: var(--text-secondary);
             font-weight: 500;
-            font-size: 0.95em;
+            font-size: 0.9rem;
         }
 
         .input-wrapper {
@@ -140,58 +137,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .input-wrapper i {
             position: absolute;
-            left: 15px;
+            left: 16px;
             top: 50%;
             transform: translateY(-50%);
-            color: #667eea;
-            font-size: 1.1em;
+            color: var(--accent-blue);
+            font-size: 1.1rem;
         }
 
         .form-group input {
             width: 100%;
-            padding: 15px 15px 15px 45px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 1em;
-            transition: all 0.3s ease;
-            outline: none;
+            padding: 14px 14px 14px 48px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            font-family: var(--font-family);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            transition: var(--transition-normal);
         }
 
         .form-group input:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(21, 97, 240, 0.2);
+        }
+
+        .form-group input::placeholder {
+            color: var(--text-muted);
         }
 
         .error-message {
-            background: #fee;
-            color: #c33;
-            padding: 12px 15px;
-            border-radius: 8px;
+            background: var(--danger-bg);
+            color: var(--danger);
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
             margin-bottom: 20px;
-            font-size: 0.9em;
+            font-size: 0.9rem;
             display: flex;
             align-items: center;
             gap: 10px;
-            animation: shake 0.5s ease;
+            border: 1px solid rgba(255, 69, 58, 0.3);
+            animation: shake 0.4s ease;
         }
 
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-10px); }
-            75% { transform: translateX(10px); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
         }
 
         .btn-login {
             width: 100%;
-            padding: 15px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 14px;
+            background: var(--accent-blue);
             color: white;
             border: none;
-            border-radius: 10px;
-            font-size: 1.1em;
+            border-radius: var(--radius-md);
+            font-size: 1rem;
             font-weight: 600;
+            font-family: var(--font-family);
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: var(--transition-normal);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -199,47 +205,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .btn-login:hover {
+            background: var(--accent-blue-hover);
+            box-shadow: var(--shadow-glow);
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-        }
-
-        .btn-login:active {
-            transform: translateY(0);
         }
 
         .login-footer {
             text-align: center;
-            padding: 20px 30px 30px;
-            color: #666;
-            font-size: 0.85em;
-        }
-
-        .remember-me {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 20px;
-        }
-
-        .remember-me input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-        }
-
-        .remember-me label {
-            cursor: pointer;
-            font-weight: normal;
-            margin: 0;
+            padding: 20px 32px 28px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            border-top: 1px solid var(--border-color);
         }
     </style>
 </head>
 <body>
     <div class="login-container">
         <div class="login-header">
-            <i class="bi bi-theatre-masks"></i>
+            <div class="login-logo">
+                <i class="bi bi-ticket-perforated-fill"></i>
+            </div>
             <h1>Sistema de Teatro</h1>
-            <p>Bienvenido, ingrese sus credenciales</p>
+            <p>Ingrese sus credenciales</p>
         </div>
         
         <form method="POST" action="" class="login-body">
@@ -251,18 +238,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
             
             <div class="form-group">
-                <label for="nombre">Nombre de usuario</label>
+                <label for="nombre">Usuario</label>
                 <div class="input-wrapper">
                     <i class="bi bi-person-fill"></i>
-                    <input 
-                        type="text" 
-                        id="nombre" 
-                        name="nombre" 
-                        required 
-                        autofocus
-                        value="<?php echo htmlspecialchars($_POST['nombre'] ?? ''); ?>"
-                        placeholder="Ingrese su nombre"
-                    >
+                    <input type="text" id="nombre" name="nombre" required autofocus
+                           value="<?php echo htmlspecialchars($_POST['nombre'] ?? ''); ?>"
+                           placeholder="Nombre de usuario">
                 </div>
             </div>
             
@@ -270,13 +251,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <label for="password">Contraseña</label>
                 <div class="input-wrapper">
                     <i class="bi bi-lock-fill"></i>
-                    <input 
-                        type="password" 
-                        id="password" 
-                        name="password" 
-                        required
-                        placeholder="Ingrese su contraseña"
-                    >
+                    <input type="password" id="password" name="password" required
+                           placeholder="••••••••">
                 </div>
             </div>
             
@@ -287,15 +263,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
         
         <div class="login-footer">
-            <p>© 2025 Sistema de Teatro - Todos los derechos reservados</p>
+            <p>Sistema de Teatro © 2025</p>
         </div>
     </div>
 
     <script>
-        // Auto-focus en el campo de contraseña si hay error de password
         <?php if ($error === 'Contraseña incorrecta'): ?>
             document.getElementById('password').focus();
-            document.getElementById('password').select();
         <?php endif; ?>
     </script>
 </body>

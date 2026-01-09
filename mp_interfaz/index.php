@@ -1,4 +1,15 @@
 <?php
+// 0. VERIFICACIÓN DE SEGURIDAD
+session_start();
+
+if (!isset($_SESSION['usuario_id'])) {
+    die('<html><head><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"></head><body style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; background: #f4f7f6; color: #e74c3c; font-size: 1.2em;"><div style="text-align: center;"><i class="bi bi-lock-fill" style="font-size: 3em;"></i><p>Acceso denegado. Debe iniciar sesión.</p></div></body></html>');
+}
+
+if ($_SESSION['usuario_rol'] !== 'admin' && (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado'])) {
+    die('<html><head><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"></head><body style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; background: #f4f7f6; color: #e74c3c; font-size: 1.2em;"><div style="text-align: center;"><i class="bi bi-shield-lock-fill" style="font-size: 3em;"></i><p>Solo Administradores pueden configurar el escenario.</p><button onclick="window.location.href=\'/teatro/index_empleado.php\'" style="margin-top: 20px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">Volver al Sistema</button></div></body></html>');
+}
+
 // 1. CONEXIÓN
 include "../evt_interfaz/conexion.php"; 
 
@@ -69,15 +80,15 @@ $conn->close();
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
     :root {
-        --primary-color: #2563eb; --primary-dark: #1e40af;
-        --success-color: #10b981; --danger-color: #ef4444;
-        --warning-color: #f59e0b; --info-color: #3b82f6;
-        --bg-primary: #f8fafc; --bg-secondary: #ffffff;
-        --text-primary: #0f172a; --text-secondary: #64748b;
-        --border-color: #e2e8f0;
-        --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
-        --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
-        --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
+        --primary-color: #1561f0; --primary-dark: #0d4fc4;
+        --success-color: #32d74b; --danger-color: #ff453a;
+        --warning-color: #ff9f0a; --info-color: #64d2ff;
+        --bg-primary: #131313; --bg-secondary: #1c1c1e;
+        --text-primary: #ffffff; --text-secondary: #86868b;
+        --border-color: #3a3a3c;
+        --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.3);
+        --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
+        --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5);
         --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
     }
 
@@ -85,7 +96,7 @@ $conn->close();
     html, body { height: 100vh; overflow: hidden; margin: 0; }
     body {
         font-family: "Inter", system-ui, -apple-system, sans-serif;
-        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        background: var(--bg-primary);
         color: var(--text-primary);
     }
     .container-fluid { display: flex; height: 100%; padding: 20px; gap: 20px; }
@@ -112,22 +123,20 @@ $conn->close();
 
     /* === ASIENTOS === */
     .seat {
-        width: 48px; height: 48px; background: #e2e8f0; color: var(--text-primary);
-        border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
+        width: 48px; height: 48px; background: #0066ff; color: #000000;
+        border-radius: var(--radius-sm); font-size: 14px; font-weight: 700;
         display: flex; align-items: center; justify-content: center;
-        border: 2px solid transparent; cursor: pointer;
-        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        border: none; cursor: pointer;
+        transition: all 0.2s ease;
         padding: 2px; box-sizing: border-box; text-align: center; line-height: 1;
-        will-change: transform; box-shadow: var(--shadow-sm);
     }
     .seat:hover, .seat:focus { 
-        transform: translateY(-2px) scale(1.05); 
-        box-shadow: var(--shadow-md); 
-        border-color: var(--primary-color);
+        background: #0052cc;
+        transform: scale(1.08);
         outline: none;
     }
     .seat:focus-visible {
-        outline: 3px solid var(--primary-color);
+        outline: 2px solid #ffffff;
         outline-offset: 2px;
     }
     .row-label:focus-visible {
@@ -338,11 +347,11 @@ $conn->close();
     .palette-item {
         display: flex; align-items: center; padding: 12px; border-radius: var(--radius-sm);
         cursor: pointer; margin-bottom: 8px; border: 2px solid transparent;
-        background: var(--bg-primary); transition: all 0.2s;
+        background: #2b2b2b; transition: all 0.2s; color: var(--text-primary);
     }
-    .palette-item:hover { border-color: var(--primary-color); transform: translateX(5px); background: #fff; }
+    .palette-item:hover { border-color: var(--primary-color); transform: translateX(5px); background: #3a3a3c; }
     .palette-item.active {
-        background: #eff6ff; border-color: var(--primary-color); box-shadow: var(--shadow-sm);
+        background: rgba(21, 97, 240, 0.15); border-color: var(--primary-color); box-shadow: var(--shadow-sm);
     }
     .color-dot {
         width: 24px; height: 24px; border-radius: 6px; margin-right: 12px;
@@ -369,11 +378,11 @@ $conn->close();
 
     /* HELPERS */
     #loading-overlay {
-        position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 9999;
+        position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9999;
         display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px);
     }
     .shortcuts-info {
-        background: #eff6ff; border: 1px solid #dbeafe; color: #1e40af;
+        background: rgba(21, 97, 240, 0.15); border: 1px solid rgba(21, 97, 240, 0.3); color: #64d2ff;
         padding: 15px; border-radius: var(--radius-sm); font-size: 0.85rem;
     }
     .shortcuts-info li { margin-bottom: 4px; }
