@@ -23,6 +23,25 @@ if (!isset($_SESSION['usuario_id']) || ($_SESSION['usuario_rol'] !== 'admin' && 
 if (isset($_POST['accion']) && $_POST['accion'] === 'borrar_permanente') {
     header('Content-Type: application/json');
     $id = (int)$_POST['id_evento'];
+    $password = $_POST['password'] ?? '';
+    
+    // Verificar contraseña del admin actual
+    $stmt = $conn->prepare("SELECT password FROM usuarios WHERE id_usuario = ? AND rol = 'admin'");
+    $stmt->bind_param("i", $_SESSION['usuario_id']);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($result->num_rows === 0) {
+        echo json_encode(['status' => 'error', 'message' => 'Error de autenticación']);
+        exit;
+    }
+    
+    $admin = $result->fetch_assoc();
+    if (!password_verify($password, $admin['password'])) {
+        echo json_encode(['status' => 'error', 'message' => 'Contraseña incorrecta']);
+        exit;
+    }
+    $stmt->close();
     
     $conn->begin_transaction();
     try {
@@ -45,6 +64,7 @@ if (isset($_POST['accion']) && $_POST['accion'] === 'borrar_permanente') {
     }
     exit;
 }
+
 
 // CARGA DE DATOS (HISTORIAL)
 $historial = $conn->query("SELECT * FROM trt_historico_evento.evento ORDER BY cierre_venta DESC");
@@ -272,24 +292,26 @@ $historial = $conn->query("SELECT * FROM trt_historico_evento.evento ORDER BY ci
 <div class="modal fade" id="mConf" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg" id="mContent">
-            <div class="modal-header border-0" id="mHeader">
-                <h5 class="modal-title fw-bold" id="mTitle">Confirmar</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" id="mClose"></button>
+            <div class="modal-header border-0 bg-danger text-white" id="mHeader">
+                <h5 class="modal-title fw-bold" id="mTitle"><i class="bi bi-shield-lock-fill me-2"></i>Acceso Restringido</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" id="mClose"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body text-center p-4">
+                <i class="bi bi-person-badge-fill" style="font-size: 4rem; color: #ff453a; margin-bottom: 20px; display: block;"></i>
                 <p id="mMsg" class="fs-5 mb-3"></p>
-                <div id="mAuth" class="d-none bg-light p-3 rounded-3 mb-3 border">
-                    <label class="small fw-bold text-secondary mb-2">Credenciales Admin:</label>
-                    <input type="text" id="mUser" class="form-control mb-2" placeholder="Usuario">
-                    <input type="password" id="mPin" class="form-control" placeholder="Contraseña">
+                <p class="text-muted small mb-3">Ingresa tu contraseña de administrador para continuar.</p>
+                <input type="password" id="mPin" class="form-control form-control-lg text-center" placeholder="••••••" maxlength="20" style="letter-spacing: 5px;">
+                <div id="mError" class="text-danger small mt-2" style="display: none;">
+                    <i class="bi bi-exclamation-triangle"></i> <span id="mErrorText">Contraseña incorrecta</span>
                 </div>
-                <div id="mWarn" class="alert alert-warning border-0 small d-flex align-items-center">
+                <div id="mWarn" class="alert alert-warning border-0 small d-flex align-items-center mt-3">
                     <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i><span id="mTxt"></span>
                 </div>
             </div>
-            <div class="modal-footer border-0">
-                <button class="btn btn-light" data-bs-dismiss="modal" id="mCancel">Cancelar</button>
-                <button id="mBtn" class="btn px-4">Confirmar</button>
+            <div class="modal-footer border-0" style="justify-content: center;">
+                <button id="mBtn" class="btn btn-danger fw-bold px-5 py-2">
+                    <i class="bi bi-trash3-fill me-2"></i>Confirmar Eliminación
+                </button>
             </div>
         </div>
     </div>
@@ -307,50 +329,52 @@ function irAReactivar(id) {
 
 // LOGICA DE BORRADO (Modal)
 const m = new bootstrap.Modal('#mConf');
-const els = { cont:document.getElementById('mContent'), head:document.getElementById('mHeader'), title:document.getElementById('mTitle'), msg:document.getElementById('mMsg'), auth:document.getElementById('mAuth'), warn:document.getElementById('mWarn'), txt:document.getElementById('mTxt'), btn:document.getElementById('mBtn'), user:document.getElementById('mUser'), pin:document.getElementById('mPin'), close:document.getElementById('mClose'), cancel:document.getElementById('mCancel') };
-
-function resetModal() {
-    els.cont.parentNode.classList.remove('modal-danger-mode');
-    els.head.classList.remove('bg-danger', 'text-white');
-    els.btn.className = 'btn px-4'; 
-    els.auth.classList.add('d-none'); els.user.value = ''; els.pin.value = '';
-    els.close.classList.remove('btn-close-white');
-}
+const els = { 
+    msg: document.getElementById('mMsg'), 
+    txt: document.getElementById('mTxt'), 
+    btn: document.getElementById('mBtn'), 
+    pin: document.getElementById('mPin'),
+    error: document.getElementById('mError'),
+    errorText: document.getElementById('mErrorText')
+};
 
 function conf(act, id, nom) {
-    resetModal();
-    
-    if (act === 'borrar_permanente') {
-        t = 'Borrado Definitivo';
-        els.msg.innerHTML = `¿Eliminar <strong>${nom}</strong> para siempre?`;
-        w = 'Esta acción NO se puede deshacer. Requiere credenciales.';
-        c = 'btn-danger fw-bold w-100 py-2';
-        
-        els.auth.classList.remove('d-none');
-        els.cont.parentNode.classList.add('modal-danger-mode');
-        els.head.classList.add('bg-danger', 'text-white');
-        els.close.classList.add('btn-close-white');
-    }
-
-    els.title.textContent = t; 
-    els.txt.textContent = w; 
-    els.btn.className = `btn ${c}`;
-
+    els.pin.value = '';
+    els.error.style.display = 'none';
+    els.msg.innerHTML = `¿Eliminar <strong>${nom}</strong> para siempre?`;
+    els.txt.textContent = 'Esta acción NO se puede deshacer.';
+    els.btn.disabled = false;
+    els.btn.innerHTML = '<i class="bi bi-trash3-fill me-2"></i>Confirmar Eliminación';
     els.btn.onclick = () => ejecutar(act, id);
     m.show();
+    setTimeout(() => els.pin.focus(), 300);
 }
 
+// Permitir confirmar con Enter
+document.getElementById('mPin').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        els.btn.click();
+    }
+});
+
 function ejecutar(act, id) {
-    if((!els.user.value || !els.pin.value)) { alert('Credenciales requeridas.'); return; }
+    const password = els.pin.value.trim();
+    
+    if (!password) { 
+        els.error.style.display = 'block';
+        els.errorText.textContent = 'Ingresa tu contraseña';
+        els.pin.focus();
+        return; 
+    }
 
     let fd = new FormData(); 
     fd.append('accion', act); 
     fd.append('id_evento', id);
-    fd.append('auth_user', els.user.value); 
-    fd.append('auth_pass', els.pin.value);
+    fd.append('password', password);
     
     els.btn.disabled = true; 
-    els.btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    els.btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
+    els.error.style.display = 'none';
     
     fetch('', { method: 'POST', body: fd })
     .then(r => r.json())
@@ -358,11 +382,20 @@ function ejecutar(act, id) {
         if(d.status === 'success') {
             location.reload();
         } else {
-            alert(d.message || 'Error');
-            els.btn.disabled = false; els.btn.innerHTML = 'Confirmar';
+            els.error.style.display = 'block';
+            els.errorText.textContent = d.message || 'Error al procesar';
+            els.btn.disabled = false; 
+            els.btn.innerHTML = '<i class="bi bi-trash3-fill me-2"></i>Confirmar Eliminación';
+            els.pin.value = '';
+            els.pin.focus();
         }
     })
-    .catch(() => { alert('Error de conexión'); els.btn.disabled = false; els.btn.innerHTML = 'Confirmar'; });
+    .catch(() => { 
+        els.error.style.display = 'block';
+        els.errorText.textContent = 'Error de conexión';
+        els.btn.disabled = false; 
+        els.btn.innerHTML = '<i class="bi bi-trash3-fill me-2"></i>Confirmar Eliminación'; 
+    });
 }
 </script>
 </body>

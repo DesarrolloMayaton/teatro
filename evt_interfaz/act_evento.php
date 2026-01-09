@@ -86,23 +86,22 @@ if (isset($_POST['accion'])) {
     $conn->begin_transaction();
     try {
         if($_POST['accion'] === 'finalizar') {
-            $user = $_POST['auth_user'] ?? '';
-            $pass = $_POST['auth_pass'] ?? '';
+            $password = $_POST['password'] ?? '';
 
-            // Buscar admin por nombre (sin comparar contraseña en SQL)
-            $stmt = $conn->prepare("SELECT id_usuario, password FROM usuarios WHERE nombre = ? AND rol = 'admin' AND activo = 1");
-            $stmt->bind_param("s", $user);
+            // Verificar contraseña del admin actual
+            $stmt = $conn->prepare("SELECT password FROM usuarios WHERE id_usuario = ? AND rol = 'admin'");
+            $stmt->bind_param("i", $_SESSION['usuario_id']);
             $stmt->execute();
             $result = $stmt->get_result();
 
             if ($result->num_rows === 0) {
-                throw new Exception("Usuario no encontrado o no es administrador.");
+                throw new Exception("Error de autenticación.");
             }
             
             $admin = $result->fetch_assoc();
             
             // Verificar contraseña con hash seguro
-            if (!password_verify($pass, $admin['password'])) {
+            if (!password_verify($password, $admin['password'])) {
                 throw new Exception("Contraseña incorrecta.");
             }
             $stmt->close();
@@ -354,49 +353,29 @@ $activos = $conn->query("SELECT * FROM trt_25.evento WHERE finalizado = 0 ORDER 
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header border-0 bg-danger text-white">
-                <h5 class="modal-title fw-bold"><i class="bi bi-shield-lock-fill me-2"></i>Zona de Seguridad</h5>
+                <h5 class="modal-title fw-bold"><i class="bi bi-shield-lock-fill me-2"></i>Acceso Restringido</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body p-4">
-                <div id="pasoAdvertencia">
-                    <div class="text-center mb-3">
-                        <i class="bi bi-exclamation-triangle-fill text-warning" style="font-size: 3rem;"></i>
-                    </div>
-                    <h5 class="text-center fw-bold mb-3">¿Estás seguro?</h5>
-                    <p class="text-center text-muted">
-                        Estás a punto de archivar el evento: <br>
-                        <strong id="nombreEventoArchivar" class="text-dark fs-5"></strong>
-                    </p>
-                    <div class="alert alert-warning small border-0">
-                        <i class="bi bi-info-circle me-1"></i>
-                        El evento dejará de ser visible. Se moverá al histórico.
-                    </div>
-                    <button class="btn btn-danger w-100 py-2 fw-bold" onclick="mostrarPasoAuth()">
-                        Continuar y Autorizar <i class="bi bi-arrow-right"></i>
-                    </button>
+            <div class="modal-body text-center p-4">
+                <i class="bi bi-person-badge-fill" style="font-size: 4rem; color: #ff453a; margin-bottom: 20px; display: block;"></i>
+                <p class="fs-5 mb-2">
+                    ¿Archivar el evento: <br>
+                    <strong id="nombreEventoArchivar" class="text-warning"></strong>?
+                </p>
+                <p class="text-muted small mb-3">Ingresa tu contraseña de administrador para continuar.</p>
+                <input type="password" id="auth_pass" class="form-control form-control-lg text-center" placeholder="••••••" maxlength="20" style="letter-spacing: 5px;">
+                <div id="errorArchivar" class="text-danger small mt-2" style="display: none;">
+                    <i class="bi bi-exclamation-triangle"></i> <span id="errorArchivarText">Contraseña incorrecta</span>
                 </div>
-
-                <div id="pasoAuth" style="display: none;">
-                    <div class="text-center mb-3">
-                        <i class="bi bi-person-lock text-danger" style="font-size: 3rem;"></i>
-                    </div>
-                    <h6 class="text-center fw-bold mb-3">Autorización de Administrador</h6>
-                    <p class="text-center small text-muted mb-4">Para confirmar, ingresa tus credenciales.</p>
-                    
-                    <div class="mb-3">
-                        <input type="text" id="auth_user" class="form-control form-control-lg" placeholder="Usuario Admin">
-                    </div>
-                    <div class="mb-4">
-                        <input type="password" id="auth_pass" class="form-control form-control-lg" placeholder="Contraseña / PIN">
-                    </div>
-                    
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-light w-50" onclick="volverPasoAdvertencia()">Atrás</button>
-                        <button id="btnConfirmarFinal" class="btn btn-danger w-50 fw-bold" onclick="ejecutarArchivado()">
-                            Confirmar Archivo
-                        </button>
-                    </div>
+                <div class="alert alert-warning small border-0 d-flex align-items-center mt-3">
+                    <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+                    <span>El evento dejará de ser visible y se moverá al histórico.</span>
                 </div>
+            </div>
+            <div class="modal-footer border-0" style="justify-content: center;">
+                <button id="btnConfirmarFinal" class="btn btn-danger fw-bold px-5 py-2" onclick="ejecutarArchivado()">
+                    <i class="bi bi-archive-fill me-2"></i>Confirmar Archivo
+                </button>
             </div>
         </div>
     </div>

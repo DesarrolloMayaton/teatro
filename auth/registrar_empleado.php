@@ -588,10 +588,7 @@ if ($res_admin->num_rows > 0) {
                     <i class="bi bi-exclamation-triangle"></i> Contraseña incorrecta
                 </div>
             </div>
-            <div class="modal-footer">
-                <a href="../index.php" class="btn-modal btn-cancelar" style="text-decoration: none;">
-                    <i class="bi bi-arrow-left"></i> Volver
-                </a>
+            <div class="modal-footer" style="justify-content: center;">
                 <button class="btn-modal btn-guardar" onclick="verificarAccesoInicial()">
                     <i class="bi bi-unlock-fill"></i> Acceder
                 </button>
