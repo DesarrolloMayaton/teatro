@@ -374,7 +374,9 @@ $conn->close();
     .btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: var(--shadow-md); }
     .btn-success { background: var(--success-color); color: white; }
     .btn-success:hover { background: #059669; transform: translateY(-2px); box-shadow: var(--shadow-md); }
-    .form-select { padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background-color: var(--bg-primary); }
+    .form-select { padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background-color: var(--bg-primary); color: #fff; }
+    .form-select option { background-color: #1c1c1e; color: #fff; }
+    .form-select option:checked { background-color: var(--primary-color); }
 
     /* HELPERS */
     #loading-overlay {

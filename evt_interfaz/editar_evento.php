@@ -254,9 +254,9 @@ $defaultCierre = $modo_reactivacion ? '' : date('Y-m-d H:i', strtotime($evento['
                 </div>
                 
                 <div class="col-md-6">
-                    <label class="fw-bold text-muted">Cierre Venta (Automático)</label>
-                    <input type="text" id="fin" name="cierre_venta" class="form-control" value="<?= $defaultCierre ?>" readonly style="background-color: #e9ecef; cursor: not-allowed;">
-                    <div class="form-text small"><i class="bi bi-info-circle"></i> Se calcula 2 horas después de la última función.</div>
+                    <label class="fw-bold" style="color: #94a3b8;">Cierre Venta (Automático)</label>
+                    <input type="text" id="fin" name="cierre_venta" class="form-control" value="<?= $defaultCierre ?>" readonly style="background-color: #e9ecef; color: #1e293b; cursor: not-allowed;">
+                    <div class="form-text small" style="color: #64748b;"><i class="bi bi-info-circle"></i> Se calcula 2 horas después de la última función.</div>
                 </div>
                 
                 <div class="col-12">

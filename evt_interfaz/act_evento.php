@@ -25,6 +25,12 @@ if (!isset($_SESSION['usuario_id']) || ($_SESSION['usuario_rol'] !== 'admin' && 
 // Marca como '1' (Finalizada) las funciones que ya pasaron de fecha/hora
 $conn->query("UPDATE funciones SET estado = 1 WHERE fecha_hora < NOW() AND estado = 0");
 
+// ==================================================================
+// AUTO-ARCHIVADO DE EVENTOS CADUCADOS
+// ==================================================================
+// Archiva automáticamente eventos 4 horas después de su última función
+include_once __DIR__ . '/auto_archivar.php';
+
 
 // ==================================================================
 // FUNCIÓN PARA ARCHIVAR (MOVER A HISTÓRICO)
@@ -109,7 +115,7 @@ if (isset($_POST['accion'])) {
             archivar_evento_completo($id, $conn);
             
             if(function_exists('registrar_transaccion')) {
-                registrar_transaccion('evento_archivar', 'Archivó evento ID ' . $id . ' (Autorizado por: '.$user.')');
+                registrar_transaccion('evento_archivar', 'Archivó evento ID ' . $id . ' (Autorizado por: '.$_SESSION['usuario_nombre'].')');
             }
             
             // Notificar cambio para auto-actualización en tiempo real
@@ -269,6 +275,26 @@ $activos = $conn->query("SELECT * FROM trt_25.evento WHERE finalizado = 0 ORDER 
 <body>
 
 <div class="content-wrapper">
+    <?php 
+    // Mostrar notificación si se archivaron eventos automáticamente
+    if (!empty($eventos_auto_archivados)): 
+    ?>
+    <div class="alert alert-info d-flex align-items-center mb-3" role="alert" style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); color: #a5b4fc;">
+        <i class="bi bi-archive-fill fs-4 me-3"></i>
+        <div>
+            <strong>Auto-archivado:</strong> 
+            <?php 
+            $nombres = array_column($eventos_auto_archivados, 'titulo');
+            echo count($nombres) . ' evento(s) (' . implode(', ', $nombres) . ') fueron movidos al historial automáticamente.';
+            ?>
+        </div>
+        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" style="filter: invert(1);"></button>
+    </div>
+    <?php 
+        unset($_SESSION['eventos_auto_archivados']); // Limpiar después de mostrar
+    endif; 
+    ?>
+    
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h4 class="fw-bold text-primary m-0">Eventos Activos</h4>
         <span class="badge bg-secondary bg-opacity-10 text-secondary"><?= $activos->num_rows ?> eventos</span>
@@ -392,44 +418,42 @@ const modal = new bootstrap.Modal(modalElement);
 function prepararArchivado(id, titulo) {
     eventoIdSeleccionado = id;
     document.getElementById('nombreEventoArchivar').textContent = titulo;
-    document.getElementById('pasoAdvertencia').style.display = 'block';
-    document.getElementById('pasoAuth').style.display = 'none';
-    document.getElementById('auth_user').value = '';
     document.getElementById('auth_pass').value = '';
+    document.getElementById('errorArchivar').style.display = 'none';
     document.getElementById('btnConfirmarFinal').disabled = false;
-    document.getElementById('btnConfirmarFinal').innerHTML = 'Confirmar Archivo';
+    document.getElementById('btnConfirmarFinal').innerHTML = '<i class="bi bi-archive-fill me-2"></i>Confirmar Archivo';
     modal.show();
+    setTimeout(() => document.getElementById('auth_pass').focus(), 300);
 }
 
-function mostrarPasoAuth() {
-    document.getElementById('pasoAdvertencia').style.display = 'none';
-    document.getElementById('pasoAuth').style.display = 'block';
-    setTimeout(() => document.getElementById('auth_user').focus(), 100);
-}
-
-function volverPasoAdvertencia() {
-    document.getElementById('pasoAuth').style.display = 'none';
-    document.getElementById('pasoAdvertencia').style.display = 'block';
-}
+// Permitir confirmar con Enter
+document.getElementById('auth_pass').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        ejecutarArchivado();
+    }
+});
 
 function ejecutarArchivado() {
-    const user = document.getElementById('auth_user').value.trim();
-    const pass = document.getElementById('auth_pass').value.trim();
+    const password = document.getElementById('auth_pass').value.trim();
+    const errorDiv = document.getElementById('errorArchivar');
+    const errorText = document.getElementById('errorArchivarText');
 
-    if (!user || !pass) {
-        alert("Por favor, ingresa usuario y contraseña.");
+    if (!password) {
+        errorDiv.style.display = 'block';
+        errorText.textContent = 'Ingresa tu contraseña';
+        document.getElementById('auth_pass').focus();
         return;
     }
 
     const btn = document.getElementById('btnConfirmarFinal');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
+    errorDiv.style.display = 'none';
 
     let fd = new FormData();
     fd.append('accion', 'finalizar');
     fd.append('id_evento', eventoIdSeleccionado);
-    fd.append('auth_user', user);
-    fd.append('auth_pass', pass);
+    fd.append('password', password);
     
     fetch('', { method: 'POST', body: fd })
     .then(r => r.json())
@@ -438,15 +462,19 @@ function ejecutarArchivado() {
             modal.hide();
             location.reload(); 
         } else {
-            alert('Error: ' + data.message);
+            errorDiv.style.display = 'block';
+            errorText.textContent = data.message || 'Error al procesar';
             btn.disabled = false;
-            btn.innerHTML = 'Confirmar Archivo';
+            btn.innerHTML = '<i class="bi bi-archive-fill me-2"></i>Confirmar Archivo';
+            document.getElementById('auth_pass').value = '';
+            document.getElementById('auth_pass').focus();
         }
     })
     .catch(() => {
-        alert('Error de conexión.');
+        errorDiv.style.display = 'block';
+        errorText.textContent = 'Error de conexión';
         btn.disabled = false;
-        btn.innerHTML = 'Confirmar Archivo';
+        btn.innerHTML = '<i class="bi bi-archive-fill me-2"></i>Confirmar Archivo';
     });
 }
 </script>

@@ -452,6 +452,10 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
                 <i class="bi bi-film"></i>
                 <span>Cartelera</span>
             </a>
+            <a class="sidebar-menu-item" data-target="frame-transacciones">
+                <i class="bi bi-clock-history"></i>
+                <span>Transacciones</span>
+            </a>
             <a class="sidebar-menu-item" id="admin-link" data-target="frame-admin">
                 <i class="bi bi-gear-fill"></i>
                 <span>Administración</span>
@@ -482,6 +486,7 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
         <iframe id="frame-venta" src="vnt_interfaz/index.php" class="content-frame"></iframe>
         <iframe id="frame-cartelera" src="crt_interfaz/index.php" class="content-frame"></iframe>
         <iframe id="frame-mapa" src="mp_interfaz/index.php" class="content-frame"></iframe>
+        <iframe id="frame-transacciones" src="admin_interfaz/transacciones/index.php" class="content-frame"></iframe>
         <iframe id="frame-admin" src="admin_interfaz/index.php" class="content-frame"></iframe>
         <?php if ($usuario_rol === 'admin'): ?>
         <iframe id="frame-registro" src="auth/registrar_empleado.php" class="content-frame"></iframe>

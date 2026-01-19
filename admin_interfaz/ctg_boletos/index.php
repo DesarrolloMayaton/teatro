@@ -249,6 +249,7 @@ $conn->close();
             font-weight: 600;
             font-size: 0.9rem;
             margin-bottom: 8px;
+            color: #e2e8f0;
         }
         
         .tipo-boleto-card .input-precio {

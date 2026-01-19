@@ -2,17 +2,10 @@
 session_start();
 header('Content-Type: application/json');
 
-// Verificar autenticación
+// Verificar autenticación - Accesible para todos los usuarios logueados
 if (!isset($_SESSION['usuario_id'])) {
     echo json_encode(['error' => 'No autenticado']);
     exit();
-}
-
-if ($_SESSION['usuario_rol'] !== 'admin') {
-    if (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado']) {
-        echo json_encode(['error' => 'Acceso denegado']);
-        exit();
-    }
 }
 
 require_once __DIR__ . '/../../transacciones_helper.php';

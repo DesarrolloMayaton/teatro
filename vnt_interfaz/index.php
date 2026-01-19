@@ -4,6 +4,14 @@ session_start();
 // Ajusta la ruta si es necesario. Asumo que está en /vnt_interfaz/
 include "../conexion.php"; 
 
+// Cargar helper de transacciones
+if(file_exists("../transacciones_helper.php")) {
+    require_once "../transacciones_helper.php";
+}
+
+// AUTO-ARCHIVADO: Ejecutar verificación de eventos caducados
+include_once __DIR__ . "/../evt_interfaz/auto_archivar.php";
+
 // Detectar si es empleado o admin para redirigir al lugar correcto
 $es_empleado = isset($_SESSION['usuario_rol']) && $_SESSION['usuario_rol'] !== 'admin';
 $url_regresar = $es_empleado ? '../index_empleado.php' : 'index.php';

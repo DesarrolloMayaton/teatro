@@ -84,8 +84,34 @@ try {
     // Confirmar transacción
     $conn->commit();
 
-    if (function_exists('registrar_transaccion')) {
-        registrar_transaccion('boleto_cancelar', 'Canceló boleto ID ' . $id_boleto);
+    // Obtener información adicional para el registro detallado
+    $evento_info = $conn->query("SELECT titulo FROM evento WHERE id_evento = " . $boleto['id_evento'])->fetch_assoc();
+    $funcion_info = $boleto['id_funcion'] > 0 ? $conn->query("SELECT fecha_hora FROM funciones WHERE id_funcion = " . $boleto['id_funcion'])->fetch_assoc() : null;
+    
+    // Preparar datos detallados de la cancelación
+    $datos_cancelacion = [
+        'boleto' => [
+            'id' => $id_boleto,
+            'codigo_unico' => $codigo_unico ?: 'N/A',
+            'asiento' => $boleto['codigo_asiento']
+        ],
+        'evento' => [
+            'id' => $boleto['id_evento'],
+            'titulo' => $evento_info['titulo'] ?? 'N/A'
+        ],
+        'funcion' => [
+            'id' => $boleto['id_funcion'],
+            'fecha_hora' => $funcion_info['fecha_hora'] ?? null
+        ]
+    ];
+    
+    $descripcion = "Cancelación de boleto - Asiento: " . $boleto['codigo_asiento'] . 
+                   " - Evento: " . ($evento_info['titulo'] ?? 'N/A');
+
+    if (function_exists('registrar_transaccion_con_datos')) {
+        registrar_transaccion_con_datos('boleto_cancelar', $descripcion, json_encode($datos_cancelacion));
+    } elseif (function_exists('registrar_transaccion')) {
+        registrar_transaccion('boleto_cancelar', $descripcion);
     }
     
     // Notificar cambio para auto-actualización en tiempo real

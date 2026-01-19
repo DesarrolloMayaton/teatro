@@ -380,8 +380,48 @@ try {
     
     $conn->commit();
     
+    // Obtener información adicional para el registro
+    $evento_info = $conn->query("SELECT titulo FROM evento WHERE id_evento = $id_evento")->fetch_assoc();
+    $funcion_info = $id_funcion > 0 ? $conn->query("SELECT fecha_hora FROM funciones WHERE id_funcion = $id_funcion")->fetch_assoc() : null;
+    
     $cantidad_boletos = count($boletos_generados);
-    registrar_transaccion('venta', 'Venta de ' . $cantidad_boletos . ' boleto(s) para evento ID ' . $id_evento);
+    $total_venta = array_sum(array_column($boletos_generados, 'precio'));
+    
+    // Preparar datos detallados de la venta
+    $datos_venta = [
+        'evento' => [
+            'id' => $id_evento,
+            'titulo' => $evento_info['titulo'] ?? 'N/A'
+        ],
+        'funcion' => [
+            'id' => $id_funcion,
+            'fecha_hora' => $funcion_info['fecha_hora'] ?? null
+        ],
+        'boletos' => [],
+        'resumen' => [
+            'cantidad' => $cantidad_boletos,
+            'total' => $total_venta
+        ]
+    ];
+    
+    // Agregar detalles de cada boleto vendido
+    foreach ($asientos as $idx => $asiento_data) {
+        $datos_venta['boletos'][] = [
+            'asiento' => $asiento_data['asiento'],
+            'tipo_boleto' => $asiento_data['tipo_boleto'] ?? 'adulto',
+            'precio_base' => $asiento_data['precio'] ?? 0,
+            'descuento' => $asiento_data['descuento_aplicado'] ?? 0,
+            'precio_final' => $boletos_generados[$idx]['precio'],
+            'codigo' => $boletos_generados[$idx]['codigo_unico']
+        ];
+    }
+    
+    // Descripción clara para la lista
+    $descripcion = "Venta de $cantidad_boletos boleto(s) - Evento: " . ($evento_info['titulo'] ?? 'N/A') . 
+                   " - Asientos: " . implode(', ', array_column($boletos_generados, 'asiento')) .
+                   " - Total: $" . number_format($total_venta, 2);
+    
+    registrar_transaccion_con_datos('venta', $descripcion, json_encode($datos_venta));
     
     // Notificar cambio para auto-actualización en tiempo real
     registrar_cambio('venta', $id_evento, $id_funcion, [

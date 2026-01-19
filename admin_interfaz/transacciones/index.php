@@ -6,11 +6,8 @@ if (!isset($_SESSION['usuario_id'])) {
     exit();
 }
 
-if ($_SESSION['usuario_rol'] !== 'admin') {
-    if (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado']) {
-        die('Acceso denegado');
-    }
-}
+// Accesible para todos los usuarios logueados (empleados y admins)
+$es_admin = ($_SESSION['usuario_rol'] === 'admin' || (isset($_SESSION['admin_verificado']) && $_SESSION['admin_verificado']));
 
 require_once '../../transacciones_helper.php';
 
@@ -658,8 +655,8 @@ async function abrirDetalleTransaccion(idTransaccion) {
                     <span class="detalle-valor">${formatearFecha(t.fecha_hora)}</span>
                 </div>
                 <div class="detalle-item">
-                    <span class="detalle-label">Usuario:</span>
-                    <span class="detalle-valor">${escapeHtml(t.nombre + ' ' + t.apellido)}</span>
+                    <span class="detalle-label">Vendedor:</span>
+                    <span class="detalle-valor"><strong>${escapeHtml(t.nombre + ' ' + t.apellido)}</strong></span>
                 </div>
                 <div class="detalle-item">
                     <span class="detalle-label">Acción:</span>
@@ -670,6 +667,118 @@ async function abrirDetalleTransaccion(idTransaccion) {
                     <span class="detalle-valor">${escapeHtml(t.descripcion || 'N/A')}</span>
                 </div>
             `;
+            
+            // Si es una VENTA, mostrar detalles específicos
+            if (t.accion === 'venta' && datosAdicionales && datosAdicionales.evento) {
+                const evt = datosAdicionales.evento;
+                const func = datosAdicionales.funcion;
+                const resumen = datosAdicionales.resumen || {};
+                const boletos = datosAdicionales.boletos || [];
+                
+                html += `
+                    <hr class="my-3">
+                    <div style="background: rgba(16, 185, 129, 0.08); padding: 16px; border-radius: 10px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                        <h6 class="fw-bold mb-3" style="color: var(--success);">
+                            <i class="bi bi-cart-check-fill me-2"></i>Detalles de la Venta
+                        </h6>
+                        <div class="detalle-item">
+                            <span class="detalle-label">Evento:</span>
+                            <span class="detalle-valor"><strong>${escapeHtml(evt.titulo || 'N/A')}</strong></span>
+                        </div>
+                        ${func && func.fecha_hora ? `
+                        <div class="detalle-item">
+                            <span class="detalle-label">Función:</span>
+                            <span class="detalle-valor">${formatearFecha(func.fecha_hora)}</span>
+                        </div>
+                        ` : ''}
+                        <div class="detalle-item">
+                            <span class="detalle-label">Cantidad:</span>
+                            <span class="detalle-valor"><span class="badge bg-primary">${resumen.cantidad || boletos.length} boleto(s)</span></span>
+                        </div>
+                        <div class="detalle-item">
+                            <span class="detalle-label">Total:</span>
+                            <span class="detalle-valor" style="color: var(--success); font-weight: bold; font-size: 1.1rem;">$${(resumen.total || 0).toFixed(2)}</span>
+                        </div>
+                    </div>
+                `;
+                
+                // Mostrar desglose de boletos
+                if (boletos.length > 0) {
+                    html += `
+                        <div style="background: var(--bg-input); padding: 16px; border-radius: 10px; margin-top: 12px;">
+                            <h6 class="fw-bold mb-3" style="color: var(--text-primary);">
+                                <i class="bi bi-ticket-perforated me-2"></i>Desglose de Boletos
+                            </h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-borderless mb-0" style="font-size: 0.85rem;">
+                                    <thead>
+                                        <tr style="color: var(--text-secondary);">
+                                            <th>Asiento</th>
+                                            <th>Tipo</th>
+                                            <th class="text-end">Precio</th>
+                                            <th class="text-end">Desc.</th>
+                                            <th class="text-end">Final</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                    `;
+                    
+                    boletos.forEach(b => {
+                        const tipoLabel = {
+                            'adulto': '👤 Adulto',
+                            'nino': '👦 Niño',
+                            '3ra_edad': '👴 3ra Edad',
+                            'cortesia': '🎁 Cortesía'
+                        };
+                        html += `
+                            <tr>
+                                <td><strong>${escapeHtml(b.asiento)}</strong></td>
+                                <td>${tipoLabel[b.tipo_boleto] || b.tipo_boleto}</td>
+                                <td class="text-end">$${(b.precio_base || 0).toFixed(2)}</td>
+                                <td class="text-end" style="color: ${b.descuento > 0 ? 'var(--warning)' : 'var(--text-secondary)'};">${b.descuento > 0 ? '-$' + b.descuento.toFixed(2) : '-'}</td>
+                                <td class="text-end"><strong>$${(b.precio_final || 0).toFixed(2)}</strong></td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            
+            // Si es una CANCELACIÓN, mostrar detalles específicos
+            if (t.accion === 'boleto_cancelar' && datosAdicionales && datosAdicionales.boleto) {
+                const boleto = datosAdicionales.boleto;
+                const evt = datosAdicionales.evento;
+                const func = datosAdicionales.funcion;
+                
+                html += `
+                    <hr class="my-3">
+                    <div style="background: rgba(239, 68, 68, 0.08); padding: 16px; border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.2);">
+                        <h6 class="fw-bold mb-3" style="color: var(--danger);">
+                            <i class="bi bi-x-circle-fill me-2"></i>Detalles de la Cancelación
+                        </h6>
+                        <div class="detalle-item">
+                            <span class="detalle-label">Asiento:</span>
+                            <span class="detalle-valor"><strong>${escapeHtml(boleto.asiento || 'N/A')}</strong></span>
+                        </div>
+                        <div class="detalle-item">
+                            <span class="detalle-label">Evento:</span>
+                            <span class="detalle-valor">${escapeHtml(evt?.titulo || 'N/A')}</span>
+                        </div>
+                        ${func && func.fecha_hora ? `
+                        <div class="detalle-item">
+                            <span class="detalle-label">Función:</span>
+                            <span class="detalle-valor">${formatearFecha(func.fecha_hora)}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
             
             // Si es evento_crear, mostrar detalles del evento
             if (t.accion === 'evento_crear' && data.evento_detalles) {

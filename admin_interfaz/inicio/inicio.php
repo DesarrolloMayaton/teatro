@@ -326,6 +326,7 @@ $conn->close();
             display: flex;
             align-items: center;
             gap: 8px;
+            color: #e2e8f0;
         }
         
         .chart-card h3 i { color: var(--primary); }
