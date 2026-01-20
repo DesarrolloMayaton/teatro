@@ -441,9 +441,9 @@ function renderSeat($codigo, $mapa, $vendidos, $colores, $infos, $id_def, $col_d
             escala = anchoDisponible / anchoContenido;
         }
         // Límite mínimo para móviles
-        if(escala < 0.5) escala = 0.5;
+        if (escala < 0.5) escala = 0.5;
         
-        content.style.transform = `scale(${escala})`;
+        content.style.transform = 'scale(' + escala + ')';
     }
 
     function cerrarDisponibilidad() {
