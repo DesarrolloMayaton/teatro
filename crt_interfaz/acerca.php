@@ -295,6 +295,17 @@
             font-weight: bold;
         }
 
+        .valores-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 25px;
+            margin-top: 20px;
+        }
+
+        .valor-card {
+            text-align: center;
+        }
+
         .featured-image {
             text-align: center;
         }
@@ -545,7 +556,8 @@
         <!-- Hero Section -->
         <section class="hero-section">
             <h1>Acerca del Teatro Constitución</h1>
-            <p>Un espacio cultural emblemático en el corazón de Apatzingán, dedicado a promover el arte escénico, la música y la cultura para toda la comunidad.</p>
+            <p>El Teatro Constitución de Apatzingán, inaugurado el 15 de noviembre de 2021, es un espacio cultural emblemático que nació con la misión de fortalecer la vida artística y comunitaria de la región. Desde su apertura, el Teatro se ha consolidado como un recinto dinámico y versátil, donde se han presentado y producido diversas puestas en escena, conciertos, obras teatrales, espectáculos de danza, exposiciones y actividades culturales que han enriquecido la oferta artística del municipio.</p>
+            <p>Además de albergar producciones locales, nacionales e internacionales, el Teatro Constitución ha sido sede de importantes festivales y encuentros culturales, convirtiéndose en un punto de referencia para la promoción del talento emergente y para la presentación de propuestas de gran calidad. Su programación diversa ha permitido acercar el arte a públicos de todas las edades, posicionándolo como uno de los espacios culturales más relevantes de la región de Apatzingán y sus alrededores.</p>
         </section>
 
         <!-- Tarjetas informativas -->
@@ -553,13 +565,13 @@
             <div class="info-card">
                 <div class="info-card-icon"><i class="bi bi-building"></i></div>
                 <h3>¿Qué es?</h3>
-                <p>El Teatro Constitución es un recinto cultural de primer nivel que alberga representaciones teatrales, conciertos, espectáculos de danza, conferencias y eventos culturales de gran calidad. Un punto de encuentro para la comunidad artística y cultural de Michoacán.</p>
+                <p>Un espacio comprometido con el desarrollo cultural y social, el Teatro Constitución busca ser un puente entre la comunidad y las artes, ofreciendo eventos accesibles, formatos variados y de alto nivel que celebran la identidad, la creatividad y el espíritu de la Tierra Caliente.</p>
             </div>
 
             <div class="info-card">
                 <div class="info-card-icon"><i class="bi bi-people-fill"></i></div>
                 <h3>Capacidad</h3>
-                <p>Con una capacidad aproximada de 400 a 420 espectadores, contamos con instalaciones modernas y un ambiente cómodo y accesible que nos permite ofrecer experiencias culturales de alta calidad para todo el público.</p>
+                <p>El Teatro Constitución de Apatzingán cuenta con 420 asientos en el área de la sala de espectáculos, además cuenta con espacios para talleres, proyecciones y eventos comunitarios.</p>
             </div>
 
             <div class="info-card">
@@ -568,6 +580,68 @@
                 <p>Equipado con tecnología de audio y video de última generación, escenario profesional con maquinaria teatral moderna, camerinos amplios, sistema de aire acondicionado, accesibilidad para personas con movilidad reducida y estacionamiento cercano.</p>
             </div>
         </div>
+
+        <!-- Misión y Visión -->
+        <section class="featured-section">
+            <div class="featured-content">
+                <div class="featured-text">
+                    <h3>Misión</h3>
+                    <p>Brindar a la comunidad de Apatzingán y la región un espacio cultural de excelencia, dedicado a la difusión de las artes escénicas y expresiones artísticas diversas, mediante una programación de calidad, infraestructura adecuada y un servicio profesional, que enriquezca la vida cultural, educativa y social de nuestros visitantes.</p>
+                </div>
+                <div class="featured-text">
+                    <h3>Visión</h3>
+                    <p>Consolidarnos como el recinto cultural más representativo de la región Tierra Caliente, reconocido por su calidad artística, su gestión profesional y su compromiso con el desarrollo cultural, convirtiéndonos en un referente estatal y nacional en la promoción del arte, la formación de públicos y el fortalecimiento de la identidad cultural.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Valores -->
+        <section class="featured-section">
+            <h2>Valores</h2>
+            <div class="valores-grid">
+                <div class="info-card valor-card">
+                    <div class="info-card-icon"><i class="bi bi-palette-fill"></i></div>
+                    <h3>Compromiso Cultural</h3>
+                    <p>Fomentamos el acceso a la cultura y las artes como un derecho de todas las personas.</p>
+                </div>
+
+                <div class="info-card valor-card">
+                    <div class="info-card-icon"><i class="bi bi-briefcase-fill"></i></div>
+                    <h3>Profesionalismo</h3>
+                    <p>Actuamos con excelencia, responsabilidad y ética en cada área del teatro.</p>
+                </div>
+
+                <div class="info-card valor-card">
+                    <div class="info-card-icon"><i class="bi bi-people-fill"></i></div>
+                    <h3>Inclusión</h3>
+                    <p>Promovemos espacios seguros y accesibles para todas las personas, sin distinción.</p>
+                </div>
+
+                <div class="info-card valor-card">
+                    <div class="info-card-icon"><i class="bi bi-heart-fill"></i></div>
+                    <h3>Respeto</h3>
+                    <p>Valoramos a nuestro público, artistas, colaboradores y comunidad, manteniendo un ambiente digno y respetuoso.</p>
+                </div>
+
+                <div class="info-card valor-card">
+                    <div class="info-card-icon"><i class="bi bi-shield-check"></i></div>
+                    <h3>Transparencia</h3>
+                    <p>Operamos con claridad y honestidad en nuestras acciones, procesos y comunicación.</p>
+                </div>
+
+                <div class="info-card valor-card">
+                    <div class="info-card-icon"><i class="bi bi-lightbulb-fill"></i></div>
+                    <h3>Innovación</h3>
+                    <p>Impulsamos propuestas artísticas contemporáneas y buscamos mejorar continuamente nuestros servicios e instalaciones.</p>
+                </div>
+
+                <div class="info-card valor-card">
+                    <div class="info-card-icon"><i class="bi bi-geo-alt-fill"></i></div>
+                    <h3>Identidad y Comunidad</h3>
+                    <p>Fortalecemos el sentido de pertenencia regional y promovemos la expresión cultural local.</p>
+                </div>
+            </div>
+        </section>
 
         <!-- Sección de Ubicación -->
         <div class="featured-section">
@@ -593,10 +667,8 @@
                 <h4>Teatro Constitución · Apatzingan</h4>
                 <p class="muted">Arte escénico, música y cultura para todos. Vive la experiencia teatral.</p>
                 <div class="social" aria-label="Redes sociales">
-                    <a href="#" title="Facebook" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
-                    <a href="#" title="Instagram" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
-                    <a href="#" title="YouTube" aria-label="YouTube"><i class="bi bi-youtube"></i></a>
-                    <a href="#" title="TikTok" aria-label="TikTok"><i class="bi bi-tiktok"></i></a>
+                    <a href="https://www.facebook.com/people/Teatro-Constituci%C3%B3n/100077079712986/" target="_blank" rel="noopener noreferrer" title="Facebook" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
+                    <a href="https://www.instagram.com/teatro_constitucion_apatzingan?igsh=YzZ4YmxhcWU2Zmk%3D" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
                 </div>
             </div>
             <div class="footer-col">
@@ -604,21 +676,21 @@
                 <ul class="footer-links">
                     <li><a href="index.php">Inicio</a></li>
                     <li><a href="acerca.php">Acerca del teatro</a></li>
-                    <li><a href="index.php#contacto">Contacto / Reservaciones</a></li>
+                    <li><a href="contacto.php">Contacto / Reservaciones</a></li>
                 </ul>
             </div>
             <div class="footer-col">
                 <h4>Contacto</h4>
                 <ul class="footer-links">
-                    <li><i class="bi bi-telephone"></i> <span>+52 (XXX) XXX XXXX</span></li>
-                    <li><i class="bi bi-envelope"></i> <span>contacto@teatro-constitucion.mx</span></li>
+                    <li><i class="bi bi-telephone"></i> <span>+52 (453) 534 5751</span></li>
+                    <li><i class="bi bi-envelope"></i> <span>teatroconstitucion@outlook.es</span></li>
                     <li><i class="bi bi-geo-alt"></i> <span>Apatzingán, Michoacán, México</span></li>
                 </ul>
             </div>
             <div class="footer-col">
                 <h4>Horarios</h4>
                 <ul class="footer-links">
-                    <li><span>Taquilla: Mar-Dom 11:00–19:00</span></li>
+                    <li><span>Taquilla: Lunes a Viernes 09:00 am –08:00 pm</span></li>
                     <li><span>Funciones: Según cartelera</span></li>
                 </ul>
             </div>
@@ -626,7 +698,7 @@
         <div class="footer-bottom">
             <div class="footer-bottom-inner">
                 <div>© <?php echo date('Y'); ?> Teatro Constitución · Apatzingan. Todos los derechos reservados.</div>
-                <div class="muted">Términos · Privacidad</div>
+                <div class="muted"><a href="terminos.php" style="color: inherit; text-decoration: none;">Términos</a> · Privacidad</div>
             </div>
         </div>
     </footer>

@@ -3,7 +3,7 @@
     "description": "Sistema de venta de boletos",
     "type": "project",
     "require": {
-        "endroid/qr-code": "^6.0",
+        "endroid/qr-code": "4.4.9",
         "setasign/fpdf": "^1.8"
     }
 }

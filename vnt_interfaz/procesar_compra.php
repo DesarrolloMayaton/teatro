@@ -60,8 +60,8 @@ if (!isset($conn) || !$conn) {
 // Importar clases de QR Code para v6.x
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Encoding\Encoding;
-use Endroid\QrCode\ErrorCorrectionLevel;
-use Endroid\QrCode\RoundBlockSizeMode;
+use Endroid\QrCode\ErrorCorrectionLevel\ErrorCorrectionLevelHigh;
+use Endroid\QrCode\RoundBlockSizeMode\RoundBlockSizeModeMargin;
 use Endroid\QrCode\Writer\PngWriter;
 
 // Leer datos JSON del request
@@ -211,28 +211,14 @@ try {
         
         // Generar código único alfanumérico
         $codigo_unico = strtoupper(bin2hex(random_bytes(8)));
-        
+
         // Si existe un boleto cancelado (estatus = 2) o usado (estatus = 0), reutilizarlo
         if ($boleto_existente) {
             // Actualizar el boleto existente
             if ($id_promocion) {
-                $stmt = $conn->prepare("
-                    UPDATE boletos SET
-                        id_funcion = ?,
-                        id_categoria = ?,
-                        id_promocion = ?,
-                        codigo_unico = ?,
-                        precio_base = ?,
-                        descuento_aplicado = ?,
-                        precio_final = ?,
-                        tipo_boleto = ?,
-                        id_usuario = ?,
-                        fecha_compra = NOW(),
-                        estatus = 1
-                    WHERE id_boleto = ?
-                ");
-                
-                $stmt->bind_param("iiisdddsii", 
+                $stmt = $conn->prepare("\n                    UPDATE boletos SET\n                        id_funcion = ?,\n                        id_categoria = ?,\n                        id_promocion = ?,\n                        codigo_unico = ?,\n                        precio_base = ?,\n                        descuento_aplicado = ?,\n                        precio_final = ?,\n                        tipo_boleto = ?,\n                        id_usuario = ?,\n                        fecha_compra = NOW(),\n                        estatus = 1\n                    WHERE id_boleto = ?\n                ");
+
+                $stmt->bind_param("iiisdddsii",
                     $id_funcion,
                     $categoria_id,
                     $id_promocion,
@@ -245,23 +231,9 @@ try {
                     $boleto_existente['id_boleto']
                 );
             } else {
-                $stmt = $conn->prepare("
-                    UPDATE boletos SET
-                        id_funcion = ?,
-                        id_categoria = ?,
-                        id_promocion = NULL,
-                        codigo_unico = ?,
-                        precio_base = ?,
-                        descuento_aplicado = ?,
-                        precio_final = ?,
-                        tipo_boleto = ?,
-                        id_usuario = ?,
-                        fecha_compra = NOW(),
-                        estatus = 1
-                    WHERE id_boleto = ?
-                ");
-                
-                $stmt->bind_param("iisdddsii", 
+                $stmt = $conn->prepare("\n                    UPDATE boletos SET\n                        id_funcion = ?,\n                        id_categoria = ?,\n                        id_promocion = NULL,\n                        codigo_unico = ?,\n                        precio_base = ?,\n                        descuento_aplicado = ?,\n                        precio_final = ?,\n                        tipo_boleto = ?,\n                        id_usuario = ?,\n                        fecha_compra = NOW(),\n                        estatus = 1\n                    WHERE id_boleto = ?\n                ");
+
+                $stmt->bind_param("iisdddsii",
                     $id_funcion,
                     $categoria_id,
                     $codigo_unico,
@@ -273,7 +245,7 @@ try {
                     $boleto_existente['id_boleto']
                 );
             }
-            
+
             if (!$stmt->execute()) {
                 throw new Exception("Error al actualizar boleto: " . $stmt->error);
             }
@@ -281,113 +253,84 @@ try {
         } else {
             // Insertar nuevo boleto si no existe ninguno
             if ($id_promocion) {
-                $sql = "
-                    INSERT INTO boletos (
-                        id_evento, 
-                        id_funcion,
-                        id_asiento, 
-                        id_categoria, 
-                        id_promocion,
-                        codigo_unico, 
-                        precio_base, 
-                        descuento_aplicado, 
-                        precio_final,
-                        tipo_boleto,
-                        id_usuario, 
-                        estatus
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-                ";
-                
-                $stmt = $conn->prepare($sql);
-                $stmt->bind_param("iiiiisdddsi", 
-                    $id_evento, 
+                $stmt = $conn->prepare("\n                    INSERT INTO boletos (\n                        id_evento,\n                        id_funcion,\n                        id_asiento,\n                        id_categoria,\n                        id_promocion,\n                        codigo_unico,\n                        precio_base,\n                        descuento_aplicado,\n                        precio_final,\n                        tipo_boleto,\n                        id_usuario,\n                        fecha_compra,\n                        estatus\n                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 1)\n                ");
+
+                $stmt->bind_param("iiiiisdddsi",
+                    $id_evento,
                     $id_funcion,
-                    $id_asiento, 
+                    $id_asiento,
                     $categoria_id,
-                    $id_promocion, 
-                    $codigo_unico, 
+                    $id_promocion,
+                    $codigo_unico,
                     $precio,
-                    $descuento_aplicado, 
+                    $descuento_aplicado,
                     $precio_final,
                     $tipo_boleto,
                     $id_usuario_vendedor
                 );
             } else {
-                $sql = "
-                    INSERT INTO boletos (
-                        id_evento, 
-                        id_funcion,
-                        id_asiento, 
-                        id_categoria, 
-                        codigo_unico, 
-                        precio_base, 
-                        descuento_aplicado, 
-                        precio_final,
-                        tipo_boleto,
-                        id_usuario
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ";
-                
-                $stmt = $conn->prepare($sql);
-                $stmt->bind_param("iiiisdddsi", 
-                    $id_evento, 
+                $stmt = $conn->prepare("\n                    INSERT INTO boletos (\n                        id_evento,\n                        id_funcion,\n                        id_asiento,\n                        id_categoria,\n                        codigo_unico,\n                        precio_base,\n                        descuento_aplicado,\n                        precio_final,\n                        tipo_boleto,\n                        id_usuario,\n                        fecha_compra,\n                        estatus\n                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 1)\n                ");
+
+                $stmt->bind_param("iiiisdddsi",
+                    $id_evento,
                     $id_funcion,
-                    $id_asiento, 
-                    $categoria_id, 
-                    $codigo_unico, 
+                    $id_asiento,
+                    $categoria_id,
+                    $codigo_unico,
                     $precio,
-                    $descuento_aplicado, 
+                    $descuento_aplicado,
                     $precio_final,
                     $tipo_boleto,
                     $id_usuario_vendedor
                 );
             }
-            
+
             if (!$stmt->execute()) {
                 throw new Exception("Error al crear boleto: " . $stmt->error);
             }
             $stmt->close();
         }
-        
-        // Generar código QR - VERSIÓN 6.x
+
+        // Generar código QR - compatible con endroid/qr-code 4.4.9
         try {
-            $builder = new Builder(
-                writer: new PngWriter(),
-                data: $codigo_unico,
-                encoding: new Encoding('UTF-8'),
-                errorCorrectionLevel: ErrorCorrectionLevel::High,
-                size: 300,
-                margin: 10,
-                roundBlockSizeMode: RoundBlockSizeMode::Margin
-            );
-            
-            $result = $builder->build();
-            
+            $result = Builder::create()
+                ->writer(new PngWriter())
+                ->writerOptions([])
+                ->data($codigo_unico)
+                ->encoding(new Encoding('UTF-8'))
+                ->errorCorrectionLevel(new ErrorCorrectionLevelHigh())
+                ->size(300)
+                ->margin(10)
+                ->roundBlockSizeMode(new RoundBlockSizeModeMargin())
+                ->build();
+
             // Guardar imagen QR
             $qr_path = $qr_dir . '/' . $codigo_unico . '.png';
             $result->saveToFile($qr_path);
-            
+
         } catch (Exception $qr_error) {
             throw new Exception("Error al generar QR: " . $qr_error->getMessage());
         }
-        
+
         $boletos_generados[] = [
             'asiento' => $codigo_asiento,
             'codigo_unico' => $codigo_unico,
-            'precio' => $precio_final
+            'precio' => $precio_final,
+            'tipo_boleto' => $tipo_boleto
         ];
     }
-    
-    $conn->commit();
-    
-    // Obtener información adicional para el registro
-    $evento_info = $conn->query("SELECT titulo FROM evento WHERE id_evento = $id_evento")->fetch_assoc();
-    $funcion_info = $id_funcion > 0 ? $conn->query("SELECT fecha_hora FROM funciones WHERE id_funcion = $id_funcion")->fetch_assoc() : null;
-    
+
+    // Calcular totales y datos para la transacción
     $cantidad_boletos = count($boletos_generados);
     $total_venta = array_sum(array_column($boletos_generados, 'precio'));
-    
-    // Preparar datos detallados de la venta
+
+    // Obtener información del evento y función para el registro
+    $evento_info = $conn->query("SELECT titulo FROM evento WHERE id_evento = " . (int)$id_evento)->fetch_assoc();
+    $funcion_info = null;
+    if ($id_funcion > 0) {
+        $funcion_info = $conn->query("SELECT fecha_hora FROM funciones WHERE id_funcion = " . (int)$id_funcion)->fetch_assoc();
+    }
+
     $datos_venta = [
         'evento' => [
             'id' => $id_evento,
@@ -397,45 +340,34 @@ try {
             'id' => $id_funcion,
             'fecha_hora' => $funcion_info['fecha_hora'] ?? null
         ],
-        'boletos' => [],
-        'resumen' => [
-            'cantidad' => $cantidad_boletos,
-            'total' => $total_venta
-        ]
+        'boletos' => $boletos_generados,
+        'total' => $total_venta,
+        'usuario_vendedor' => $id_usuario_vendedor
     ];
-    
-    // Agregar detalles de cada boleto vendido
-    foreach ($asientos as $idx => $asiento_data) {
-        $datos_venta['boletos'][] = [
-            'asiento' => $asiento_data['asiento'],
-            'tipo_boleto' => $asiento_data['tipo_boleto'] ?? 'adulto',
-            'precio_base' => $asiento_data['precio'] ?? 0,
-            'descuento' => $asiento_data['descuento_aplicado'] ?? 0,
-            'precio_final' => $boletos_generados[$idx]['precio'],
-            'codigo' => $boletos_generados[$idx]['codigo_unico']
-        ];
-    }
-    
+
+    // Confirmar transacción
+    $conn->commit();
+
     // Descripción clara para la lista
-    $descripcion = "Venta de $cantidad_boletos boleto(s) - Evento: " . ($evento_info['titulo'] ?? 'N/A') . 
+    $descripcion = "Venta de $cantidad_boletos boleto(s) - Evento: " . ($evento_info['titulo'] ?? 'N/A') .
                    " - Asientos: " . implode(', ', array_column($boletos_generados, 'asiento')) .
                    " - Total: $" . number_format($total_venta, 2);
-    
+
     registrar_transaccion_con_datos('venta', $descripcion, json_encode($datos_venta));
-    
+
     // Notificar cambio para auto-actualización en tiempo real
     registrar_cambio('venta', $id_evento, $id_funcion, [
         'asientos' => array_column($boletos_generados, 'asiento'),
         'cantidad' => $cantidad_boletos
     ]);
-    
+
     ob_clean();
     echo json_encode([
         'success' => true,
         'message' => 'Compra procesada exitosamente',
         'boletos' => $boletos_generados
     ]);
-    
+
 } catch (Exception $e) {
     $conn->rollback();
     ob_clean();

@@ -3,14 +3,23 @@
 // Ajustamos la ruta asumiendo que estamos en /crt_interfaz/
 include "../conexion.php"; 
 
-// Obtener ID del evento
-$id_evento = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+// Obtener ID del evento (compatibilidad con ?id y ?id_evento)
+$id_evento = 0;
+if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
+    $id_evento = (int)$_GET['id_evento'];
+} elseif (isset($_GET['id']) && is_numeric($_GET['id'])) {
+    $id_evento = (int)$_GET['id'];
+}
+
+// Obtener ID de la función (opcional, para disponibilidad por función)
+$id_funcion = isset($_GET['id_funcion']) && is_numeric($_GET['id_funcion']) ? (int)$_GET['id_funcion'] : 0;
 
 $evento = null;
 $mapa_guardado = [];
 $colores_por_id = [];
 $info_categorias = []; // Para guardar nombre y precio
 $asientos_vendidos = [];
+$texto_funcion = '';
 
 if ($id_evento > 0) {
     // A. Datos del Evento
@@ -37,15 +46,96 @@ if ($id_evento > 0) {
         }
     }
 
-    // C. Cargar Asientos Vendidos
-    $sql_vendidos = "SELECT a.codigo_asiento 
-                     FROM boletos b 
-                     JOIN asientos a ON b.id_asiento = a.id_asiento 
-                     WHERE b.id_evento = $id_evento AND b.estatus = 1";
-    $res_ven = $conn->query($sql_vendidos);
-    if ($res_ven) {
-        while ($v = $res_ven->fetch_assoc()) {
-            $asientos_vendidos[] = $v['codigo_asiento'];
+    // C. Cargar Asientos Vendidos (por evento o por función si aplica)
+    $check_column = $conn->query("SHOW COLUMNS FROM boletos LIKE 'id_funcion'");
+    $has_id_funcion = ($check_column && $check_column->num_rows > 0);
+
+    if ($has_id_funcion && $id_funcion > 0) {
+        $stmt_v = $conn->prepare("
+            SELECT a.codigo_asiento 
+            FROM boletos b 
+            JOIN asientos a ON b.id_asiento = a.id_asiento 
+            WHERE b.id_evento = ? AND b.id_funcion = ? AND b.estatus = 1
+        ");
+        if ($stmt_v) {
+            $stmt_v->bind_param("ii", $id_evento, $id_funcion);
+        }
+    } else {
+        $stmt_v = $conn->prepare("
+            SELECT a.codigo_asiento 
+            FROM boletos b 
+            JOIN asientos a ON b.id_asiento = a.id_asiento 
+            WHERE b.id_evento = ? AND b.estatus = 1
+        ");
+        if ($stmt_v) {
+            $stmt_v->bind_param("i", $id_evento);
+        }
+    }
+
+    if (isset($stmt_v) && $stmt_v) {
+        $stmt_v->execute();
+        $res_ven = $stmt_v->get_result();
+        if ($res_ven) {
+            while ($v = $res_ven->fetch_assoc()) {
+                $asientos_vendidos[] = $v['codigo_asiento'];
+            }
+        }
+        $stmt_v->close();
+    }
+
+    // D. Texto descriptivo de la función (si se proporcionó id_funcion)
+    if ($id_funcion > 0) {
+        $stmt_fun = $conn->prepare("SELECT fecha_hora FROM funciones WHERE id_funcion = ? AND id_evento = ? LIMIT 1");
+        if ($stmt_fun) {
+            $stmt_fun->bind_param("ii", $id_funcion, $id_evento);
+            $stmt_fun->execute();
+            $res_fun = $stmt_fun->get_result();
+            if ($res_fun && $res_fun->num_rows > 0) {
+                $row_fun = $res_fun->fetch_assoc();
+                if (!empty($row_fun['fecha_hora'])) {
+                    $fecha = new DateTime($row_fun['fecha_hora']);
+                    $fechaFormateada = $fecha->format('l, d \d\e F \d\e Y');
+                    $horaFormateada = $fecha->format('h:i A');
+
+                    $dias = [
+                        'Monday' => 'Lunes',
+                        'Tuesday' => 'Martes',
+                        'Wednesday' => 'Miércoles',
+                        'Thursday' => 'Jueves',
+                        'Friday' => 'Viernes',
+                        'Saturday' => 'Sábado',
+                        'Sunday' => 'Domingo',
+                    ];
+
+                    $meses = [
+                        'January' => 'Enero',
+                        'February' => 'Febrero',
+                        'March' => 'Marzo',
+                        'April' => 'Abril',
+                        'May' => 'Mayo',
+                        'June' => 'Junio',
+                        'July' => 'Julio',
+                        'August' => 'Agosto',
+                        'September' => 'Septiembre',
+                        'October' => 'Octubre',
+                        'November' => 'Noviembre',
+                        'December' => 'Diciembre',
+                    ];
+
+                    $fechaEspanol = str_replace(
+                        array_keys($dias),
+                        array_values($dias),
+                        str_replace(
+                            array_keys($meses),
+                            array_values($meses),
+                            $fechaFormateada
+                        )
+                    );
+
+                    $texto_funcion = 'Función seleccionada: ' . $fechaEspanol . ' · ' . $horaFormateada;
+                }
+            }
+            $stmt_fun->close();
         }
     }
 }
@@ -87,27 +177,81 @@ function renderSeat($codigo, $mapa, $vendidos, $colores, $infos, $id_def, $col_d
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
-    /* ESTILOS RECICLADOS Y LIMPIADOS */
-    :root { --bg-color: #f8fafc; --text-color: #334155; }
-    body { background-color: var(--bg-color); font-family: sans-serif; height: 100vh; overflow: hidden; margin: 0; display: flex; flex-direction: column; }
+    /* ESTILOS RECICLADOS Y LIMPIADOS CON FONDO Y GLASS EFFECT */
+    :root {
+        --bg-color: #0b1120;
+        --text-color: #e5e7eb;
+    }
+    body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: var(--text-color);
+        background-image: url('imagenes_teatro/TeatroNoche1.jpg');
+        background-size: cover;
+        background-position: center center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+    }
     
     /* Header Simple */
     .header-simple {
-        background: white; padding: 15px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); z-index: 100;
-        display: flex; justify-content: space-between; align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        padding: 12px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(10, 10, 12, 0.9);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
     }
-    .header-simple h4 { margin: 0; font-weight: 700; color: #1e293b; }
+    .header-simple h4 {
+        margin: 0;
+        font-weight: 700;
+        color: #ffffff;
+    }
+    .header-simple .text-muted {
+        color: #e5e7eb !important;
+    }
 
     /* Contenedor Mapa */
     .map-viewport {
-        flex: 1; width: 100%; overflow: auto; display: flex;
-        justify-content: center; padding: 40px; background: #f1f5f9;
+        flex: 1;
+        width: 100%;
+        overflow: auto;
+        display: flex;
+        justify-content: center;
+        padding: 30px 20px 60px;
+        background: radial-gradient(circle at top, rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.95));
         cursor: grab; /* Indicador de que se puede mover/scrollear */
     }
     .map-viewport:active { cursor: grabbing; }
 
+    .glass-card {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08));
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.4),
+            inset 0 1px 1px rgba(255, 255, 255, 0.4),
+            inset 0 -1px 1px rgba(0, 0, 0, 0.15);
+    }
+
+    .map-card {
+        display: inline-block;
+        padding: 24px 24px 40px;
+    }
+
     .map-content {
-        transform-origin: top center; transition: transform 0.2s;
+        transform-origin: top center;
+        transition: transform 0.2s;
         padding-bottom: 100px;
     }
 
@@ -120,13 +264,21 @@ function renderSeat($codigo, $mapa, $vendidos, $colores, $infos, $id_def, $col_d
     .seat {
         width: 40px; height: 40px; border-radius: 8px; display: flex;
         align-items: center; justify-content: center; font-size: 12px;
-        font-weight: 600; color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        font-weight: 600; color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.18);
         cursor: default; user-select: none;
     }
 
     .seat.vendido {
-        background-color: #cbd5e1 !important; color: #94a3b8;
-        background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.5) 5px, rgba(255,255,255,0.5) 10px);
+        /* Rojo estriado con alto contraste para asientos ocupados */
+        background: repeating-linear-gradient(
+            45deg,
+            #ef4444,
+            #ef4444 10px,
+            #dc2626 10px,
+            #dc2626 20px
+        ) !important;
+        color: #ffffff !important;
+        box-shadow: 0 0 0 2px rgba(127, 29, 29, 0.8), 0 4px 8px rgba(0,0,0,0.4);
     }
 
     .screen {
@@ -145,10 +297,22 @@ function renderSeat($codigo, $mapa, $vendidos, $colores, $infos, $id_def, $col_d
 
     /* Leyenda Flotante */
     .leyenda {
-        position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-        background: white; padding: 10px 20px; border-radius: 30px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; gap: 20px; z-index: 100;
-        font-size: 0.9rem; color: #64748b;
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 10px 20px;
+        border-radius: 999px;
+        display: flex;
+        gap: 20px;
+        z-index: 100;
+        font-size: 0.9rem;
+        color: #e5e7eb;
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.95));
+        backdrop-filter: blur(18px) saturate(160%);
+        -webkit-backdrop-filter: blur(18px) saturate(160%);
+        border: 1px solid rgba(148, 163, 184, 0.6);
+        box-shadow: 0 12px 35px rgba(15, 23, 42, 0.8);
     }
     .leyenda-item { display: flex; align-items: center; gap: 8px; }
     .dot { width: 12px; height: 12px; border-radius: 50%; }
@@ -159,97 +323,105 @@ function renderSeat($codigo, $mapa, $vendidos, $colores, $infos, $id_def, $col_d
 <div class="header-simple">
     <div>
         <h4><?= htmlspecialchars($evento['titulo'] ?? 'Evento no encontrado') ?></h4>
-        <small class="text-muted">Consulta de Disponibilidad</small>
+        <small class="text-muted">
+            <?php if (!empty($texto_funcion)): ?>
+                <?= htmlspecialchars($texto_funcion) ?>
+            <?php else: ?>
+                Consulta de Disponibilidad
+            <?php endif; ?>
+        </small>
     </div>
-    <a href="javascript:window.close()" class="btn btn-outline-secondary btn-sm">Cerrar</a>
+    <button type="button" class="btn btn-outline-light btn-sm" onclick="cerrarDisponibilidad()">Cerrar</button>
 </div>
 
 <div class="map-viewport">
-    <div class="map-content" id="mapContent">
-        <?php if ($evento): ?>
-            <div class="screen"><?= ($evento['tipo']==1)?'ESCENARIO':'ESCENARIO PRINCIPAL' ?></div>
+    <div class="glass-card map-card">
+        <div class="map-content" id="mapContent">
+            <?php if ($evento): ?>
+                <div class="screen"><?= ($evento['tipo']==1)?'ESCENARIO':'ESCENARIO PRINCIPAL' ?></div>
 
-            <?php 
-            // =========================================================
-            // CASO 1: PASARELA (TIPO 2)
-            // =========================================================
-            if ($evento['tipo'] == 2): 
-            ?>
-                <div style="position: relative; display: flex; flex-direction: column;">
-                    <?php for ($fila=1; $fila<=10; $fila++):
-                        $nombre_fila = "PB".$fila;
-                        $numero_en_fila_pb = 1; ?>
-                    <div class="seat-row-wrapper">
-                        <div class="row-label"><?= $nombre_fila ?></div>
-                        <div class="seats-block">
-                            <?php for ($i=1; $i<=6; $i++): 
-                                echo renderSeat($nombre_fila . '-' . $numero_en_fila_pb++, $mapa_guardado, $asientos_vendidos, $colores_por_id, $info_categorias, $id_categoria_general, $color_default);
-                            endfor; ?>
-
-                            <div style="width: 80px; flex-shrink: 0;"></div>
-
-                            <?php for ($i=1; $i<=6; $i++): 
-                                echo renderSeat($nombre_fila . '-' . $numero_en_fila_pb++, $mapa_guardado, $asientos_vendidos, $colores_por_id, $info_categorias, $id_categoria_general, $color_default);
-                            endfor; ?>
+                <?php 
+                // =========================================================
+                // CASO 1: PASARELA (TIPO 2)
+                // =========================================================
+                if ($evento['tipo'] == 2): 
+                ?>
+                    <div style="position: relative; display: flex; flex-direction: column;">
+                        <?php for ($fila=1; $fila<=10; $fila++):
+                            $nombre_fila = "PB".$fila;
+                            $numero_en_fila_pb = 1; ?>
+                        <div class="seat-row-wrapper">
+                            <div class="row-label"><?= $nombre_fila ?></div>
+                            <div class="seats-block">
+                                <?php for ($i=1; $i<=6; $i++): 
+                                    echo renderSeat($nombre_fila . '-' . $numero_en_fila_pb++, $mapa_guardado, $asientos_vendidos, $colores_por_id, $info_categorias, $id_categoria_general, $color_default);
+                                endfor; ?>
+                            
+                                <div style="width: 80px; flex-shrink: 0;"></div>
+                            
+                                <?php for ($i=1; $i<=6; $i++): 
+                                    echo renderSeat($nombre_fila . '-' . $numero_en_fila_pb++, $mapa_guardado, $asientos_vendidos, $colores_por_id, $info_categorias, $id_categoria_general, $color_default);
+                                endfor; ?>
+                            </div>
+                            <div class="row-label"><?= $nombre_fila ?></div>
                         </div>
-                        <div class="row-label"><?= $nombre_fila ?></div>
+                        <?php endfor; ?>
+                        
+                        <div class="pasarela" style="height: <?= (40 + 8) * 10 ?>px;">
+                            <span class="pasarela-text">PASARELA</span>
+                        </div>
                     </div>
-                    <?php endfor; ?>
+                    <hr style="margin: 30px 0; border: 0; border-top: 2px dashed #cbd5e1;">
+                <?php endif; ?>
+
+                <?php 
+                // =========================================================
+                // ZONA DE BUTACAS (COMÚN TIPO 1 Y 2)
+                // =========================================================
+                $letras = range('A','O'); 
+                foreach ($letras as $fila): $numero_en_fila = 1; ?>
+                <div class="seat-row-wrapper">
+                    <div class="row-label"><?= $fila ?></div>
+                    <div class="seats-block">
+                        <?php for ($i=0;$i<6;$i++): 
+                            echo renderSeat($fila . $numero_en_fila++, $mapa_guardado, $asientos_vendidos, $colores_por_id, $info_categorias, $id_categoria_general, $color_default);
+                        endfor; ?>
+                        
+                        <div class="pasillo"></div>
                     
-                    <div class="pasarela" style="height: <?= (40 + 8) * 10 ?>px;">
-                        <span class="pasarela-text">PASARELA</span>
+                        <?php for ($i=0;$i<14;$i++): 
+                            echo renderSeat($fila . $numero_en_fila++, $mapa_guardado, $asientos_vendidos, $colores_por_id, $info_categorias, $id_categoria_general, $color_default);
+                        endfor; ?>
+                    
+                        <div class="pasillo"></div>
+                    
+                        <?php for ($i=0;$i<6;$i++): 
+                            echo renderSeat($fila . $numero_en_fila++, $mapa_guardado, $asientos_vendidos, $colores_por_id, $info_categorias, $id_categoria_general, $color_default);
+                        endfor; ?>
                     </div>
+                    <div class="row-label"><?= $fila ?></div>
                 </div>
-                <hr style="margin: 30px 0; border: 0; border-top: 2px dashed #cbd5e1;">
+                <?php endforeach; ?>
+
+                <div class="seat-row-wrapper" style="margin-top: 15px;">
+                    <div class="row-label">P</div>
+                    <div class="seats-block">
+                        <?php $numero_en_fila_p = 1; for ($i=0;$i<30;$i++): 
+                            echo renderSeat('P' . $numero_en_fila_p++, $mapa_guardado, $asientos_vendidos, $colores_por_id, $info_categorias, $id_categoria_general, $color_default);
+                        endfor; ?>
+                    </div>
+                    <div class="row-label">P</div>
+                </div>
+
+            <?php else: ?>
+                <div class="alert alert-warning text-center">No se encontró información del evento o el ID es inválido.</div>
             <?php endif; ?>
-
-            <?php 
-            // =========================================================
-            // ZONA DE BUTACAS (COMÚN TIPO 1 Y 2)
-            // =========================================================
-            $letras = range('A','O'); 
-            foreach ($letras as $fila): $numero_en_fila = 1; ?>
-            <div class="seat-row-wrapper">
-                <div class="row-label"><?= $fila ?></div>
-                <div class="seats-block">
-                    <?php for ($i=0;$i<6;$i++): 
-                        echo renderSeat($fila . $numero_en_fila++, $mapa_guardado, $asientos_vendidos, $colores_por_id, $info_categorias, $id_categoria_general, $color_default);
-                    endfor; ?>
-                    
-                    <div class="pasillo"></div>
-
-                    <?php for ($i=0;$i<14;$i++): 
-                        echo renderSeat($fila . $numero_en_fila++, $mapa_guardado, $asientos_vendidos, $colores_por_id, $info_categorias, $id_categoria_general, $color_default);
-                    endfor; ?>
-
-                    <div class="pasillo"></div>
-
-                    <?php for ($i=0;$i<6;$i++): 
-                        echo renderSeat($fila . $numero_en_fila++, $mapa_guardado, $asientos_vendidos, $colores_por_id, $info_categorias, $id_categoria_general, $color_default);
-                    endfor; ?>
-                </div>
-                <div class="row-label"><?= $fila ?></div>
-            </div>
-            <?php endforeach; ?>
-
-            <div class="seat-row-wrapper" style="margin-top: 15px;">
-                <div class="row-label">P</div>
-                <div class="seats-block">
-                    <?php $numero_en_fila_p = 1; for ($i=0;$i<30;$i++): 
-                        echo renderSeat('P' . $numero_en_fila_p++, $mapa_guardado, $asientos_vendidos, $colores_por_id, $info_categorias, $id_categoria_general, $color_default);
-                    endfor; ?>
-                </div>
-                <div class="row-label">P</div>
-            </div>
-
-        <?php else: ?>
-            <div class="alert alert-warning text-center">No se encontró información del evento o el ID es inválido.</div>
-        <?php endif; ?>
+        </div>
     </div>
 </div>
 
 <div class="leyenda">
-    <div class="leyenda-item"><div class="dot" style="background: #cbd5e1; border: 1px dashed #94a3b8;"></div> Ocupado</div>
+    <div class="leyenda-item"><div class="dot" style="background: #ef4444; border: 1px solid #b91c1c;"></div> Ocupado</div>
     <div class="leyenda-item"><div class="dot" style="background: #e2e8f0; border: 1px solid #cbd5e1;"></div> Disponible</div>
 </div>
 
@@ -272,6 +444,14 @@ function renderSeat($codigo, $mapa, $vendidos, $colores, $infos, $id_def, $col_d
         if(escala < 0.5) escala = 0.5;
         
         content.style.transform = `scale(${escala})`;
+    }
+
+    function cerrarDisponibilidad() {
+        if (window.history.length > 1) {
+            window.history.back();
+        } else {
+            window.location.href = 'cartelera_cliente.php';
+        }
     }
     window.addEventListener('load', ajustarMapa);
     window.addEventListener('resize', ajustarMapa);

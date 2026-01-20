@@ -1,22 +1,24 @@
-<!DOCTYPE html>
+<?php
+?><!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contacto · Teatro Constitución</title>
+    <title>Términos y Condiciones · Teatro Constitución</title>
     <link rel="icon" href="imagenes_teatro/nat.png" type="image/png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    
     <style>
         body {
-            background-image: url('imagenes_teatro/InteriorChido11.jpg');
+            background-image: url('imagenes_teatro/TeatroNoche1.jpg');
             background-size: cover;
-            background-position: center;
+            background-position: center center;
             background-attachment: fixed;
+            background-repeat: no-repeat;
             color: #e8e8e8;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
+            min-height: 100vh;
         }
 
         .site-header {
@@ -46,7 +48,6 @@
         .brand-logo {
             width: 50px;
             height: 50px;
-            gap: 20px;
             margin-left: 20px;
             border-radius: 7px;
             background: none;
@@ -63,7 +64,6 @@
         }
         .brand-name {
             font-weight: 600;
-            font-height: 1.55rem;
             font-size: 1.55rem;
         }
         .nav {
@@ -81,25 +81,6 @@
         .nav a:hover {
             color: #ffffff;
             transform: translateY(-1px);
-        }
-        .cta {
-            margin-left: 6px;
-            padding: 10px 14px;
-            border-radius: 8px;
-            background: linear-gradient(135deg, #e53935, #b71c1c);
-            color: #fff !important;
-            font-weight: 700;
-            box-shadow: 0 8px 18px rgba(229,57,53,.25);
-            transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
-            border: 0;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .cta:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 26px rgba(229,57,53,.35);
-            filter: brightness(1.07);
         }
         .hamburger {
             display: none;
@@ -127,141 +108,73 @@
             .hamburger { display: inline-flex; }
         }
 
-        /* Contenido principal */
         .main-content {
-            max-width: 1200px;
+            max-width: 1100px;
             margin: 0 auto;
-            padding: 60px 20px;
+            padding: 40px 20px 80px;
         }
 
-        .hero-section {
-            text-align: center;
-            margin-bottom: 60px;
-            animation: fadeInUp 0.8s ease;
+        .page-title {
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+        .page-subtitle {
+            font-size: 1rem;
+            color: #cbd5f5;
+            margin-bottom: 24px;
         }
 
-        .hero-section h1 {
-            font-size: 3rem;
-            font-weight: 700;
-            margin-bottom: 20px;
-            color: #ffffff;
-            text-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-            letter-spacing: -0.03em;
-        }
-
-        .hero-section p {
-            font-size: 1.2rem;
-            color: rgba(255, 255, 255, 0.9);
-            max-width: 700px;
-            margin: 0 auto;
-            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        /* Sección de ubicación */
-        .location-section {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
-            backdrop-filter: blur(25px) saturate(180%);
-            -webkit-backdrop-filter: blur(25px) saturate(180%);
-            border-radius: 20px;
-            padding: 50px 40px;
-            margin-bottom: 60px;
+        .glass-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.08));
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border-radius: 16px;
             border: 1px solid rgba(255, 255, 255, 0.25);
-            box-shadow: 
-                0 12px 40px rgba(0, 0, 0, 0.12),
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.1),
                 inset 0 1px 1px rgba(255, 255, 255, 0.5),
                 inset 0 -1px 1px rgba(0, 0, 0, 0.05);
             position: relative;
             overflow: hidden;
         }
 
-        .location-section::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+        .terms-card {
+            padding: 28px 24px 24px;
         }
-
-        .location-section h2 {
-            font-size: 1.9rem;
-            font-weight: 600;
-            margin-bottom: 30px;
-            color: #ffffff;
-            text-align: center;
-            letter-spacing: -0.02em;
-            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+        .terms-card h1 {
+            font-size: 1.8rem;
+            margin-bottom: 4px;
         }
-
-        .location-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 40px;
-            margin-top: 20px;
-        }
-
-        .location-info {
-            color: rgba(255, 255, 255, 0.9);
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        .location-info h3 {
-            color: #ffffff;
-            margin-bottom: 25px;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-            text-align: center;
-        }
-
-        .location-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 15px;
+        .terms-card h2 {
+            font-size: 1rem;
+            font-weight: 500;
+            color: #cbd5f5;
             margin-bottom: 20px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .terms-card h3 {
+            font-size: 1.05rem;
+            margin-top: 20px;
+            margin-bottom: 8px;
+        }
+        .terms-card p {
+            font-size: 0.98rem;
+            line-height: 1.8;
+            color: #e5e7eb;
+            margin-bottom: 10px;
+        }
+        .terms-card ol {
+            padding-left: 24px;
+            margin-top: 12px;
+        }
+        .terms-card li {
+            margin-bottom: 18px;
+        }
+        .terms-card li strong {
+            display: inline-block;
+            margin-bottom: 4px;
         }
 
-        .location-item:last-child {
-            border-bottom: none;
-        }
-
-        .location-item i {
-            color: #ffffff;
-            font-size: 1.3rem;
-            margin-top: 3px;
-            opacity: 0.9;
-            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
-        }
-
-        .location-item strong {
-            color: #ffffff;
-            font-weight: 600;
-        }
-
-        /* Animaciones */
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .hero-section h1 {
-                font-size: 2rem;
-            }
-        }
-
-        /* Footer */
         .site-footer {
             background: rgba(10,10,12,0.95);
             border-top: 1px solid rgba(255,255,255,0.06);
@@ -306,7 +219,6 @@
     </style>
 </head>
 <body>
-
     <header class="site-header">
         <div class="header-inner">
             <a href="index.php" class="brand" aria-label="Inicio">
@@ -326,55 +238,73 @@
     </header>
 
     <main class="main-content">
-        <!-- Hero Section -->
-        <section class="hero-section">
-            <h1>Contacto y Reservaciones</h1>
-            <p>Estamos aquí para atenderte. Contáctanos para más información sobre eventos, reservaciones o cualquier consulta que tengas.</p>
-        </section>
+        <div class="glass-card terms-card">
+            <h1>Términos y Condiciones de Uso</h1>
+            <h2>Teatro Constitución de Apatzingán</h2>
 
-        <!-- Ubicación y Contacto -->
-        <div class="location-section">
-            <h2>Información de Contacto</h2>
-            <div class="location-grid">
-                <div class="location-info">
-                    <div class="location-item">
-                        <i class="bi bi-telephone-fill"></i>
-                        <div>
-                            <strong>Teléfono</strong><br>
-                            +52 (453) 534 5751<br>
-                            Lunes a Viernes: 09:00 am – 08:00 pm
-                        </div>
-                    </div>
+            <p>El acceso y uso del sitio web del Teatro Constitución de Apatzingán (en adelante, "El Teatro") implica la aceptación plena y sin reserva de los presentes Términos y Condiciones. Si el usuario no está de acuerdo con su contenido, deberá abstenerse de utilizar este sitio.</p>
 
-                    <div class="location-item">
-                        <i class="bi bi-envelope-fill"></i>
-                        <div>
-                            <strong>Correo Electrónico</strong><br>
-                            teatroconstitucion@outlook.es
-                        </div>
-                    </div>
+            <ol>
+                <li>
+                    <strong>Uso del Sitio Web</strong>
+                    <p>El usuario se obliga a utilizar el sitio de manera lícita, adecuada y conforme a la legislación aplicable. Queda estrictamente prohibido alterar, modificar o interferir en el funcionamiento del sitio, así como utilizar herramientas automatizadas (incluidos bots) para realizar compras o cualquier otra actividad dentro del mismo.</p>
+                </li>
 
-                    <div class="location-item">
-                        <i class="bi bi-clock-fill"></i>
-                        <div>
-                            <strong>Horario de Taquilla</strong><br>
-                            Lunes a Viernes: 09:00 am – 08:00 pm<br>
-                            Funciones: Según cartelera
-                        </div>
-                    </div>
+                <li>
+                    <strong>Compra de Boletos</strong>
+                    <p>Todos los precios publicados en este sitio son netos, es decir, ya incluyen impuestos y no están sujetos a cargos adicionales por servicio.</p>
+                    <p>Todas las compras realizadas a través del sitio se consideran definitivas y no reembolsables, salvo en el caso de cancelación del evento por parte del Teatro.</p>
+                    <p>En caso de reprogramación del evento, los boletos previamente adquiridos serán válidos para la nueva fecha establecida.</p>
+                    <p>Es responsabilidad exclusiva del usuario revisar con atención la fecha, función, horario, zona y asiento antes de confirmar su compra.</p>
+                    <p>El Teatro no se hace responsable por boletos adquiridos a través de terceros no autorizados.</p>
+                </li>
 
-                    <div class="location-item">
-                        <i class="bi bi-geo-alt-fill"></i>
-                        <div>
-                            <strong>Dirección</strong><br>
-                            C. José Sotero de Castañeda 724, Ferrocarril,<br>
-                            60690 Apatzingán de la Constitución, Mich.
-                        </div>
-                    </div>
-                </div>
-            </div>
+                <li>
+                    <strong>Acceso y Admisión al Teatro</strong>
+                    <p>Para ingresar a las instalaciones es indispensable presentar un boleto válido en formato físico o digital.</p>
+                    <p>El Teatro se reserva el derecho de admisión por razones de seguridad, incumplimiento de normas internas o comportamientos que afecten la experiencia de otros asistentes.</p>
+                    <p>No se permitirá el acceso con alimentos, bebidas, cámaras profesionales, objetos punzocortantes, sustancias ilícitas o cualquier artículo que el personal de seguridad considere riesgoso.</p>
+                    <p>La puntualidad es responsabilidad del usuario; una vez iniciada la función, el acceso podrá estar restringido o condicionado al criterio del personal autorizado.</p>
+                </li>
+
+                <li>
+                    <strong>Propiedad Intelectual</strong>
+                    <p>Todos los contenidos del sitio, incluidos textos, imágenes, logotipos, diseños, materiales gráficos y audiovisuales, son propiedad del Teatro o cuentan con las licencias correspondientes, y están protegidos por la legislación mexicana e internacional en materia de propiedad intelectual. Queda prohibida su reproducción total o parcial sin autorización previa y por escrito.</p>
+                </li>
+
+                <li>
+                    <strong>Protección de Datos Personales</strong>
+                    <p>Los datos personales proporcionados por el usuario serán tratados conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares.</p>
+                    <p>Dichos datos serán utilizados exclusivamente para fines administrativos, de comunicación, confirmación de compras y notificaciones relacionadas con eventos o actividades del Teatro.</p>
+                    <p>El usuario podrá ejercer sus derechos ARCO mediante solicitud enviada al correo electrónico oficial del Teatro: <a href="mailto:teatroconstitucion@outlook.es">teatroconstitucion@outlook.es</a>, o asistiendo directamente a la taquilla física del Teatro Constitución de Apatzingán.</p>
+                </li>
+
+                <li>
+                    <strong>Uso de Cookies</strong>
+                    <p>El sitio podrá utilizar cookies con fines estadísticos, de mejora en la experiencia del usuario o para optimización de navegación. El usuario puede deshabilitar el uso de cookies desde la configuración de su navegador.</p>
+                </li>
+
+                <li>
+                    <strong>Enlaces a Sitios de Terceros</strong>
+                    <p>El sitio puede contener enlaces a páginas externas o plataformas de terceros. El Teatro no se hace responsable del contenido, prácticas o políticas de privacidad de dichos sitios, ya que operan de manera independiente.</p>
+                </li>
+
+                <li>
+                    <strong>Limitación de Responsabilidad</strong>
+                    <p>El Teatro no garantiza la disponibilidad continua y libre de errores del sitio web, y no será responsable por daños derivados del uso o imposibilidad de uso del mismo, ya sea por fallas técnicas, mantenimiento, actualizaciones o causas ajenas al control del Teatro.</p>
+                </li>
+
+                <li>
+                    <strong>Modificaciones a los Términos y Condiciones</strong>
+                    <p>El Teatro se reserva el derecho de modificar, actualizar o complementar, en cualquier momento y sin previo aviso, el contenido de los presentes Términos y Condiciones. Las modificaciones entrarán en vigor a partir de su publicación en este sitio.</p>
+                </li>
+
+                <li>
+                    <strong>Legislación Aplicable y Jurisdicción</strong>
+                    <p>Los presentes Términos y Condiciones se rigen por las leyes de los Estados Unidos Mexicanos. Cualquier controversia derivada de su interpretación o cumplimiento se someterá a los tribunales competentes del Estado de Michoacán.</p>
+                </li>
+            </ol>
         </div>
-
     </main>
 
     <footer class="site-footer">
@@ -413,17 +343,15 @@
         </div>
         <div class="footer-bottom">
             <div class="footer-bottom-inner">
-                <div> Teatro Constitución · Apatzingan. Todos los derechos reservados.</div>
+                <div>© <?php echo date('Y'); ?> Teatro Constitución · Apatzingan. Todos los derechos reservados.</div>
                 <div class="muted"><a href="terminos.php" style="color: inherit; text-decoration: none;">Términos</a> · Privacidad</div>
             </div>
         </div>
     </footer>
 
     <script>
-        // Menú hamburguesa
         const hamburgerBtn = document.getElementById('hamburgerBtn');
         const mainNav = document.getElementById('mainNav');
-
         if (hamburgerBtn && mainNav) {
             hamburgerBtn.addEventListener('click', () => {
                 mainNav.classList.toggle('open');
