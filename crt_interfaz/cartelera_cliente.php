@@ -330,6 +330,18 @@ if ($resultado && $resultado->num_rows > 0) {
             font-size: 1.2rem;
         }
 
+        .funcion-acciones {
+            margin-top: 10px;
+            text-align: right;
+        }
+
+        .funcion-acciones .btn {
+            font-size: 0.85rem;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border-width: 1px;
+        }
+
         .no-eventos {
             text-align: center;
             padding: 80px 20px;
@@ -524,6 +536,11 @@ if ($resultado && $resultado->num_rows > 0) {
                                                     <i class="bi bi-calendar-check"></i>
                                                     <span><?php echo $fechaEspanol; ?> · <?php echo $horaFormateada; ?></span>
                                                 </div>
+                                                <div class="funcion-acciones">
+                                                    <a href="disponibles.php?id_evento=<?php echo $evento['id_evento']; ?>&id_funcion=<?php echo $funcion['id_funcion']; ?>" class="btn btn-outline-light btn-sm">
+                                                        Ver disponibilidad
+                                                    </a>
+                                                </div>
                                             </div>
                                         <?php endforeach; ?>
                                     </div>
@@ -542,10 +559,8 @@ if ($resultado && $resultado->num_rows > 0) {
                 <h4>Teatro Constitución · Apatzingan</h4>
                 <p class="muted">Arte escénico, música y cultura para todos. Vive la experiencia teatral.</p>
                 <div class="social" aria-label="Redes sociales">
-                    <a href="#" title="Facebook" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
-                    <a href="#" title="Instagram" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
-                    <a href="#" title="YouTube" aria-label="YouTube"><i class="bi bi-youtube"></i></a>
-                    <a href="#" title="TikTok" aria-label="TikTok"><i class="bi bi-tiktok"></i></a>
+                    <a href="https://www.facebook.com/people/Teatro-Constituci%C3%B3n/100077079712986/" target="_blank" rel="noopener noreferrer" title="Facebook" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
+                    <a href="https://www.instagram.com/teatro_constitucion_apatzingan?igsh=YzZ4YmxhcWU2Zmk%3D" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
                 </div>
             </div>
             <div class="footer-col">
@@ -559,15 +574,15 @@ if ($resultado && $resultado->num_rows > 0) {
             <div class="footer-col">
                 <h4>Contacto</h4>
                 <ul class="footer-links">
-                    <li><i class="bi bi-telephone"></i> <span>+52 (XXX) XXX XXXX</span></li>
-                    <li><i class="bi bi-envelope"></i> <span>contacto@teatro-constitucion.mx</span></li>
+                    <li><i class="bi bi-telephone"></i> <span>+52 (453) 534 5751</span></li>
+                    <li><i class="bi bi-envelope"></i> <span>teatroconstitucion@outlook.es</span></li>
                     <li><i class="bi bi-geo-alt"></i> <span>Apatzingán, Michoacán, México</span></li>
                 </ul>
             </div>
             <div class="footer-col">
                 <h4>Horarios</h4>
                 <ul class="footer-links">
-                    <li><span>Taquilla: Mar-Dom 11:00–19:00</span></li>
+                    <li><span>Taquilla: Lunes a Viernes 09:00 am –08:00 pm</span></li>
                     <li><span>Funciones: Según cartelera</span></li>
                 </ul>
             </div>
@@ -575,7 +590,7 @@ if ($resultado && $resultado->num_rows > 0) {
         <div class="footer-bottom">
             <div class="footer-bottom-inner">
                 <div>© <?php echo date('Y'); ?> Teatro Constitución · Apatzingan. Todos los derechos reservados.</div>
-                <div class="muted">Términos · Privacidad</div>
+                <div class="muted"><a href="terminos.php" style="color: inherit; text-decoration: none;">Términos</a> · Privacidad</div>
             </div>
         </div>
     </footer>

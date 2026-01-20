@@ -1,29 +1,19 @@
 <?php
 session_start();
 
-// Verificar que hay sesión activa
 if (!isset($_SESSION['usuario_id'])) {
-    die('<html><body style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; background: #f4f7f6; color: #e74c3c; font-size: 1.2em;">
-    <div style="text-align: center;">
-        <i class="bi bi-lock-fill" style="font-size: 3em;"></i>
-        <p>Acceso denegado. Debe iniciar sesión.</p>
-    </div>
-    </body></html>');
+    die('<html><head><link rel="stylesheet" href="../assets/css/teatro-style.css"></head>
+    <body style="display:flex;justify-content:center;align-items:center;height:100vh;">
+    <div style="text-align:center;color:var(--danger);"><p>Acceso denegado</p></div></body></html>');
 }
+require_once '../transacciones_helper.php';
+registrar_transaccion('admin_panel', 'Ingreso al panel de administración');
 
-// Verificar acceso al panel de administración
-// Si es admin de rol, acceso directo
-// Si es empleado, debe haber verificado con contraseña del admin
 if ($_SESSION['usuario_rol'] !== 'admin') {
-    // Es empleado, verificar que haya ingresado contraseña del admin
     if (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado']) {
-        die('<html><body style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; background: #f4f7f6; color: #e74c3c; font-size: 1.2em;">
-        <div style="text-align: center;">
-            <i class="bi bi-shield-lock-fill" style="font-size: 3em;"></i>
-            <p>Acceso denegado. Requiere verificación de administrador.</p>
-            <button onclick="window.parent.location.href=\'/teatro/index.php\'" style="margin-top: 20px; padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1em;">Volver al Sistema</button>
-        </div>
-        </body></html>');
+        die('<html><head><link rel="stylesheet" href="../assets/css/teatro-style.css"></head>
+        <body style="display:flex;justify-content:center;align-items:center;height:100vh;">
+        <div style="text-align:center;color:var(--danger);"><p>Requiere verificación de administrador</p></div></body></html>');
     }
 }
 ?>
@@ -34,126 +24,268 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Administración</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-
+    <link rel="stylesheet" href="../assets/css/teatro-style.css">
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f7f6;
+            background: var(--bg-primary);
             display: flex;
             height: 100vh;
             overflow: hidden;
         }
 
-        nav.menu-admin {
-            width: 230px;
-            background-color: #2c3e50;
-            color: white;
+        .admin-sidebar {
+            width: 240px;
+            background: var(--bg-secondary);
             display: flex;
             flex-direction: column;
-            padding-top: 10px;
-            box-shadow: 4px 0 12px rgba(0, 0, 0, 0.1);
+            border-right: 1px solid var(--border-color);
             flex-shrink: 0;
         }
 
-        nav.menu-admin a.menu-item {
+        .admin-sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .admin-sidebar-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
             display: flex;
             align-items: center;
-            color: #ecf0f1;
-            padding: 18px 20px;
-            text-decoration: none;
-            font-size: 15px;
-            font-weight: 500;
-            border-bottom: 1px solid #34495e;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            border-left: 4px solid transparent;
+            gap: 10px;
         }
 
-        nav.menu-admin a.menu-item i {
-            font-size: 1.3em;
-            min-width: 30px;
-            margin-right: 12px;
-        }
-
-        nav.menu-admin a.menu-item:hover,
-        nav.menu-admin a.menu-item.active { /* MODIFICADO: Estilo para el item activo */
-            background-color: #3498db;
-            color: #fff;
-            border-left: 4px solid #fff;
-        }
-
-        header {
-            background-color: #34495e;
+        .admin-sidebar-title i {
+            width: 36px;
+            height: 36px;
+            background: var(--gradient-primary);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
             color: white;
-            padding: 12px 20px;
-            font-size: 18px;
-            font-weight: 500;
-            flex-shrink: 0;
-            width: 100%;
+            font-size: 1rem;
         }
 
-        .contenido-admin {
-            flex-grow: 1;
+        .admin-menu {
+            flex: 1;
+            padding: 12px 8px;
+            overflow-y: auto;
+        }
+
+        .admin-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            margin-bottom: 2px;
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: var(--transition-fast);
+            cursor: pointer;
+        }
+
+        .admin-menu-item:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .admin-menu-item.active {
+            background: rgba(21, 97, 240, 0.15);
+            color: var(--accent-blue);
+        }
+
+        .admin-menu-item i {
+            font-size: 1.1rem;
+            width: 22px;
+            text-align: center;
+        }
+
+        .admin-menu-divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 10px 0;
+        }
+
+        .admin-menu-item.danger {
+            color: var(--danger);
+        }
+
+        .admin-menu-item.danger:hover {
+            background: var(--danger-bg);
+        }
+
+        .admin-content {
+            flex: 1;
             display: flex;
             flex-direction: column;
-            height: 100vh;
+            overflow: hidden;
         }
 
-        /* MODIFICADO: Estilo para el iframe */
-        iframe.content-frame {
-            flex-grow: 1; /* Hace que el iframe ocupe todo el espacio restante */
-            width: 100%;
-            height: 100%;
+        .admin-header {
+            background: var(--bg-secondary);
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .admin-header-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .admin-header-title i {
+            color: var(--accent-blue);
+        }
+
+        .db-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .db-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .db-toggle {
+            display: flex;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            padding: 3px;
+            gap: 3px;
+        }
+
+        .db-toggle button {
+            padding: 6px 12px;
             border: none;
-            background-color: #f4f7f6; /* Color de fondo mientras carga */
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: var(--transition-fast);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .db-toggle button:hover {
+            color: var(--text-primary);
+        }
+
+        .db-toggle button.active {
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        .admin-frame {
+            flex: 1;
+            width: 100%;
+            border: none;
+            background: var(--bg-primary);
         }
     </style>
 </head>
 <body>
+    <aside class="admin-sidebar">
+        <div class="admin-sidebar-header">
+            <div class="admin-sidebar-title">
+                <i class="bi bi-gear-fill"></i>
+                <span>Administración</span>
+            </div>
+        </div>
 
-    <nav class="menu-admin" id="menuAdmin">
-        <a class="menu-item" href="inicio.php" target="contentFrame">
-            <i class="bi bi-house-door"></i> Inicio
-        </a>
-    
-        <a class="menu-item" href="dsc_boletos/index.php" target="contentFrame">
-            <i class="bi bi-percent"></i> Descuentos
-        </a>
+        <nav class="admin-menu">
+            <a class="admin-menu-item active" href="inicio/inicio.php" target="contentFrame">
+                <i class="bi bi-house-door-fill"></i> <span>Inicio</span>
+            </a>
+            <a class="admin-menu-item" href="dsc_boletos/index.php" target="contentFrame">
+                <i class="bi bi-percent"></i> <span>Descuentos</span>
+            </a>
+            <a class="admin-menu-item" href="rpt_reportes/index.php" target="contentFrame">
+                <i class="bi bi-graph-up-arrow"></i> <span>Reportes</span>
+            </a>
+            <a class="admin-menu-item" href="ctg_boletos/index.php" target="contentFrame">
+                <i class="bi bi-tags-fill"></i> <span>Categorías</span>
+            </a>
+            <a class="admin-menu-item" href="transacciones/index.php" target="contentFrame">
+                <i class="bi bi-clock-history"></i> <span>Transacciones</span>
+            </a>
+            <?php if ($_SESSION['usuario_rol'] === 'admin'): ?>
+            <div class="admin-menu-divider"></div>
+            <a class="admin-menu-item danger" href="limpieza/index.php" target="contentFrame">
+                <i class="bi bi-trash3-fill"></i> <span>Limpiar BD</span>
+            </a>
+            <?php endif; ?>
+        </nav>
+    </aside>
 
-        <a class="menu-item" href="rpt_reportes/index.php" target="contentFrame">
-            <i class="bi bi-graph-up"></i> Reportes
-        </a>
-
-        <a class="menu-item" href="ctg_boletos/index.php" target="contentFrame">
-            <i class="bi bi-tags"></i> Categorías
-        </a>
-    </nav>
-
-    <div class="contenido-admin">
-        <header>Panel de Administración</header>
-
-        <iframe class="content-frame" name="contentFrame" id="contentFrame" src="inicio.php">
-            Tu navegador no soporta iframes.
-        </iframe>
-    </div>
+    <main class="admin-content">
+        <header class="admin-header">
+            <div class="admin-header-title">
+                <i class="bi bi-speedometer2"></i> <span>Panel de Administración</span>
+            </div>
+            <div class="db-selector">
+                <span class="db-label">Base de datos:</span>
+                <div class="db-toggle">
+                    <button id="btnAmbas" onclick="cambiarBD('ambas')"><i class="bi bi-collection"></i> Ambas</button>
+                    <button id="btnActual" onclick="cambiarBD('actual')"><i class="bi bi-database"></i> Actual</button>
+                    <button id="btnHistorico" onclick="cambiarBD('historico')"><i class="bi bi-archive"></i> Histórico</button>
+                </div>
+            </div>
+        </header>
+        <iframe class="admin-frame" name="contentFrame" id="contentFrame" src="inicio/inicio.php"></iframe>
+    </main>
 
     <script>
-        document.querySelectorAll('nav.menu-admin a.menu-item').forEach(link => {
-            link.addEventListener('click', function(e) {
-                // Quitar 'active' de todos los links
-                document.querySelectorAll('nav.menu-admin a.menu-item').forEach(item => {
-                    item.classList.remove('active');
+        let dbActual = sessionStorage.getItem('admin_db') || 'ambas';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            actualizarEstadoToggle();
+            
+            document.querySelectorAll('.admin-menu-item').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    document.querySelectorAll('.admin-menu-item').forEach(item => item.classList.remove('active'));
+                    this.classList.add('active');
+                    document.getElementById('contentFrame').src = agregarParamDB(this.getAttribute('href'));
                 });
-                // Añadir 'active' solo al link clickeado
-                this.classList.add('active');
             });
+
+            document.getElementById('contentFrame').src = agregarParamDB('inicio/inicio.php');
         });
 
-        // Activar el link de "Inicio" por defecto al cargar la página
-        document.querySelector('nav.menu-admin a.menu-item[href="inicio.php"]').classList.add('active');
-    </script>
+        function cambiarBD(db) {
+            dbActual = db;
+            sessionStorage.setItem('admin_db', db);
+            actualizarEstadoToggle();
+            const activeLink = document.querySelector('.admin-menu-item.active');
+            const href = activeLink ? activeLink.getAttribute('href') : 'inicio/inicio.php';
+            document.getElementById('contentFrame').src = agregarParamDB(href);
+        }
 
+        function actualizarEstadoToggle() {
+            document.getElementById('btnActual').classList.toggle('active', dbActual === 'actual');
+            document.getElementById('btnHistorico').classList.toggle('active', dbActual === 'historico');
+            document.getElementById('btnAmbas').classList.toggle('active', dbActual === 'ambas');
+        }
+
+        function agregarParamDB(url) {
+            return url + (url.includes('?') ? '&' : '?') + 'db=' + dbActual;
+        }
+    </script>
 </body>
 </html>

@@ -1,0 +1,5 @@
+[17-Dec-2025 16:13:07 Europe/Berlin] PHP Fatal error:  Uncaught mysqli_sql_exception: Unknown column 'f.nombre' in 'field list' in C:\xampp\htdocs\teatro\vnt_interfaz\imprimir_boleto.php:23
+Stack trace:
+#0 C:\xampp\htdocs\teatro\vnt_interfaz\imprimir_boleto.php(23): mysqli->prepare('\r\n    SELECT \r\n...')
+#1 {main}
+  thrown in C:\xampp\htdocs\teatro\vnt_interfaz\imprimir_boleto.php on line 23

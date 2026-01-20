@@ -125,3 +125,87 @@
     background: #d97706;
     border-color: #d97706;
 }
+
+/* Estilos para el modal de tipo de boleto */
+.lista-boletos-tipo {
+    max-height: 400px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.lista-boletos-tipo::-webkit-scrollbar {
+    width: 8px;
+}
+
+.lista-boletos-tipo::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.lista-boletos-tipo::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.lista-boletos-tipo::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+.boleto-tipo-item {
+    background: #f8f9fa;
+    transition: all 0.2s ease;
+}
+
+.boleto-tipo-item:hover {
+    background: #e9ecef;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.tipo-boleto-select {
+    font-size: 0.95rem;
+    padding: 8px 12px;
+    border: 2px solid #dee2e6;
+    transition: all 0.2s ease;
+}
+
+.tipo-boleto-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.tipo-boleto-select option {
+    padding: 8px;
+}
+
+/* Botones de aplicar a todos */
+.btn-group .btn {
+    font-size: 0.85rem;
+    padding: 8px 12px;
+    white-space: nowrap;
+}
+
+.btn-group .btn i {
+    margin-right: 4px;
+}
+
+/* Responsive para el modal de tipo de boleto */
+@media (max-width: 768px) {
+    .boleto-tipo-item .row {
+        flex-direction: column;
+    }
+    
+    .boleto-tipo-item .col-md-4,
+    .boleto-tipo-item .col-md-8 {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    
+    .btn-group {
+        flex-direction: column;
+    }
+    
+    .btn-group .btn {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+}

@@ -1,20 +1,35 @@
 <?php
-// 1. CONEXIÓN
+// 1. CONEXIÓN y SESIÓN
+session_start();
 // Ajusta la ruta si es necesario. Asumo que está en /vnt_interfaz/
 include "../conexion.php"; 
 
+// Cargar helper de transacciones
+if(file_exists("../transacciones_helper.php")) {
+    require_once "../transacciones_helper.php";
+}
+
+// AUTO-ARCHIVADO: Ejecutar verificación de eventos caducados
+include_once __DIR__ . "/../evt_interfaz/auto_archivar.php";
+
+// Detectar si es empleado o admin para redirigir al lugar correcto
+$es_empleado = isset($_SESSION['usuario_rol']) && $_SESSION['usuario_rol'] !== 'admin';
+$url_regresar = $es_empleado ? '../index_empleado.php' : 'index.php';
+
 $id_evento_seleccionado = null;
+$id_funcion_seleccionada = null;
 $evento_info = null;
 $eventos_lista = [];
 $categorias_palette = [];
 $mapa_guardado = []; 
+$funciones_evento = [];
 
 // --- MODIFICADO: Empezar vacíos. Se llenarán dinámicamente ---
 $colores_por_id = []; 
 $categorias_js = []; 
 
-// 2. Cargar todos los eventos
-$res_eventos = $conn->query("SELECT id_evento, titulo, tipo, mapa_json FROM evento WHERE finalizado = 0 ORDER BY titulo ASC");
+// 2. Cargar todos los eventos (incluyendo imagen para el póster)
+$res_eventos = $conn->query("SELECT id_evento, titulo, tipo, mapa_json, imagen FROM evento WHERE finalizado = 0 ORDER BY titulo ASC");
 if ($res_eventos) {
     $eventos_lista = $res_eventos->fetch_all(MYSQLI_ASSOC);
 }
@@ -81,12 +96,83 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
         }
         // --- FIN: MODIFICADO ---
 
-        // 5. Cargar el mapa desde JSON
+        // 5. Cargar funciones disponibles para el evento
+        // Se permite vender hasta 2 horas después de iniciada la función O si es del día de hoy
+        $fecha_limite = date('Y-m-d H:i:s', strtotime('-2 hours'));
+        $stmt_fun = $conn->prepare("SELECT id_funcion, fecha_hora, estado FROM funciones WHERE id_evento = ? AND (fecha_hora > ? OR DATE(fecha_hora) = CURDATE()) ORDER BY fecha_hora ASC");
+        $stmt_fun->bind_param("is", $id_evento_seleccionado, $fecha_limite);
+        $stmt_fun->execute();
+        $res_funciones = $stmt_fun->get_result();
+        if ($res_funciones) {
+            $funciones_evento = $res_funciones->fetch_all(MYSQLI_ASSOC);
+        }
+        $stmt_fun->close();
+
+        if (!empty($funciones_evento)) {
+            if (isset($_GET['id_funcion'])) {
+                $id_funcion_propuesto = (int)$_GET['id_funcion'];
+                foreach ($funciones_evento as $funcion) {
+                    if ((int)$funcion['id_funcion'] === $id_funcion_propuesto) {
+                        $id_funcion_seleccionada = $id_funcion_propuesto;
+                        break;
+                    }
+                }
+            }
+            // NO seleccionar función por defecto - el vendedor debe elegir manualmente
+        }
+
+        // 6. Cargar el mapa desde JSON
         if (!empty($evento_info['mapa_json'])) {
             $mapa_guardado = json_decode($evento_info['mapa_json'], true);
         }
     }
 }
+
+// Cargar precios por tipo de boleto
+$precios_tipo_boleto = [
+    'adulto' => 80,
+    'nino' => 50,
+    'adulto_mayor' => 60,
+    'discapacitado' => 40,
+    'cortesia' => 0
+];
+
+// Verificar si existe la tabla de precios por tipo
+$check_table = $conn->query("SHOW TABLES LIKE 'precios_tipo_boleto'");
+if ($check_table && $check_table->num_rows > 0) {
+    // Primero intentar cargar precios específicos del evento
+    if ($id_evento_seleccionado) {
+        $stmt_precios = $conn->prepare("SELECT tipo_boleto, precio FROM precios_tipo_boleto WHERE id_evento = ?");
+        $stmt_precios->bind_param("i", $id_evento_seleccionado);
+        $stmt_precios->execute();
+        $res_precios = $stmt_precios->get_result();
+        
+        if ($res_precios && $res_precios->num_rows > 0) {
+            // Tiene precios específicos
+            while ($row = $res_precios->fetch_assoc()) {
+                $precios_tipo_boleto[$row['tipo_boleto']] = (float)$row['precio'];
+            }
+        } else {
+            // Usar precios globales
+            $res_global = $conn->query("SELECT tipo_boleto, precio FROM precios_tipo_boleto WHERE id_evento IS NULL");
+            if ($res_global) {
+                while ($row = $res_global->fetch_assoc()) {
+                    $precios_tipo_boleto[$row['tipo_boleto']] = (float)$row['precio'];
+                }
+            }
+        }
+        $stmt_precios->close();
+    } else {
+        // Sin evento seleccionado, usar globales
+        $res_global = $conn->query("SELECT tipo_boleto, precio FROM precios_tipo_boleto WHERE id_evento IS NULL");
+        if ($res_global) {
+            while ($row = $res_global->fetch_assoc()) {
+                $precios_tipo_boleto[$row['tipo_boleto']] = (float)$row['precio'];
+            }
+        }
+    }
+}
+
 $conn->close();
 ?>
 
@@ -97,27 +183,28 @@ $conn->close();
 <title>Punto de Venta</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<link rel="stylesheet" href="css/carrito.css">
+<link rel="stylesheet" href="css/carrito.css?v=2">
 <link rel="stylesheet" href="css/descuentos-modal.css">
 <link rel="stylesheet" href="css/notifications.css">
 <link rel="stylesheet" href="css/animations.css">
-<link rel="stylesheet" href="css/menu-mejoras.css">
+<link rel="stylesheet" href="css/menu-mejoras.css?v=2">
 <link rel="stylesheet" href="css/seleccion-multiple.css">
+<link rel="stylesheet" href="../assets/css/seat-map.css?v=1">
 <style>
 :root {
-  --primary-color: #2563eb;
-  --primary-dark: #1e40af;
-  --success-color: #10b981;
-  --danger-color: #ef4444;
-  --warning-color: #f59e0b;
-  --bg-primary: #f8fafc;
-  --bg-secondary: #ffffff;
-  --text-primary: #0f172a;
-  --text-secondary: #64748b;
-  --border-color: #e2e8f0;
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --primary-color: #1561f0;
+  --primary-dark: #0d4fc4;
+  --success-color: #32d74b;
+  --danger-color: #ff453a;
+  --warning-color: #ff9f0a;
+  --bg-primary: #131313;
+  --bg-secondary: #1c1c1e;
+  --text-primary: #ffffff;
+  --text-secondary: #86868b;
+  --border-color: #3a3a3c;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -135,8 +222,8 @@ html, body {
 }
 
 body {
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  background: var(--bg-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: var(--text-primary);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -145,39 +232,39 @@ body {
 
 .container-fluid {
   display: flex;
-  flex-direction: column;
-  height: 100%;
-  padding: 24px;
+  height: 100vh;
+  padding: 20px;
   gap: 20px;
+  overflow: hidden;
 }
 
 .card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   transition: all 0.3s ease;
 }
 
 .mapper-container {
-  display: flex;
-  gap: 24px;
   flex: 1;
-  min-height: 0;
+  display: flex;
+  gap: 20px;
+  overflow: hidden;
+  position: relative;
 }
 
 .seat-map-wrapper {
-  flex-grow: 1;
+  flex: 1;
   background: var(--bg-secondary);
   border-radius: var(--radius-lg);
-  padding: 32px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  height: 100%;
-  display: flex;
-  justify-content: center;
+  padding: 40px;
+  overflow: auto;
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-md);
+  display: flex;
+  justify-content: center;
+  position: relative;
 }
 
 .seat-map-wrapper::-webkit-scrollbar {
@@ -200,72 +287,64 @@ body {
 }
 
 .seat-map-content {
+  min-width: min-content;
   transform-origin: top center;
-  width: fit-content;
-  min-height: min-content;
+  transition: transform 0.3s ease;
 }
 
 .screen {
-  background: linear-gradient(135deg, var(--text-primary) 0%, #334155 100%);
+  background: linear-gradient(135deg, #1c1c1e 0%, #334155 100%);
   color: white;
-  padding: 16px 24px;
+  padding: 10px 20px;
   text-align: center;
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin-bottom: 32px;
-  border-radius: var(--radius-md);
-  position: sticky;
-  top: -32px;
-  z-index: 10;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+  border-radius: 8px;
+  margin-bottom: 20px;
   box-shadow: var(--shadow-lg);
-  letter-spacing: 0.5px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border: 1px solid var(--border-color);
 }
 
 .seat {
-  width: 48px;
-  height: 48px;
-  background: #e2e8f0;
-  color: var(--text-primary);
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  font-weight: 600;
+  width: 22px;
+  height: 22px;
+  background: #0066ff;
+  color: #000000;
+  border-radius: 3px;
+  font-size: 6px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid transparent;
+  border: none;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  padding: 2px;
+  transition: all 0.15s ease;
+  padding: 1px;
   box-sizing: border-box;
   text-align: center;
   line-height: 1;
-  will-change: transform;
-  box-shadow: var(--shadow-sm);
 }
 
-.seat:hover {
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: var(--shadow-md);
-  border-color: var(--primary-color);
+.seat:hover, .seat:focus {
+  background: #0052cc;
+  transform: scale(1.1);
+  outline: none;
 }
 
 .seat.selected {
-  border: 3px solid var(--success-color) !important;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
-  transform: scale(1.05);
+  background: #32d74b !important;
+  transform: scale(1.1);
 }
 
 .seat.vendido {
-  background: repeating-linear-gradient(
-    45deg,
-    #ef4444,
-    #ef4444 10px,
-    #dc2626 10px,
-    #dc2626 20px
-  ) !important;
-  color: white !important;
+  background: #1c1c1e !important;
+  color: #666 !important;
   cursor: not-allowed !important;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 .seat:active {
@@ -273,13 +352,13 @@ body {
 }
 
 .row-label {
-  width: 48px;
+  width: 30px;
   text-align: center;
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 0.55rem;
   color: var(--text-secondary);
-  border-radius: var(--radius-sm);
-  padding: 8px 0;
+  border-radius: 3px;
+  padding: 3px 0;
   cursor: pointer;
   transition: all 0.2s ease;
   user-select: none;
@@ -293,18 +372,18 @@ body {
 
 .pasarela-container {
   position: relative;
-  width: 100px;
+  width: 50px;
   flex-shrink: 0;
 }
 
 .pasarela {
-  width: 100px;
+  width: 50px;
   background: linear-gradient(180deg, var(--text-primary) 0%, #334155 100%);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-md);
+  border-radius: 6px;
   position: absolute;
   top: 0;
   left: 0;
@@ -315,43 +394,47 @@ body {
   writing-mode: vertical-rl;
   text-orientation: mixed;
   font-weight: 700;
-  letter-spacing: 6px;
-  font-size: 1rem;
+  letter-spacing: 3px;
+  font-size: 0.6rem;
 }
 
 .seats-block {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 3px;
 }
 
 .seat-row-wrapper {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 4px;
 }
 
-.pasillo {
-  width: 32px;
+.pasillo, .aisle {
+  width: 12px;
 }
 
 .controls-panel {
-  width: 380px;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  flex-shrink: 0;
-  border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-md);
+  width: 280px;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px;
+  gap: 10px;
+  z-index: 200;
+  position: relative;
 }
 
 .controls-panel::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 .controls-panel::-webkit-scrollbar-track {
@@ -369,46 +452,271 @@ body {
   background: var(--text-secondary);
 }
 
+.panel-header, .palette-header {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(to right, var(--bg-primary), var(--bg-secondary));
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.palette-body, .panel-body {
+  padding: 10px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.palette-footer, .panel-footer {
+  padding: 12px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
 .controls-panel h2 {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
 .controls-panel h5 {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
+.seccion-horario {
+  margin-bottom: 4px;
+}
+
 .form-label {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .form-select {
-  border: 1px solid var(--border-color);
+  border: 1px solid #4a4a4c;
   border-radius: var(--radius-sm);
-  padding: 10px 14px;
-  font-size: 0.95rem;
+  padding: 8px 12px;
+  font-size: 0.9rem;
   transition: all 0.2s;
-  background-color: var(--bg-primary);
+  background-color: #2b2b2b;
+  color: #ffffff;
 }
 
 .form-select:focus {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: #1561f0;
+  box-shadow: 0 0 0 3px rgba(21, 97, 240, 0.3);
   outline: none;
+}
+
+/* Estilos para opciones deshabilitadas (funciones vencidas) */
+.form-select option:disabled {
+  color: #666 !important;
+  background-color: #1c1c1e !important;
+  font-style: italic;
+  cursor: not-allowed;
+}
+
+#selectFuncion option:disabled {
+  color: #666 !important;
+  background-color: #1c1c1e !important;
+}
+
+/* === CARTELERA DE EVENTOS === */
+.eventos-cartelera {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.evento-mini-card {
+  background: #2b2b2b;
+  border: 2px solid #4a4a4c;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.evento-mini-card:hover {
+  border-color: #1561f0;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(21,97,240,0.3);
+}
+
+.evento-mini-card.selected {
+  border-color: #1561f0;
+  box-shadow: 0 0 0 3px rgba(21,97,240,0.3);
+}
+
+.evento-mini-poster {
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  display: block;
+}
+
+.evento-mini-poster-placeholder {
+  width: 100%;
+  aspect-ratio: 2/3;
+  background: linear-gradient(135deg, #3a3a3c 0%, #2b2b2b 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #86868b;
+  font-size: 1.5rem;
+}
+
+.evento-mini-info {
+  padding: 8px;
+  text-align: center;
+}
+
+.evento-mini-titulo {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cambiar-evento-btn {
+  background: var(--bg-primary);
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+
+.cambiar-evento-btn:hover {
+  background: var(--bg-secondary);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+/* === CARTELERA FULLSCREEN (sin evento seleccionado) === */
+.cartelera-fullscreen {
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--bg-primary) 0%, #e2e8f0 100%);
+  padding: 40px;
+}
+
+.cartelera-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.cartelera-header h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.cartelera-header h1 i {
+  color: var(--primary-color);
+}
+
+.cartelera-header p {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+.cartelera-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.evento-card-full {
+  background: var(--bg-secondary);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.evento-card-full:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 15px 35px rgba(37,99,235,0.2);
+}
+
+.evento-card-full img {
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s ease;
+}
+
+.evento-card-full:hover img {
+  transform: scale(1.05);
+}
+
+.evento-card-full .placeholder-img {
+  width: 100%;
+  aspect-ratio: 2/3;
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 3rem;
+}
+
+.evento-card-full .info {
+  padding: 16px;
+}
+
+.evento-card-full .titulo {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.evento-card-full .tipo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  color: var(--primary-dark);
+  font-weight: 600;
 }
 
 .btn {
@@ -592,7 +900,7 @@ hr {
 /* Responsive */
 @media (max-width: 1200px) {
   .controls-panel {
-    width: 340px;
+    width: 280px;
   }
 }
 
@@ -647,31 +955,32 @@ hr {
 }
 
 .seccion-categorias-separada .seccion-header {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  border-bottom: 1px solid #fbbf24;
+  background: linear-gradient(135deg, #0066ff 0%, #0052cc 100%);
+  border-bottom: 1px solid #003d99;
 }
 
 .seccion-categorias-separada .seccion-header:hover {
-  background: linear-gradient(135deg, #fde68a 0%, #fcd34d 100%);
+  background: linear-gradient(135deg, #0052cc 0%, #003d99 100%);
 }
 
 .seccion-categorias-separada .seccion-header h5 {
-  color: #92400e;
+  color: #ffffff;
 }
 
 .seccion-categorias-separada .seccion-header .toggle-icon {
-  color: #92400e;
+  color: #ffffff;
 }
 
 .categorias-info-text {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: #1c1c1e;
+  border: 1px solid #3a3a3c;
   border-radius: 6px;
   padding: 8px 12px;
+  color: #ffffff;
 }
 
 .categorias-info-text i {
-  color: #2563eb;
+  color: #0066ff;
 }
 
 /* Mejoras visuales adicionales */
@@ -715,21 +1024,22 @@ hr {
 }
 
 .evento-badge {
-  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-  border: 1px solid #93c5fd;
+  background: #0066ff;
+  border: 1px solid #0052cc;
   border-radius: 8px;
   padding: 8px 12px;
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 0.85rem;
-  color: #1e40af;
+  color: #ffffff;
   font-weight: 600;
   margin-top: 8px;
 }
 
 .evento-badge i {
   font-size: 1rem;
+  color: #ffffff;
 }
 
 .seccion-evento {
@@ -751,8 +1061,8 @@ hr {
 }
 
 .stat-card {
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 1px solid var(--border-color);
+  background: #0066ff;
+  border: 1px solid #0052cc;
   border-radius: 10px;
   padding: 14px;
   display: flex;
@@ -762,26 +1072,26 @@ hr {
 }
 
 .stat-card:hover {
-  border-color: var(--primary-color);
+  border-color: #ffffff;
   box-shadow: var(--shadow-md);
   transform: translateY(-2px);
 }
 
 .stat-card i {
   font-size: 1.8rem;
-  color: var(--primary-color);
+  color: #ffffff;
 }
 
 .stat-value {
   font-size: 1.3rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #ffffff;
   line-height: 1;
 }
 
 .stat-label {
   font-size: 0.75rem;
-  color: var(--text-secondary);
+  color: rgba(255,255,255,0.8);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-top: 2px;
@@ -790,19 +1100,19 @@ hr {
 /* Secciones Colapsables */
 .seccion-carrito,
 .seccion-categorias-separada {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
   background: var(--bg-secondary);
 }
 
 /* Contenedor de items del carrito con scroll */
 .carrito-items-container {
-  max-height: 400px;
+  max-height: 150px;
   overflow-y: auto;
   overflow-x: hidden;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   padding-right: 4px;
 }
 
@@ -834,7 +1144,7 @@ hr {
 }
 
 .seccion-header {
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  background: linear-gradient(135deg, #0066ff 0%, #0052cc 100%);
   padding: 12px 16px;
   cursor: pointer;
   display: flex;
@@ -845,13 +1155,14 @@ hr {
 }
 
 .seccion-header:hover {
-  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  background: linear-gradient(135deg, #0052cc 0%, #003d99 100%);
 }
 
 .seccion-header h5 {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
+  color: #ffffff;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -859,7 +1170,7 @@ hr {
 
 .seccion-header .toggle-icon {
   transition: transform 0.3s ease;
-  color: var(--text-secondary);
+  color: #ffffff;
 }
 
 .seccion-header.collapsed .toggle-icon {
@@ -867,15 +1178,15 @@ hr {
 }
 
 .seccion-content {
-  padding: 16px;
-  max-height: 1000px;
+  padding: 10px;
+  max-height: 800px;
   overflow: hidden;
   transition: max-height 0.3s ease, padding 0.3s ease;
 }
 
 .seccion-content.collapsed {
   max-height: 0;
-  padding: 0 16px;
+  padding: 0 10px;
 }
 
 /* Selector de Descuentos Minimalista */
@@ -1029,21 +1340,212 @@ hr {
 .seccion-content:not(.collapsed) {
   animation: slideDown 0.3s ease;
 }
+/* Responsive para el panel - ajustado para iframe */
+@media (max-width: 1200px) {
+  .controls-panel {
+    width: 260px;
+    min-width: 240px;
+    padding: 12px;
+  }
+  
+  .seat {
+    width: 28px;
+    height: 28px;
+    font-size: 8px;
+  }
+  
+  .pasillo {
+    width: 12px;
+  }
+}
 
-/* Responsive para el panel */
-@media (max-width: 992px) {
+@media (max-width: 900px) {
+  .mapper-container {
+    flex-direction: column;
+  }
+  
+  .controls-panel {
+    width: 100%;
+    max-width: none;
+    min-width: unset;
+    max-height: 40vh;
+  }
+  
+  .seat-map-wrapper {
+    min-height: 55vh;
+  }
+  
   .stats-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
   
   .stat-card {
-    padding: 12px;
+    padding: 10px;
+  }
+}
+
+/* Overlay para bloquear asientos cuando no hay horario seleccionado */
+.seat-map-wrapper {
+  position: relative;
+}
+
+.overlay-sin-horario {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(19, 19, 19, 0.95);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border-radius: var(--radius-lg);
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.overlay-sin-horario.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.overlay-sin-horario-content {
+  text-align: center;
+  color: white;
+  padding: 40px;
+  max-width: 400px;
+}
+
+.overlay-sin-horario-content i.bi-calendar-x {
+  font-size: 5rem;
+  color: #f59e0b;
+  display: block;
+  margin-bottom: 20px;
+  animation: pulse 2s infinite;
+}
+
+.overlay-sin-horario-content h3 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.overlay-sin-horario-content p {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 20px;
+}
+
+.overlay-sin-horario-content .arrow-indicator {
+  animation: bounceUp 1s infinite;
+}
+
+.overlay-sin-horario-content .arrow-indicator i {
+  font-size: 2rem;
+  color: #10b981;
+}
+
+@keyframes bounceUp {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-15px);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
   }
 }
 </style>
 </head>
 <body>
 
+<?php if (!$evento_info): ?>
+<!-- ===== CARTELERA FULLSCREEN (sin evento seleccionado) ===== -->
+<div class="cartelera-fullscreen">
+    <div class="cartelera-header">
+        <h1><i class="bi bi-film"></i> Cartelera</h1>
+        <p>Selecciona un evento para comenzar a vender</p>
+    </div>
+    
+    <?php if (empty($eventos_lista)): ?>
+    <div style="text-align:center; padding:80px; color:var(--text-secondary);">
+        <i class="bi bi-calendar-x" style="font-size:5rem; opacity:0.3;"></i>
+        <h3 style="margin-top:20px; font-weight:600;">No hay eventos disponibles</h3>
+        <p>Crea un evento desde el panel de administración</p>
+    </div>
+    <?php else: ?>
+    <div class="cartelera-grid">
+        <?php foreach ($eventos_lista as $e): 
+            $img_evt = '';
+            if (!empty($e['imagen'])) {
+                $rutas_img = ["../evt_interfaz/" . $e['imagen'], $e['imagen']];
+                foreach ($rutas_img as $r) { if (file_exists($r)) { $img_evt = $r; break; } }
+            }
+        ?>
+        <div class="evento-card-full" onclick="seleccionarEvento(<?= $e['id_evento'] ?>)">
+            <?php if($img_evt): ?>
+                <img src="<?= htmlspecialchars($img_evt) ?>" alt="">
+            <?php else: ?>
+                <div class="placeholder-img"><i class="bi bi-image"></i></div>
+            <?php endif; ?>
+            <div class="info">
+                <div class="titulo"><?= htmlspecialchars($e['titulo']) ?></div>
+                <span class="tipo-badge">
+                    <i class="bi bi-<?= $e['tipo'] == 1 ? 'music-note-beamed' : 'person-walking' ?>"></i>
+                    <?= $e['tipo'] == 1 ? 'Teatro' : 'Pasarela' ?>
+                </span>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+</div>
+
+<!-- Scripts para cartelera fullscreen -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/sync-sender.js?v=2"></script>
+<script>
+// Función para seleccionar evento desde cartelera fullscreen
+function seleccionarEvento(idEvento) {
+    if (!idEvento) return;
+    
+    // Obtener título del evento si está disponible
+    const eventoCard = document.querySelector(`.evento-card-full[onclick*="${idEvento}"]`);
+    const titulo = eventoCard?.querySelector('.titulo')?.textContent || 'Cargando evento...';
+    
+    // Enviar notificación al visor cliente antes de redirigir
+    if (typeof enviarSeleccionEvento === 'function') {
+        enviarSeleccionEvento(idEvento, titulo);
+    }
+    
+    // Pequeño delay para que el mensaje llegue al visor
+    setTimeout(() => {
+        window.location.href = 'index.php?id_evento=' + idEvento;
+    }, 100);
+}
+</script>
+</body>
+</html>
+<?php 
+endif; // Fin de cartelera fullscreen (!$evento_info)
+
+// Si hay evento, continúa con la vista de ventas
+if ($evento_info): 
+?>
+<!-- ===== VISTA DE VENTAS (con evento seleccionado) ===== -->
 <div class="container-fluid">
   
   <!-- Botón para ocultar/mostrar paneles -->
@@ -1054,7 +1556,22 @@ hr {
   <div class="mapper-container">
     
     <?php if ($evento_info): ?>
-    <div class="seat-map-wrapper">
+    <div class="seat-map-wrapper" style="position: relative;">
+      
+      <!-- Overlay de bloqueo cuando no hay horario seleccionado -->
+      <?php if (!$id_funcion_seleccionada): ?>
+      <div class="overlay-sin-horario" id="overlaySinHorario">
+        <div class="overlay-sin-horario-content">
+          <i class="bi bi-calendar-x"></i>
+          <h3>Seleccione un horario</h3>
+          <p>Para comenzar a vender, primero debe seleccionar un horario de función.</p>
+          <div class="arrow-indicator">
+            <i class="bi bi-arrow-right"></i>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+      
       <div class="seat-map-content" id="seatMapContent">
       <div class="screen"><?= ($evento_info['tipo']==1)?'ESCENARIO':'PASARELA / ESCENARIO' ?></div>
 
@@ -1081,7 +1598,7 @@ hr {
                 <?= $nombre_asiento ?>
             </div>
           <?php endfor; ?>
-          <div style="width: 100px; flex-shrink: 0;"></div>
+          <div style="width: 60px; flex-shrink: 0;"></div>
           <?php for ($i=1; $i<=6; $i++): 
                   $nombre_asiento = $nombre_fila . '-' . $numero_en_fila_pb++;
                   // --- MODIFICADO: Default a $id_categoria_general ---
@@ -1098,8 +1615,8 @@ hr {
       <?php endfor; ?>
       
       <!-- Pasarela posicionada absolutamente sobre todas las filas -->
-      <div class="pasarela" style="position: absolute; width: 100px; height: <?= (48 + 10) * 10 ?>px; top: 0; left: 50%; transform: translateX(-50%); background: linear-gradient(180deg, var(--text-primary) 0%, #334155 100%); color: #fff; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-md); box-shadow: var(--shadow-md);">
-        <span class="pasarela-text">PASARELA</span>
+      <div class="pasarela" style="position: absolute; width: 60px; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); background: linear-gradient(180deg, #1c1c1e 0%, #334155 100%); color: #fff; display: flex; align-items: center; justify-content: center; border-radius: 6px; box-shadow: var(--shadow-md);">
+        <span class="pasarela-text" style="font-size: 0.5rem; letter-spacing: 2px;">PASARELA</span>
       </div>
       </div>
       <hr style="margin-top: 20px; margin-bottom: 20px; border-width: 2px;">
@@ -1229,142 +1746,100 @@ hr {
               <?php endfor; ?>
             </div>
             <div class="row-label">P</div>
-          </div>
-      <?php endif; ?>
+        <?php endif; ?>
       </div>
     </div>
     <?php endif; ?>
     <div class="controls-panel card">
       
-        <!-- Header del Panel -->
+        <!-- Header del Panel con título del evento -->
         <div class="panel-header">
-            <h2><i class="bi bi-shop"></i> Punto de Venta</h2>
-            <?php if ($evento_info): ?>
-            <div class="evento-badge">
-                <i class="bi bi-calendar-event"></i>
-                <span><?= htmlspecialchars($evento_info['titulo']) ?></span>
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0" style="font-size:1rem; font-weight:600;">
+                    <i class="bi bi-ticket-perforated text-primary"></i> 
+                    <?= htmlspecialchars($evento_info['titulo']) ?>
+                </h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="location.href='<?= $url_regresar ?>'" title="Cambiar evento">
+                    <i class="bi bi-arrow-left-right"></i>
+                </button>
             </div>
-            <?php endif; ?>
         </div>
         
-        <!-- Selector de Evento -->
-        <div class="seccion-evento">
-            <form method="GET" id="formEvento">
-                <div class="input-group">
-                    <span class="input-group-text"><i class="bi bi-calendar-check"></i></span>
-                    <select name="id_evento" class="form-select" onchange="cambiarEvento(this)">
-                        <option value="">Seleccionar evento...</option>
-                        <?php foreach ($eventos_lista as $e): ?>
-                        <option value="<?= $e['id_evento'] ?>" <?= ($id_evento_seleccionado==$e['id_evento'])?'selected':'' ?>>
-                            <?= htmlspecialchars($e['titulo']) ?> 
-                            <?php 
-                                if ($e['tipo'] == 1) {
-                                    echo '• Teatro 420';
-                                } elseif ($e['tipo'] == 2) {
-                                    echo '• Pasarela 540';
-                                } else {
-                                    echo '• Otro';
-                                }
-                            ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-            </form>
-            <div id="loadingIndicator" style="display:none;" class="text-center mt-3">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Cargando...</span>
-                </div>
-                <p class="mt-2" style="color: var(--text-secondary); font-size: 0.9rem;">Cargando evento...</p>
-            </div>
+        <!-- Selector de Horario -->
+        <?php if (!empty($funciones_evento)): ?>
+        <div class="seccion-horario">
+            <label class="form-label mb-1" style="font-size:0.85rem; font-weight:500;">
+                <i class="bi bi-clock"></i> Horario
+            </label>
+            <input type="hidden" name="id_funcion" id="inputIdFuncion" value="<?= htmlspecialchars($id_funcion_seleccionada ?? '') ?>">
+            <select id="selectFuncion" class="form-select" onchange="cambiarFuncion(this)">
+                <option value="">Seleccionar horario...</option>
+                <?php 
+                $dias_semana = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+                foreach ($funciones_evento as $funcion): 
+                    $fecha_funcion = new DateTime($funcion['fecha_hora']);
+                    $dia = $dias_semana[(int)$fecha_funcion->format('w')];
+                    $num = $fecha_funcion->format('d');
+                    $hora = $fecha_funcion->format('g:i A');
+                    $texto_funcion = "$dia $num - $hora";
+                    $estado = (int)$funcion['estado'];
+                    $es_vencida = $estado === 1;
+                    $texto_estado = $es_vencida ? ' (Vencida)' : '';
+                ?>
+                <option 
+                    value="<?= $funcion['id_funcion'] ?>" 
+                    <?= ($id_funcion_seleccionada==$funcion['id_funcion'])?'selected':'' ?>
+                    <?= $es_vencida ? 'disabled style="color: #9ca3af;"' : '' ?>
+                    data-estado="<?= $estado ?>">
+                    <?= $texto_funcion . $texto_estado ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <?php endif; ?>
+        
+        <div id="loadingIndicator" style="display:none;" class="text-center py-3">
+            <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+            <small class="d-block mt-1 text-muted">Cargando...</small>
         </div>
         
         <?php if ($evento_info): ?>
         
-        <!-- Estadísticas Rápidas -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <i class="bi bi-ticket-perforated"></i>
-                <div>
-                    <div class="stat-value" id="statAsientos">0</div>
-                    <div class="stat-label">Asientos</div>
-                </div>
+        <!-- Carrito de Compras (siempre visible) -->
+        <div class="carrito-simple" style="background: var(--bg-primary); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+            <h6 style="margin: 0 0 8px 0; color: #0066ff; font-size: 0.85rem;"><i class="bi bi-cart3"></i> Carrito</h6>
+            <div id="carritoItems" style="max-height: 140px; overflow-y: auto; margin-bottom: 8px; scrollbar-width: thin;">
+                <div class="carrito-vacio" style="font-size: 0.8rem; padding: 30px 10px; text-align: center; color: #86868b;">Selecciona asientos en el mapa</div>
             </div>
-            <div class="stat-card">
-                <i class="bi bi-cash-coin"></i>
-                <div>
-                    <div class="stat-value" id="statTotal">$0</div>
-                    <div class="stat-label">Total</div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Carrito de Compras -->
-        <div class="seccion-carrito">
-            <div class="seccion-header" onclick="toggleSeccion('carrito')">
-                <h5><i class="bi bi-cart3"></i> Carrito de Compras</h5>
-                <i class="bi bi-chevron-down toggle-icon"></i>
-            </div>
-            <div class="seccion-content" id="seccion-carrito">
-                <!-- Lista de items con scroll -->
-                <div class="carrito-items-container">
-                    <div id="carritoItems">
-                        <div class="carrito-vacio">Selecciona asientos en el mapa</div>
-                    </div>
-                </div>
-                
-                <!-- Solo el total -->
-                <div class="carrito-footer">
-                    <div class="total-section">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h4>Total a Pagar</h4>
-                            <h4 id="totalCompra">$0.00</h4>
-                        </div>
-                    </div>
+            <div style="background: linear-gradient(135deg, #0066ff 0%, #0052cc 100%); padding: 12px; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: white; font-weight: 600; font-size: 0.9rem;"><span id="statAsientos">0</span> asientos</span>
+                    <span style="color: white; font-weight: 700; font-size: 1.1rem;">Total: <span id="totalCompra">$0</span></span>
                 </div>
             </div>
         </div>
         
         <!-- Botón de Pago Principal -->
-        <button id="btnPagar" class="btn btn-success btn-lg w-100 mb-3" onclick="procesarPago()" disabled style="padding: 16px; font-size: 1.1rem; font-weight: 700; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3);">
-            <i class="bi bi-credit-card"></i> Procesar Pago
+        <button id="btnPagar" class="btn w-100 mb-2" onclick="procesarPago()" disabled style="background: linear-gradient(135deg, #32d74b 0%, #1f9d3c 100%); color: white; padding: 16px 20px; font-size: 1.1rem; font-weight: 700; border: 2px solid #28a745; border-radius: 10px; box-shadow: 0 6px 20px rgba(50, 215, 75, 0.4); text-transform: uppercase; letter-spacing: 1px;">
+            <i class="bi bi-credit-card-fill"></i> Procesar Pago
         </button>
         
-        <!-- Selector de Descuentos -->
-        <div class="descuento-selector-separado">
-            <label class="form-label">
-                <i class="bi bi-tag"></i> Descuento
-            </label>
-            <select id="selectDescuento" class="form-select form-select-sm" onchange="aplicarDescuento()">
-                <option value="">Sin descuento</option>
-            </select>
-            <small class="d-block mt-1" id="descuentoInfo"></small>
-        </div>
-        
         <!-- Acciones Rápidas -->
-        <div class="acciones-rapidas">
-            <button class="btn btn-primary w-100 mb-2" onclick="abrirEscanerQR()">
-                <i class="bi bi-qr-code-scan"></i> Escanear Boleto QR
+        <div class="acciones-rapidas" style="display: flex; flex-direction: column; gap: 6px;">
+            <button class="btn btn-primary btn-sm w-100" onclick="abrirGestionBoletos('verificar')" style="font-size: 0.8rem; padding: 8px;">
+                <i class="bi bi-qr-code-scan"></i> Gestión de Boletos
             </button>
             
-            <button class="btn btn-danger w-100 mb-2" onclick="abrirCancelarBoleto()">
-                <i class="bi bi-x-circle"></i> Cancelar/Devolver Boleto
-            </button>
-            
-            <button class="btn btn-warning w-100 mb-2" onclick="verCategorias()">
+            <button class="btn btn-warning btn-sm w-100" onclick="verCategorias()" style="font-size: 0.8rem; padding: 8px;">
                 <i class="bi bi-palette"></i> Categorías
             </button>
             
-            <!-- Selección Múltiple -->
-            <div class="alert alert-info p-2 mb-2" style="font-size: 0.85rem;">
-                <i class="bi bi-info-circle"></i> 
-                <strong>Selección rápida:</strong><br>
-                • <strong>Ctrl + Click:</strong> Seleccionar rango<br>
-                • <strong>Doble Click:</strong> Seleccionar fila completa
-            </div>
-            
-            <button class="btn btn-outline-secondary w-100" onclick="limpiarSeleccion()">
+            <button class="btn btn-outline-secondary btn-sm w-100" onclick="limpiarSeleccion()" style="font-size: 0.8rem; padding: 8px;">
                 <i class="bi bi-arrow-counterclockwise"></i> Limpiar Selección
+            </button>
+            
+            <button class="btn btn-dark btn-sm w-100" onclick="abrirVisorCliente()" style="font-size: 0.8rem; padding: 8px;">
+                <i class="bi bi-display"></i> Pantalla Cliente
             </button>
         </div>
 
@@ -1404,7 +1879,13 @@ hr {
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <div id="qr-reader" style="width: 100%;"></div>
+        <!-- Contenedor del lector QR con altura mínima -->
+        <div id="qr-reader" style="width: 100%; min-height: 350px; background: #1e293b; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+          <div class="text-center text-white">
+            <i class="bi bi-camera-video fs-1"></i>
+            <p class="mt-2">Iniciando cámara...</p>
+          </div>
+        </div>
         <div id="qr-reader-results" class="mt-3"></div>
       </div>
       <div class="modal-footer">
@@ -1455,7 +1936,7 @@ hr {
             <li class="list-group-item d-flex align-items-center gap-3">
               <span class="palette-color d-inline-block" style="width: 24px; height: 24px; border-radius: 8px; background-color:<?= htmlspecialchars($c['color']) ?>; border: 2px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></span>
               <span style="flex: 1; font-size: 1rem; font-weight: 500;"><?= htmlspecialchars($c['nombre_categoria']) ?></span>
-              <span class="badge bg-success fs-6">${<?= number_format($c['precio'],2) ?></span>
+              <span class="badge bg-success fs-6">$<?= number_format($c['precio'],2) ?></span>
             </li>
           <?php endforeach; ?>
         </ul>
@@ -1553,6 +2034,9 @@ hr {
     
     // --- MODIFICADO: Pasamos el ID real de "General" a JavaScript ---
     const DEFAULT_CAT_ID = <?= $id_categoria_general ?? 0 ?>;
+    const EVENTO_SELECCIONADO = <?= $id_evento_seleccionado ? (int)$id_evento_seleccionado : 'null' ?>;
+    const FUNCION_SELECCIONADA = <?= $id_funcion_seleccionada ? (int)$id_funcion_seleccionada : 'null' ?>;
+    const TOTAL_EVENTOS = <?= count($eventos_lista) ?>;
     
     // Variable global para almacenar datos del boleto a cancelar
     let boletoACancelar = null;
@@ -1565,17 +2049,317 @@ hr {
         const loading = document.getElementById('loadingIndicator');
         if (loading) loading.style.display = 'block';
         
+        const funcionInput = document.getElementById('inputIdFuncion');
+        if (funcionInput) {
+            funcionInput.value = '';
+        }
+        
         select.form.submit();
     }
     
-    // Función para abrir el modal de cancelar boleto
-    function abrirCancelarBoleto() {
-        const modal = new bootstrap.Modal(document.getElementById('modalCancelarBoleto'));
-        document.getElementById('inputCodigoBoleto').value = '';
-        document.getElementById('infoBoletoACancelar').style.display = 'none';
-        document.getElementById('btnConfirmarCancelacion').disabled = true;
-        boletoACancelar = null;
-        modal.show();
+    // Función para seleccionar evento desde la cartelera visual
+    function seleccionarEvento(idEvento) {
+        if (!idEvento) return;
+        
+        const loading = document.getElementById('loadingIndicator');
+        if (loading) loading.style.display = 'block';
+        
+        // Redirigir al evento seleccionado
+        window.location.href = 'index.php?id_evento=' + idEvento;
+    }
+    
+    function cambiarFuncion(select) {
+    const idFuncion = select.value;
+    
+    console.log('Cambiando a función:', idFuncion);
+    
+    // Ocultar overlay inmediatamente al seleccionar un horario
+    const overlaySinHorario = document.getElementById('overlaySinHorario');
+    if (overlaySinHorario) {
+        console.log('Ocultando overlay...');
+        overlaySinHorario.classList.add('hidden');
+        // Remover después de la transición
+        setTimeout(() => {
+            if (overlaySinHorario.parentNode) {
+                overlaySinHorario.remove();
+                console.log('Overlay removido del DOM');
+            }
+        }, 350);
+    }
+    
+    // Si no se seleccionó ninguna función, no hacer nada más
+    if (!idFuncion) {
+        return;
+    }
+    
+    const loading = document.getElementById('loadingIndicator');
+    if (loading) loading.style.display = 'block';
+    
+    const funcionInput = document.getElementById('inputIdFuncion');
+    if (funcionInput) {
+        funcionInput.value = idFuncion;
+    }
+
+    // Get the current URL and update the id_funcion parameter
+    const url = new URL(window.location.href);
+    url.searchParams.set('id_funcion', idFuncion);
+    
+    // Update the URL without reloading the page
+    window.history.pushState({}, '', url);
+
+    // Use fetch to update the page content
+    fetch(url, {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest' // Add this header to identify AJAX requests
+        }
+    })
+    .then(response => response.text())
+    .then(async html => {
+        // Create a temporary container to hold the new content
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        
+        // Update the seat map content
+        const newSeatMap = temp.querySelector('.seat-map-content');
+        if (newSeatMap) {
+            const currentSeatMap = document.querySelector('.seat-map-content');
+            if (currentSeatMap) {
+                currentSeatMap.innerHTML = newSeatMap.innerHTML;
+            }
+        }
+        
+        // Update the function dropdown to maintain the selected value
+        const newSelect = temp.querySelector('#selectFuncion');
+        if (newSelect) {
+            const currentSelect = document.getElementById('selectFuncion');
+            if (currentSelect) {
+                currentSelect.innerHTML = newSelect.innerHTML;
+                currentSelect.value = idFuncion; // Maintain the selected value
+            }
+        }
+        
+        // Limpiar carrito y selecciones al cambiar de función
+        // (los asientos vendidos pueden cambiar entre funciones)
+        if (typeof carrito !== 'undefined' && carrito.length > 0) {
+            document.querySelectorAll('.seat.selected').forEach(seat => {
+                seat.classList.remove('selected');
+            });
+            carrito = [];
+            if (typeof actualizarCarrito === 'function') {
+                actualizarCarrito();
+            }
+        }
+        
+        // IMPORTANTE: Cargar asientos vendidos DESPUÉS de actualizar el DOM
+        // y ESPERAR a que termine para marcarlos correctamente
+        console.log('Cargando asientos vendidos para la nueva función...');
+        if (window.cargarAsientosVendidos) {
+            try {
+                await cargarAsientosVendidos();
+                console.log('Asientos vendidos cargados y marcados');
+            } catch (e) {
+                console.error('Error cargando asientos vendidos:', e);
+            }
+        }
+        
+        // Usar setTimeout para asegurar que el DOM se haya actualizado completamente
+        // antes de reinicializar los event listeners
+        setTimeout(() => {
+            // Re-escalar y centrar el mapa
+            if (typeof escalarMapa === 'function') {
+                escalarMapa();
+            }
+            
+            // Volver a marcar asientos vendidos (por si acaso)
+            if (typeof marcarAsientosVendidos === 'function') {
+                marcarAsientosVendidos();
+            }
+            
+            if (window.cargarDescuentos) {
+                cargarDescuentos();
+            }
+            // Reinicializar event listeners de los asientos
+            if (window.inicializarEventListenersAsientos) {
+                inicializarEventListenersAsientos();
+                console.log('Event listeners reinicializados después de cambio de función');
+            }
+            // Marcar asientos de categoría "No Venta"
+            if (typeof marcarAsientosNoVenta === 'function') {
+                marcarAsientosNoVenta();
+            }
+            
+            // Sincronizar con visor cliente
+            if (typeof enviarFuncion === 'function') {
+                enviarFuncion();
+            }
+            
+            // Notificar al usuario
+            if (typeof notify !== 'undefined') {
+                notify.success('Horario seleccionado. ¡Listo para vender!');
+            }
+        }, 150);
+    })
+    .catch(error => {
+        console.error('Error al cargar la función:', error);
+        // If there's an error, fall back to the original form submission
+        select.form.submit();
+    })
+    .finally(() => {
+        if (loading) loading.style.display = 'none';
+    });
+}
+
+
+// Add popstate event listener for browser back/forward buttons
+window.addEventListener('popstate', function() {
+    window.location.reload();
+});
+
+// ===== ACTUALIZACIÓN EN TIEMPO REAL DEL SELECT DE FUNCIONES =====
+let intervalActualizacionFunciones = null;
+
+function actualizarFuncionesDisponibles() {
+    if (!EVENTO_SELECCIONADO) return;
+    
+    fetch('obtener_funciones.php?id_evento=' + EVENTO_SELECCIONADO)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.funciones) {
+                const selectFuncion = document.getElementById('selectFuncion');
+                if (!selectFuncion) return;
+                
+                const funcionActual = selectFuncion.value;
+                const funcionesActuales = Array.from(selectFuncion.options).map(opt => opt.value);
+                const funcionesNuevas = data.funciones.map(f => f.id_funcion.toString());
+                
+                // Verificar si hay cambios (incluyendo cambios de estado)
+                const hayNuevasFunciones = funcionesNuevas.some(id => !funcionesActuales.includes(id));
+                const hayFuncionesEliminadas = funcionesActuales.some(id => !funcionesNuevas.includes(id));
+                
+                // Verificar si alguna función cambió de estado
+                let hayCambioEstado = false;
+                data.funciones.forEach(funcion => {
+                    const optionActual = selectFuncion.querySelector(`option[value="${funcion.id_funcion}"]`);
+                    if (optionActual) {
+                        const estadoActual = optionActual.getAttribute('data-estado');
+                        if (estadoActual !== funcion.estado.toString()) {
+                            hayCambioEstado = true;
+                        }
+                    }
+                });
+                
+                if (hayNuevasFunciones || hayFuncionesEliminadas || hayCambioEstado) {
+                    // Actualizar el select
+                    selectFuncion.innerHTML = '';
+                    
+                    // Agregar opción vacía primero
+                    const opcionVacia = document.createElement('option');
+                    opcionVacia.value = '';
+                    opcionVacia.textContent = 'Seleccionar horario...';
+                    selectFuncion.appendChild(opcionVacia);
+                    
+                    let primeraFuncionActiva = null;
+                    
+                    data.funciones.forEach(funcion => {
+                        const option = document.createElement('option');
+                        option.value = funcion.id_funcion;
+                        option.setAttribute('data-estado', funcion.estado);
+                        
+                        // Si la función está vencida (estado = 1)
+                        if (funcion.vencida) {
+                            option.textContent = funcion.texto + ' (Vencida)';
+                            option.disabled = true;
+                            option.style.color = '#9ca3af';
+                            option.style.backgroundColor = '#f3f4f6';
+                        } else {
+                            option.textContent = funcion.texto;
+                            // Guardar la primera función activa
+                            if (!primeraFuncionActiva) {
+                                primeraFuncionActiva = funcion.id_funcion;
+                            }
+                        }
+                        
+                        if (funcion.id_funcion.toString() === funcionActual) {
+                            option.selected = true;
+                        }
+                        
+                        selectFuncion.appendChild(option);
+                    });
+                    
+                    // Solo si había una función seleccionada previamente y ya no está disponible
+                    if (funcionActual && funcionActual !== '') {
+                        const funcionActualData = data.funciones.find(f => f.id_funcion.toString() === funcionActual);
+                        const funcionActualVencida = funcionActualData && funcionActualData.vencida;
+                        
+                        if ((!funcionesNuevas.includes(funcionActual) || funcionActualVencida) && primeraFuncionActiva) {
+                            selectFuncion.value = primeraFuncionActiva;
+                            // Notificar al usuario
+                            if (typeof notify !== 'undefined') {
+                                if (funcionActualVencida) {
+                                    notify.warning('La función seleccionada ha vencido. Se ha seleccionado otra función activa.');
+                                } else {
+                                    notify.warning('La función seleccionada ya no está disponible. Se ha seleccionado otra función.');
+                                }
+                            }
+                            // Cambiar automáticamente a la nueva función
+                            cambiarFuncion(selectFuncion);
+                        }
+                    }
+                    
+                    console.log('Funciones actualizadas:', data.funciones.length, '(Activas:', data.funciones.filter(f => !f.vencida).length + ')');
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error al actualizar funciones:', error);
+        });
+}
+
+// Iniciar actualización automática cada 30 segundos
+function iniciarActualizacionFunciones() {
+    if (EVENTO_SELECCIONADO && !intervalActualizacionFunciones) {
+        // Primera actualización inmediata
+        actualizarFuncionesDisponibles();
+        
+        // Actualizar cada 30 segundos
+        intervalActualizacionFunciones = setInterval(actualizarFuncionesDisponibles, 30000);
+        console.log('Actualización automática de funciones iniciada');
+    }
+}
+
+// Detener actualización automática
+function detenerActualizacionFunciones() {
+    if (intervalActualizacionFunciones) {
+        clearInterval(intervalActualizacionFunciones);
+        intervalActualizacionFunciones = null;
+        console.log('Actualización automática de funciones detenida');
+    }
+}
+
+// Iniciar cuando la página carga
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', iniciarActualizacionFunciones);
+} else {
+    iniciarActualizacionFunciones();
+}
+
+// Detener cuando la página se descarga
+window.addEventListener('beforeunload', detenerActualizacionFunciones);
+    
+    // Función para abrir el modal de cancelar boleto (redirige al sistema unificado)
+    function abrirCancelarBoletoLegacy() {
+        // Usar el nuevo sistema unificado
+        if (typeof abrirGestionBoletos === 'function') {
+            abrirGestionBoletos('cancelar');
+        } else {
+            // Fallback al modal antiguo
+            const modal = new bootstrap.Modal(document.getElementById('modalCancelarBoleto'));
+            document.getElementById('inputCodigoBoleto').value = '';
+            document.getElementById('infoBoletoACancelar').style.display = 'none';
+            document.getElementById('btnConfirmarCancelacion').disabled = true;
+            boletoACancelar = null;
+            modal.show();
+        }
     }
     
     // Función para buscar boleto por código (con debounce para evitar múltiples llamadas)
@@ -1752,22 +2536,14 @@ hr {
         setTimeout(() => {
             // Configurar el escáner para modo cancelación
             window.modoCancelacion = true;
+            console.log('Modo cancelación activado:', window.modoCancelacion);
             
-            // Abrir el modal del escáner
-            const modalEscaner = new bootstrap.Modal(document.getElementById('modalEscanerQR'));
-            modalEscaner.show();
-            
-            // Iniciar escáner cuando el modal se muestre completamente
-            document.getElementById('modalEscanerQR').addEventListener('shown.bs.modal', function () {
-                if (typeof iniciarEscaner === 'function') {
-                    iniciarEscaner();
-                }
-            }, { once: true });
-            
-            // Resetear modo cuando se cierre el modal
-            document.getElementById('modalEscanerQR').addEventListener('hidden.bs.modal', function () {
-                window.modoCancelacion = false;
-            }, { once: true });
+            // Usar la función existente para abrir el escáner
+            if (typeof abrirEscanerQR === 'function') {
+                abrirEscanerQR();
+            } else {
+                console.error('abrirEscanerQR no está definida');
+            }
         }, 300);
     }
     
@@ -1835,69 +2611,93 @@ hr {
     // ==================================================================
     // ACTUALIZACIÓN AUTOMÁTICA DEL SELECTOR DE EVENTOS
     // ==================================================================
-    
-    // Función para actualizar el selector de eventos sin recargar la página
-    async function actualizarSelectorEventos() {
-        try {
-            const response = await fetch('obtener_eventos.php');
-            const data = await response.json();
-            
-            if (data.success) {
-                const selectEvento = document.querySelector('select[name="id_evento"]');
-                if (!selectEvento) return;
-                
-                const eventoActual = selectEvento.value;
-                const eventosActuales = Array.from(selectEvento.options).map(opt => opt.value);
-                const eventosNuevos = data.eventos.map(e => e.id_evento.toString());
-                
-                // Verificar si hay cambios
-                const hayNuevos = eventosNuevos.some(id => !eventosActuales.includes(id));
-                const hayEliminados = eventosActuales.some(id => id && !eventosNuevos.includes(id));
-                
-                if (hayNuevos || hayEliminados) {
-                    // Reconstruir el selector
-                    selectEvento.innerHTML = '<option value="">Seleccionar evento...</option>';
-                    
-                    data.eventos.forEach(evento => {
-                        const option = document.createElement('option');
-                        option.value = evento.id_evento;
-                        option.textContent = `${evento.titulo} • ${evento.tipo == 1 ? 'Teatro 420' : 'Pasarela 540'}`;
-                        if (evento.id_evento.toString() === eventoActual) {
-                            option.selected = true;
-                        }
-                        selectEvento.appendChild(option);
-                    });
-                    
-                    // Mostrar notificación si hay eventos nuevos
-                    if (hayNuevos && typeof notify !== 'undefined') {
-                        notify.success('Nuevos eventos disponibles');
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Error al actualizar eventos:', error);
-        }
-    }
-    
-    // Escuchar cambios en localStorage (cuando se crea un evento desde otra pestaña)
-    window.addEventListener('storage', (e) => {
-        if (e.key === 'evt_upd') {
-            console.log('Evento creado detectado, actualizando selector...');
-            actualizarSelectorEventos();
-        }
-    });
-    
-    // Polling cada 30 segundos para detectar cambios (por si acaso)
-    setInterval(actualizarSelectorEventos, 30000);
+    // La lógica de sincronización está en js/evento-sync.js
 </script>
 
+<!-- Biblioteca para escanear QR con cámara -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
 <script src="js/notifications.js"></script>
-<script src="js/carrito.js?v=5"></script>
+<script src="js/evento-sync.js"></script>
+<script src="js/teatro-sync.js"></script>
+<script>
+// Precios por tipo de boleto (cargados desde la BD)
+window.PRECIOS_TIPO_BOLETO = <?= json_encode($precios_tipo_boleto) ?>;
+// URL para regresar (empleado vs admin)
+window.URL_REGRESAR = '<?= $url_regresar ?>';
+</script>
+<script src="js/carrito.js?v=25"></script>
 <script src="js/carrito-patch.js"></script>
 <script src="js/descuentos-modal.js"></script>
-<script src="js/escaner_qr.js"></script>
+<script src="js/escaner_qr.js?v=4"></script>
 <script src="js/menu-mejoras.js?v=1"></script>
 <script src="js/seleccion-multiple.js?v=1"></script>
+<script src="js/sync-sender.js?v=2"></script>
+
+<!-- Forzar carga de asientos vendidos al inicio -->
+<script>
+// Esperar a que todo esté cargado y forzar la visualización de asientos vendidos
+window.addEventListener('load', function() {
+    console.log('Página completamente cargada - forzando carga de asientos vendidos');
+    
+    // Dar un pequeño delay para asegurar que todo esté inicializado
+    setTimeout(function() {
+        if (typeof cargarAsientosVendidos === 'function') {
+            console.log('Ejecutando cargarAsientosVendidos...');
+            cargarAsientosVendidos();
+        }
+        if (typeof marcarAsientosVendidos === 'function') {
+            marcarAsientosVendidos();
+        }
+    }, 300);
+});
+</script>
+
+<script>
+// Función para abrir el visor cliente en una nueva ventana
+function abrirVisorCliente() {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id_evento') || 0;
+    // Abrir ventana emergente sin barras de navegación
+    window.open(`visor_cliente.php?id_evento=${id}`, 'VisorCliente', 'width=1200,height=800,menubar=no,toolbar=no');
+}
+
+// Función para seleccionar evento desde cartelera fullscreen
+function seleccionarEvento(idEvento) {
+    if (!idEvento) return;
+    
+    // Enviar notificación al visor cliente antes de redirigir
+    if (typeof enviarSeleccionEvento === 'function') {
+        // Obtener título del evento si está disponible
+        const eventoCard = document.querySelector(`.evento-card-full[onclick*="${idEvento}"]`);
+        const titulo = eventoCard?.querySelector('.titulo')?.textContent || 'Cargando...';
+        enviarSeleccionEvento(idEvento, titulo);
+    }
+    
+    // Pequeño delay para que el mensaje llegue al visor
+    setTimeout(() => {
+        window.location.href = 'index.php?id_evento=' + idEvento;
+    }, 100);
+}
+
+// Auto-escalado deshabilitado - el mapa usa scroll si no cabe
+// function escalarMapa() { ... }
+</script>
+
+<?php endif; // Fin de la vista de ventas (con evento) ?>
+
+<!-- Sistema de Auto-Actualización en Tiempo Real -->
+<script src="js/teatro-sync.js"></script>
+<script>
+// Configurar TeatroSync con el evento y función actual
+if (typeof TeatroSync !== 'undefined') {
+    TeatroSync.init({
+        eventoId: <?= $id_evento_seleccionado ?: 'null' ?>,
+        funcionId: <?= $id_funcion_seleccionada ?: 'null' ?>,
+        autoReload: true
+    });
+}
+</script>
 
 </body>
 </html>

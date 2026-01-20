@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once '../conexion.php';
+require_once '../transacciones_helper.php';
 
 header('Content-Type: application/json');
 
@@ -27,14 +28,16 @@ $result = $stmt->get_result();
 if ($result->num_rows === 1) {
     $admin = $result->fetch_assoc();
     
-    // Verificar contraseña
-    if ($password === $admin['password']) {
+    // Verificar contraseña con hash seguro
+    if (password_verify($password, $admin['password'])) {
         // Guardar verificación en la sesión (válido por esta sesión)
         $_SESSION['admin_verificado'] = true;
         $_SESSION['admin_verificado_time'] = time();
+        registrar_transaccion('verificar_admin', 'Verificación de administrador exitosa');
         
         echo json_encode(['success' => true, 'message' => 'Acceso autorizado']);
     } else {
+        registrar_transaccion('verificar_admin_fallida', 'Contraseña de administrador incorrecta');
         echo json_encode(['success' => false, 'message' => 'Contraseña de administrador incorrecta']);
     }
 } else {
