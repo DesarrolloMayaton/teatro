@@ -211,24 +211,14 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
         </div>
 
         <nav class="admin-menu">
-            <a class="admin-menu-item active" href="inicio/inicio.php" target="contentFrame">
-                <i class="bi bi-house-door-fill"></i> <span>Inicio</span>
-            </a>
-            <a class="admin-menu-item" href="dsc_boletos/index.php" target="contentFrame">
-                <i class="bi bi-percent"></i> <span>Descuentos</span>
-            </a>
-            <a class="admin-menu-item" href="rpt_reportes/index.php" target="contentFrame">
+            <a class="admin-menu-item active" href="rpt_reportes/index.php" target="contentFrame">
                 <i class="bi bi-graph-up-arrow"></i> <span>Reportes</span>
-            </a>
-            <a class="admin-menu-item" href="ctg_boletos/index.php" target="contentFrame">
-                <i class="bi bi-tags-fill"></i> <span>Categorías</span>
             </a>
             <a class="admin-menu-item" href="transacciones/index.php" target="contentFrame">
                 <i class="bi bi-clock-history"></i> <span>Transacciones</span>
             </a>
             <?php if ($_SESSION['usuario_rol'] === 'admin'): ?>
                 <div class="admin-menu-divider"></div>
-
             <?php endif; ?>
         </nav>
     </aside>
@@ -248,7 +238,7 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
                 </div>
             </div>
         </header>
-        <iframe class="admin-frame" name="contentFrame" id="contentFrame" src="inicio/inicio.php"></iframe>
+        <iframe class="admin-frame" name="contentFrame" id="contentFrame" src="rpt_reportes/index.php"></iframe>
     </main>
 
     <script>
@@ -266,7 +256,7 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
                 });
             });
 
-            document.getElementById('contentFrame').src = agregarParamDB('inicio/inicio.php');
+            document.getElementById('contentFrame').src = agregarParamDB('rpt_reportes/index.php');
         });
 
         function cambiarBD(db) {
@@ -274,7 +264,7 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
             sessionStorage.setItem('admin_db', db);
             actualizarEstadoToggle();
             const activeLink = document.querySelector('.admin-menu-item.active');
-            const href = activeLink ? activeLink.getAttribute('href') : 'inicio/inicio.php';
+            const href = activeLink ? activeLink.getAttribute('href') : 'rpt_reportes/index.php';
             document.getElementById('contentFrame').src = agregarParamDB(href);
         }
 

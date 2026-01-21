@@ -13,6 +13,7 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
 ?>
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -307,8 +308,15 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
         }
 
         @keyframes modalIn {
-            from { opacity: 0; transform: scale(0.96) translateY(-16px); }
-            to { opacity: 1; transform: scale(1) translateY(0); }
+            from {
+                opacity: 0;
+                transform: scale(0.96) translateY(-16px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
         }
 
         .modal-header {
@@ -409,6 +417,7 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
         }
     </style>
 </head>
+
 <body>
 
     <aside class="sidebar" id="sidebar">
@@ -427,26 +436,19 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
             </div>
             <div class="sidebar-user-info">
                 <div class="sidebar-user-name"><?php echo htmlspecialchars($nombre_completo); ?></div>
-                <div class="sidebar-user-role"><?php echo $usuario_rol === 'admin' ? 'Administrador' : 'Empleado'; ?></div>
+                <div class="sidebar-user-role"><?php echo $usuario_rol === 'admin' ? 'Administrador' : 'Empleado'; ?>
+                </div>
             </div>
         </div>
 
         <nav class="sidebar-menu">
-            <a class="sidebar-menu-item active" data-target="frame-inicio">
-                <i class="bi bi-house-door-fill"></i>
-                <span>Inicio</span>
+            <a class="sidebar-menu-item active" data-target="frame-venta">
+                <i class="bi bi-cart-fill"></i>
+                <span>Punto de Venta</span>
             </a>
             <a class="sidebar-menu-item" data-target="frame-evento">
                 <i class="bi bi-calendar-event-fill"></i>
                 <span>Eventos</span>
-            </a>
-            <a class="sidebar-menu-item" data-target="frame-venta">
-                <i class="bi bi-cart-fill"></i>
-                <span>Punto de Venta</span>
-            </a>
-            <a class="sidebar-menu-item" data-target="frame-mapa">
-                <i class="bi bi-grid-3x3-gap-fill"></i>
-                <span>Mapeo Asientos</span>
             </a>
             <a class="sidebar-menu-item" data-target="frame-cartelera">
                 <i class="bi bi-film"></i>
@@ -456,15 +458,19 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
                 <i class="bi bi-clock-history"></i>
                 <span>Transacciones</span>
             </a>
+            <a class="sidebar-menu-item" data-target="frame-ajustes">
+                <i class="bi bi-sliders"></i>
+                <span>Ajustes</span>
+            </a>
             <a class="sidebar-menu-item" id="admin-link" data-target="frame-admin">
-                <i class="bi bi-gear-fill"></i>
-                <span>Administración</span>
+                <i class="bi bi-bar-chart-fill"></i>
+                <span>Datos</span>
             </a>
             <?php if ($usuario_rol === 'admin'): ?>
-            <a class="sidebar-menu-item" data-target="frame-registro">
-                <i class="bi bi-person-plus-fill"></i>
-                <span>Usuarios</span>
-            </a>
+                <a class="sidebar-menu-item" data-target="frame-registro">
+                    <i class="bi bi-person-plus-fill"></i>
+                    <span>Usuarios</span>
+                </a>
             <?php endif; ?>
         </nav>
 
@@ -481,15 +487,15 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
     </aside>
 
     <main class="content-area" id="contentArea">
-        <iframe id="frame-inicio" src="ind_menu/inicio.php" class="content-frame active"></iframe>
+        <iframe id="frame-venta" src="vnt_interfaz/index.php" class="content-frame active"></iframe>
         <iframe id="frame-evento" src="evt_interfaz/index.php" class="content-frame"></iframe>
-        <iframe id="frame-venta" src="vnt_interfaz/index.php" class="content-frame"></iframe>
         <iframe id="frame-cartelera" src="crt_interfaz/index.php" class="content-frame"></iframe>
         <iframe id="frame-mapa" src="mp_interfaz/index.php" class="content-frame"></iframe>
         <iframe id="frame-transacciones" src="admin_interfaz/transacciones/index.php" class="content-frame"></iframe>
+        <iframe id="frame-ajustes" src="admin_interfaz/Ajs_interfaz/index.php" class="content-frame"></iframe>
         <iframe id="frame-admin" src="admin_interfaz/index.php" class="content-frame"></iframe>
         <?php if ($usuario_rol === 'admin'): ?>
-        <iframe id="frame-registro" src="auth/registrar_empleado.php" class="content-frame"></iframe>
+            <iframe id="frame-registro" src="auth/registrar_empleado.php" class="content-frame"></iframe>
         <?php endif; ?>
     </main>
 
@@ -515,116 +521,117 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
     </div>
 
     <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const sidebar = document.getElementById('sidebar');
-        const sidebarToggle = document.getElementById('sidebarToggle');
-        const menuItems = document.querySelectorAll('.sidebar-menu-item');
-        const iframes = document.querySelectorAll('.content-frame');
-        const TAB_KEY = 'teatro_tab';
-        const SIDEBAR_KEY = 'teatro_sidebar';
+        document.addEventListener('DOMContentLoaded', () => {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const menuItems = document.querySelectorAll('.sidebar-menu-item');
+            const iframes = document.querySelectorAll('.content-frame');
+            const TAB_KEY = 'teatro_tab';
+            const SIDEBAR_KEY = 'teatro_sidebar';
 
-        function cambiarPestana(targetId) {
-            <?php if ($usuario_rol === 'empleado' && (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado'])): ?>
-            if (targetId === 'frame-admin') {
-                mostrarModalAdmin();
+            function cambiarPestana(targetId) {
+                <?php if ($usuario_rol === 'empleado' && (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado'])): ?>
+                    if (targetId === 'frame-admin') {
+                        mostrarModalAdmin();
+                        return false;
+                    }
+                <?php endif; ?>
+
+                iframes.forEach(f => f.classList.remove('active'));
+                menuItems.forEach(m => m.classList.remove('active'));
+
+                const frame = document.getElementById(targetId);
+                const menuItem = document.querySelector(`[data-target="${targetId}"]`);
+
+                if (frame) {
+                    frame.classList.add('active');
+                    if (menuItem) menuItem.classList.add('active');
+                    localStorage.setItem(TAB_KEY, targetId);
+                    return true;
+                }
                 return false;
             }
-            <?php endif; ?>
 
-            iframes.forEach(f => f.classList.remove('active'));
-            menuItems.forEach(m => m.classList.remove('active'));
-
-            const frame = document.getElementById(targetId);
-            const menuItem = document.querySelector(`[data-target="${targetId}"]`);
-            
-            if (frame) {
-                frame.classList.add('active');
-                if (menuItem) menuItem.classList.add('active');
-                localStorage.setItem(TAB_KEY, targetId);
-                return true;
+            function toggleSidebar() {
+                sidebar.classList.toggle('collapsed');
+                document.body.classList.toggle('sidebar-collapsed');
+                const collapsed = sidebar.classList.contains('collapsed');
+                localStorage.setItem(SIDEBAR_KEY, collapsed ? 'c' : 'e');
+                sidebarToggle.querySelector('span').textContent = collapsed ? '' : 'Minimizar';
             }
-            return false;
-        }
 
-        function toggleSidebar() {
-            sidebar.classList.toggle('collapsed');
-            document.body.classList.toggle('sidebar-collapsed');
-            const collapsed = sidebar.classList.contains('collapsed');
-            localStorage.setItem(SIDEBAR_KEY, collapsed ? 'c' : 'e');
-            sidebarToggle.querySelector('span').textContent = collapsed ? '' : 'Minimizar';
-        }
+            // Restore state
+            if (localStorage.getItem(SIDEBAR_KEY) === 'c') {
+                sidebar.classList.add('collapsed');
+                document.body.classList.add('sidebar-collapsed');
+            }
 
-        // Restore state
-        if (localStorage.getItem(SIDEBAR_KEY) === 'c') {
-            sidebar.classList.add('collapsed');
-            document.body.classList.add('sidebar-collapsed');
-        }
+            const savedTab = localStorage.getItem(TAB_KEY);
+            if (savedTab && savedTab !== 'frame-admin') {
+                cambiarPestana(savedTab);
+            } else if (savedTab === 'frame-admin') {
+                <?php if ($usuario_rol === 'admin' || (isset($_SESSION['admin_verificado']) && $_SESSION['admin_verificado'])): ?>
+                    cambiarPestana(savedTab);
+                <?php else: ?>
+                    cambiarPestana('frame-venta');
+                <?php endif; ?>
+            }
 
-        const savedTab = localStorage.getItem(TAB_KEY);
-        if (savedTab && savedTab !== 'frame-admin') {
-            cambiarPestana(savedTab);
-        } else if (savedTab === 'frame-admin') {
-            <?php if ($usuario_rol === 'admin' || (isset($_SESSION['admin_verificado']) && $_SESSION['admin_verificado'])): ?>
-            cambiarPestana(savedTab);
-            <?php else: ?>
-            cambiarPestana('frame-inicio');
-            <?php endif; ?>
-        }
-
-        menuItems.forEach(item => {
-            item.addEventListener('click', () => cambiarPestana(item.dataset.target));
-        });
-
-        sidebarToggle.addEventListener('click', toggleSidebar);
-        document.getElementById('adminPassword').addEventListener('keypress', e => {
-            if (e.key === 'Enter') verificarAdmin();
-        });
-    });
-
-    function mostrarModalAdmin() {
-        document.getElementById('adminModal').classList.add('active');
-        document.getElementById('adminPassword').focus();
-        document.getElementById('modalError').style.display = 'none';
-    }
-
-    function cancelarVerificacion() {
-        document.getElementById('adminModal').classList.remove('active');
-        document.getElementById('adminPassword').value = '';
-    }
-
-    async function verificarAdmin() {
-        const password = document.getElementById('adminPassword').value;
-        const errorDiv = document.getElementById('modalError');
-
-        if (!password) {
-            errorDiv.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Ingresa la contraseña';
-            errorDiv.style.display = 'block';
-            return;
-        }
-
-        try {
-            const response = await fetch('auth/verificar_admin.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password })
+            menuItems.forEach(item => {
+                item.addEventListener('click', () => cambiarPestana(item.dataset.target));
             });
 
-            const data = await response.json();
+            sidebarToggle.addEventListener('click', toggleSidebar);
+            document.getElementById('adminPassword').addEventListener('keypress', e => {
+                if (e.key === 'Enter') verificarAdmin();
+            });
+        });
 
-            if (data.success) {
-                cancelarVerificacion();
-                location.reload();
-            } else {
-                errorDiv.innerHTML = '<i class="bi bi-exclamation-triangle"></i> ' + (data.message || 'Incorrecta');
-                errorDiv.style.display = 'block';
-                document.getElementById('adminPassword').value = '';
-                document.getElementById('adminPassword').focus();
-            }
-        } catch (e) {
-            errorDiv.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Error de conexión';
-            errorDiv.style.display = 'block';
+        function mostrarModalAdmin() {
+            document.getElementById('adminModal').classList.add('active');
+            document.getElementById('adminPassword').focus();
+            document.getElementById('modalError').style.display = 'none';
         }
-    }
+
+        function cancelarVerificacion() {
+            document.getElementById('adminModal').classList.remove('active');
+            document.getElementById('adminPassword').value = '';
+        }
+
+        async function verificarAdmin() {
+            const password = document.getElementById('adminPassword').value;
+            const errorDiv = document.getElementById('modalError');
+
+            if (!password) {
+                errorDiv.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Ingresa la contraseña';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            try {
+                const response = await fetch('auth/verificar_admin.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    cancelarVerificacion();
+                    location.reload();
+                } else {
+                    errorDiv.innerHTML = '<i class="bi bi-exclamation-triangle"></i> ' + (data.message || 'Incorrecta');
+                    errorDiv.style.display = 'block';
+                    document.getElementById('adminPassword').value = '';
+                    document.getElementById('adminPassword').focus();
+                }
+            } catch (e) {
+                errorDiv.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Error de conexión';
+                errorDiv.style.display = 'block';
+            }
+        }
     </script>
 </body>
+
 </html>
