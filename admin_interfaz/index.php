@@ -19,6 +19,7 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
 ?>
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -199,6 +200,7 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
         }
     </style>
 </head>
+
 <body>
     <aside class="admin-sidebar">
         <div class="admin-sidebar-header">
@@ -225,10 +227,8 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
                 <i class="bi bi-clock-history"></i> <span>Transacciones</span>
             </a>
             <?php if ($_SESSION['usuario_rol'] === 'admin'): ?>
-            <div class="admin-menu-divider"></div>
-            <a class="admin-menu-item danger" href="limpieza/index.php" target="contentFrame">
-                <i class="bi bi-trash3-fill"></i> <span>Limpiar BD</span>
-            </a>
+                <div class="admin-menu-divider"></div>
+
             <?php endif; ?>
         </nav>
     </aside>
@@ -243,7 +243,8 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
                 <div class="db-toggle">
                     <button id="btnAmbas" onclick="cambiarBD('ambas')"><i class="bi bi-collection"></i> Ambas</button>
                     <button id="btnActual" onclick="cambiarBD('actual')"><i class="bi bi-database"></i> Actual</button>
-                    <button id="btnHistorico" onclick="cambiarBD('historico')"><i class="bi bi-archive"></i> Histórico</button>
+                    <button id="btnHistorico" onclick="cambiarBD('historico')"><i class="bi bi-archive"></i>
+                        Histórico</button>
                 </div>
             </div>
         </header>
@@ -255,9 +256,9 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
 
         document.addEventListener('DOMContentLoaded', () => {
             actualizarEstadoToggle();
-            
+
             document.querySelectorAll('.admin-menu-item').forEach(link => {
-                link.addEventListener('click', function(e) {
+                link.addEventListener('click', function (e) {
                     e.preventDefault();
                     document.querySelectorAll('.admin-menu-item').forEach(item => item.classList.remove('active'));
                     this.classList.add('active');
@@ -288,4 +289,5 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
         }
     </script>
 </body>
+
 </html>
