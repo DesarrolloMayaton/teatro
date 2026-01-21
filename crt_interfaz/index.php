@@ -2,20 +2,43 @@
 // 1. CONEXIÓN A LA BD
 include "../conexion.php"; // Ajusta la ruta si es necesario
 
-// 2. OBTENER EVENTOS ACTIVOS CON SU PRÓXIMA FUNCIÓN
+// 2. OBTENER EVENTOS ACTIVOS CON SU PRÓXIMA FUNCIÓN (Y SU ID DE FUNCIÓN)
 $query = "
     SELECT 
-        e.*, 
-        (SELECT MIN(f.fecha_hora) 
-         FROM funciones f 
-         WHERE f.id_evento = e.id_evento AND f.fecha_hora >= NOW()) AS proxima_funcion_fecha
+        e.*,
+        f1.id_funcion AS proxima_id_funcion,
+        f1.fecha_hora AS proxima_funcion_fecha
     FROM evento e
-    WHERE e.finalizado = 0 
-    HAVING proxima_funcion_fecha IS NOT NULL 
+    INNER JOIN funciones f1 ON f1.id_evento = e.id_evento
+    WHERE e.finalizado = 0
+      AND f1.fecha_hora = (
+            SELECT MIN(f.fecha_hora)
+            FROM funciones f
+            WHERE f.id_evento = e.id_evento
+              AND f.fecha_hora >= NOW()
+      )
     ORDER BY proxima_funcion_fecha ASC;
 ";
 
 $resultado = $conn->query($query);
+
+// 2.1 Obtener boletos vendidos por función para detectar si la próxima está agotada
+$vendidos_por_funcion = [];
+$sqlVendidos = "
+    SELECT id_evento, id_funcion, COUNT(*) AS vendidos
+    FROM boletos
+    WHERE estatus = 1
+    GROUP BY id_evento, id_funcion
+";
+
+$resVendidos = $conn->query($sqlVendidos);
+if ($resVendidos) {
+    while ($rowV = $resVendidos->fetch_assoc()) {
+        $idEv = (int)$rowV['id_evento'];
+        $idFun = (int)$rowV['id_funcion'];
+        $vendidos_por_funcion[$idEv][$idFun] = (int)$rowV['vendidos'];
+    }
+}
 
 // Separar eventos: esta semana vs próximos
 $eventos_esta_semana = [];
@@ -24,11 +47,30 @@ $eventos_proximos = [];
 if ($resultado && $resultado->num_rows > 0) {
     $ahora = new DateTime();
     $fin_semana = clone $ahora;
+
     $fin_semana->modify('Sunday this week');
     $fin_semana->setTime(23, 59, 59);
     
     while ($evento = $resultado->fetch_assoc()) {
         $fecha_funcion = new DateTime($evento['proxima_funcion_fecha']);
+
+        // Calcular total de asientos del evento a partir de mapa_json
+        $total_asientos = 0;
+        if (!empty($evento['mapa_json'])) {
+            $mapa_guardado = json_decode($evento['mapa_json'], true);
+            if (is_array($mapa_guardado)) {
+                $total_asientos = count($mapa_guardado);
+            }
+        }
+
+        $id_ev = (int)$evento['id_evento'];
+        $id_fun = isset($evento['proxima_id_funcion']) ? (int)$evento['proxima_id_funcion'] : 0;
+        $vendidos = ($id_fun > 0 && isset($vendidos_por_funcion[$id_ev][$id_fun]))
+            ? $vendidos_por_funcion[$id_ev][$id_fun]
+            : 0;
+
+        $evento['agotado_proxima'] = ($total_asientos > 0 && $vendidos >= $total_asientos);
+
         if ($fecha_funcion <= $fin_semana) {
             $eventos_esta_semana[] = $evento;
         } else {
@@ -169,6 +211,17 @@ if ($resultado && $resultado->num_rows > 0) {
             transform: translateY(-3px); color: #fff;
             box-shadow: 0 12px 32px rgba(229, 57, 53, 0.6);
             background: linear-gradient(135deg, #f44336, #c62828);
+        }
+
+        .hero-btn-agotado {
+            background: linear-gradient(135deg, #6b7280, #374151);
+            box-shadow: 0 8px 24px rgba(55, 65, 81, 0.6);
+            cursor: default;
+        }
+        .hero-btn-agotado:hover {
+            transform: none;
+            box-shadow: 0 8px 24px rgba(55, 65, 81, 0.6);
+            background: linear-gradient(135deg, #6b7280, #374151);
         }
 
         .btn-hero-nav {
@@ -404,9 +457,13 @@ if ($resultado && $resultado->num_rows > 0) {
             slides.forEach(s => s.remove());
 
             eventosEstaSemana.forEach((evento, index) => {
-                // --- CAMBIO: El slide entero es un enlace a disponibles.php ---
                 const slide = document.createElement('a');
-                slide.href = `disponibles.php?id=${evento.id_evento}`; // <-- MODIFICADO
+                const idFuncion = evento.proxima_id_funcion || '';
+                if (idFuncion) {
+                    slide.href = `disponibles.php?id_evento=${evento.id_evento}&id_funcion=${idFuncion}`;
+                } else {
+                    slide.href = `disponibles.php?id_evento=${evento.id_evento}`;
+                }
                 slide.className = `hero-slide ${index === 0 ? 'active' : ''}`;
                 
                 const imagen = document.createElement('div');
@@ -417,8 +474,8 @@ if ($resultado && $resultado->num_rows > 0) {
                 contenido.className = 'hero-contenido';
                 
                 const descripcion = evento.descripcion ? evento.descripcion.substring(0, 200) + '...' : '';
+                const agotado = !!evento.agotado_proxima;
                 
-                // --- CAMBIO: El botón es solo visual (span) porque todo el slide es clickeable ---
                 contenido.innerHTML = `
                     <h2 class="hero-titulo">${evento.titulo}</h2>
                     ${descripcion ? `<p class="hero-descripcion">${descripcion}</p>` : ''}
@@ -426,8 +483,10 @@ if ($resultado && $resultado->num_rows > 0) {
                         <i class="bi bi-calendar-event"></i>
                         ${formatearFecha(evento.proxima_funcion_fecha)}
                     </p>
-                    <span class="hero-btn">
-                        Ver disponibilidad <i class="bi bi-arrow-right"></i>
+                    <span class="hero-btn ${agotado ? 'hero-btn-agotado' : ''}">
+                        ${agotado 
+                            ? '<i class="bi bi-x-octagon-fill"></i> Agotado'
+                            : 'Ver disponibilidad <i class="bi bi-arrow-right"></i>'}
                     </span>
                 `;
                 
@@ -480,9 +539,13 @@ if ($resultado && $resultado->num_rows > 0) {
             if (!eventos || eventos.length === 0) return;
 
             eventos.forEach(evento => {
-                // --- CAMBIO: Enlace a disponibles.php ---
                 const eventoCard = document.createElement('a');
-                eventoCard.href = `disponibles.php?id=${evento.id_evento}`; // <-- MODIFICADO
+                const idFuncion = evento.proxima_id_funcion || '';
+                if (idFuncion) {
+                    eventoCard.href = `disponibles.php?id_evento=${evento.id_evento}&id_funcion=${idFuncion}`;
+                } else {
+                    eventoCard.href = `disponibles.php?id_evento=${evento.id_evento}`;
+                }
                 eventoCard.className = 'evento-card';
                 
                 const imagen = document.createElement('div');
@@ -512,7 +575,7 @@ if ($resultado && $resultado->num_rows > 0) {
             const btnNext = document.getElementById(btnNextId);
             
             if (!container || !btnPrev || !btnNext) return;
-
+            
             const scrollAmount = 300;
             btnNext.addEventListener('click', () => { container.scrollBy({ left: scrollAmount, behavior: 'smooth' }); });
             btnPrev.addEventListener('click', () => { container.scrollBy({ left: -scrollAmount, behavior: 'smooth' }); });

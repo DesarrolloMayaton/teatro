@@ -9,6 +9,7 @@ $query = "
         e.titulo,
         e.descripcion,
         e.imagen,
+        e.mapa_json,
         f.id_funcion,
         f.fecha_hora
     FROM evento e
@@ -20,27 +21,62 @@ $query = "
 
 $resultado = $conn->query($query);
 
+// Obtener boletos vendidos agrupados por evento/función para detectar funciones agotadas
+$vendidos_por_funcion = [];
+$sql_vendidos = "
+    SELECT id_evento, id_funcion, COUNT(*) AS vendidos
+    FROM boletos
+    WHERE estatus = 1
+    GROUP BY id_evento, id_funcion
+";
+
+$res_vendidos = $conn->query($sql_vendidos);
+if ($res_vendidos) {
+    while ($row_v = $res_vendidos->fetch_assoc()) {
+        $id_ev = (int)$row_v['id_evento'];
+        $id_fun = (int)$row_v['id_funcion'];
+        $vendidos_por_funcion[$id_ev][$id_fun] = (int)$row_v['vendidos'];
+    }
+}
+
 // Agrupar funciones por evento
 $eventos = [];
 if ($resultado && $resultado->num_rows > 0) {
     while ($row = $resultado->fetch_assoc()) {
-        $id_evento = $row['id_evento'];
+        $id_evento = (int)$row['id_evento'];
+        $id_funcion = (int)$row['id_funcion'];
         
         // Si el evento no existe en el array, lo creamos
         if (!isset($eventos[$id_evento])) {
+            // Calcular total de asientos del mapa a partir de mapa_json
+            $total_asientos = 0;
+            if (!empty($row['mapa_json'])) {
+                $mapa_guardado = json_decode($row['mapa_json'], true);
+                if (is_array($mapa_guardado)) {
+                    $total_asientos = count($mapa_guardado);
+                }
+            }
+
             $eventos[$id_evento] = [
-                'id_evento' => $row['id_evento'],
+                'id_evento' => $id_evento,
                 'titulo' => $row['titulo'],
                 'descripcion' => $row['descripcion'],
                 'imagen' => $row['imagen'],
+                'total_asientos' => $total_asientos,
                 'funciones' => []
             ];
         }
         
         // Agregamos la función al evento
+        $total_asientos_evento = $eventos[$id_evento]['total_asientos'] ?? 0;
+        $vendidos = $vendidos_por_funcion[$id_evento][$id_funcion] ?? 0;
+        $agotado = ($total_asientos_evento > 0 && $vendidos >= $total_asientos_evento);
+
         $eventos[$id_evento]['funciones'][] = [
-            'id_funcion' => $row['id_funcion'],
-            'fecha_hora' => $row['fecha_hora']
+            'id_funcion' => $id_funcion,
+            'fecha_hora' => $row['fecha_hora'],
+            'agotado' => $agotado,
+            'vendidos' => $vendidos
         ];
     }
 }
@@ -317,6 +353,12 @@ if ($resultado && $resultado->num_rows > 0) {
             transform: translateX(5px);
         }
 
+        .funcion-item.funcion-agotada {
+            background: rgba(15, 23, 42, 0.85);
+            border-left-color: #9ca3af;
+            opacity: 0.9;
+        }
+
         .funcion-fecha {
             display: flex;
             align-items: center;
@@ -340,6 +382,20 @@ if ($resultado && $resultado->num_rows > 0) {
             padding: 6px 12px;
             border-radius: 999px;
             border-width: 1px;
+        }
+
+        .badge-agotado {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            color: #fff;
+            border: 1px solid rgba(248, 113, 113, 0.8);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
         }
 
         .no-eventos {
@@ -531,15 +587,21 @@ if ($resultado && $resultado->num_rows > 0) {
                                                 )
                                             );
                                             ?>
-                                            <div class="funcion-item">
+                                            <div class="funcion-item <?php echo !empty($funcion['agotado']) ? 'funcion-agotada' : ''; ?>">
                                                 <div class="funcion-fecha">
                                                     <i class="bi bi-calendar-check"></i>
                                                     <span><?php echo $fechaEspanol; ?> · <?php echo $horaFormateada; ?></span>
                                                 </div>
                                                 <div class="funcion-acciones">
-                                                    <a href="disponibles.php?id_evento=<?php echo $evento['id_evento']; ?>&id_funcion=<?php echo $funcion['id_funcion']; ?>" class="btn btn-outline-light btn-sm">
-                                                        Ver disponibilidad
-                                                    </a>
+                                                    <?php if (!empty($funcion['agotado'])): ?>
+                                                        <span class="badge-agotado">
+                                                            <i class="bi bi-x-octagon-fill"></i> Agotado
+                                                        </span>
+                                                    <?php else: ?>
+                                                        <a href="disponibles.php?id_evento=<?php echo $evento['id_evento']; ?>&id_funcion=<?php echo $funcion['id_funcion']; ?>" class="btn btn-outline-light btn-sm">
+                                                            Ver disponibilidad
+                                                        </a>
+                                                    <?php endif; ?>
                                                 </div>
                                             </div>
                                         <?php endforeach; ?>
