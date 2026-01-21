@@ -3,3 +3,8 @@ Stack trace:
 #0 C:\xampp\htdocs\teatro\vnt_interfaz\imprimir_boleto.php(23): mysqli->prepare('\r\n    SELECT \r\n...')
 #1 {main}
   thrown in C:\xampp\htdocs\teatro\vnt_interfaz\imprimir_boleto.php on line 23
+[21-Jan-2026 23:31:55 Europe/Berlin] PHP Warning:  require_once(C:\xampp\htdocs\TEATRO\teatro\vnt_interfaz/vendor/autoload.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\TEATRO\teatro\vnt_interfaz\imprimir_boleto.php on line 8
+[21-Jan-2026 23:31:57 Europe/Berlin] PHP Fatal error:  Uncaught Error: Failed opening required 'C:\xampp\htdocs\TEATRO\teatro\vnt_interfaz/vendor/autoload.php' (include_path='C:\xampp\php\PEAR') in C:\xampp\htdocs\TEATRO\teatro\vnt_interfaz\imprimir_boleto.php:8
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\TEATRO\teatro\vnt_interfaz\imprimir_boleto.php on line 8
