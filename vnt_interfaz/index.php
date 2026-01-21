@@ -252,6 +252,7 @@ body {
   gap: 20px;
   overflow: hidden;
   position: relative;
+  min-width: 0;
 }
 
 .seat-map-wrapper {
@@ -259,12 +260,14 @@ body {
   background: var(--bg-secondary);
   border-radius: var(--radius-lg);
   padding: 40px;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-md);
   display: flex;
   justify-content: center;
   position: relative;
+  min-width: 0;
+  animation: none !important;
 }
 
 .seat-map-wrapper::-webkit-scrollbar {
@@ -310,20 +313,20 @@ body {
 }
 
 .seat {
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
   background: #0066ff;
   color: #000000;
-  border-radius: 3px;
-  font-size: 6px;
+  border-radius: 6px;
+  font-size: 10px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
   cursor: pointer;
-  transition: all 0.15s ease;
-  padding: 1px;
+  transition: all 0.2s ease;
+  padding: 2px;
   box-sizing: border-box;
   text-align: center;
   line-height: 1;
@@ -352,13 +355,13 @@ body {
 }
 
 .row-label {
-  width: 30px;
+  width: 32px;
   text-align: center;
   font-weight: 700;
-  font-size: 0.55rem;
+  font-size: 0.85rem;
   color: var(--text-secondary);
-  border-radius: 3px;
-  padding: 3px 0;
+  border-radius: 6px;
+  padding: 6px 0;
   cursor: pointer;
   transition: all 0.2s ease;
   user-select: none;
@@ -401,18 +404,18 @@ body {
 .seats-block {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 .seat-row-wrapper {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .pasillo, .aisle {
-  width: 12px;
+  width: 20px;
 }
 
 .controls-panel {
@@ -431,6 +434,7 @@ body {
   gap: 10px;
   z-index: 200;
   position: relative;
+  animation: none !important;
 }
 
 .controls-panel::-webkit-scrollbar {
@@ -1351,11 +1355,11 @@ hr {
   .seat {
     width: 28px;
     height: 28px;
-    font-size: 8px;
+    font-size: 9px;
   }
   
   .pasillo {
-    width: 12px;
+    width: 18px;
   }
 }
 
@@ -2547,19 +2551,38 @@ window.addEventListener('beforeunload', detenerActualizacionFunciones);
         }, 300);
     }
     
-    // Función para escalar el mapa de asientos automáticamente (optimizada)
+    // Función para escalar el mapa de asientos automáticamente para que quepa en el área visible
     let resizeTimeout;
     function escalarMapa() {
         const wrapper = document.querySelector('.seat-map-wrapper');
         const content = document.getElementById('seatMapContent');
         
         if (!wrapper || !content) return;
-        
-        const wrapperWidth = wrapper.clientWidth - 40;
+
+        // Dimensiones visibles del contenedor (restando un pequeño margen interno)
+        const wrapperWidth = Math.max(wrapper.clientWidth - 40, 0);
+        const wrapperHeight = Math.max(wrapper.clientHeight - 40, 0);
+
+        // Dimensiones reales del contenido (sin escala)
         const contentWidth = content.scrollWidth;
-        const scale = Math.min(wrapperWidth / contentWidth, 1);
-        
-        content.style.transform = scale < 1 ? `scale(${scale})` : 'scale(1)';
+        const contentHeight = content.scrollHeight;
+
+        if (!contentWidth || !contentHeight || !wrapperWidth || !wrapperHeight) {
+            content.style.transform = 'scale(1)';
+            return;
+        }
+
+        // Calcular factor de escala máximo que permite que quepa en ancho y alto
+        const scaleX = wrapperWidth / contentWidth;
+        const scaleY = wrapperHeight / contentHeight;
+        let scale = Math.min(scaleX, scaleY, 1);
+
+        // Proteger contra valores inválidos
+        if (!isFinite(scale) || scale <= 0) {
+            scale = 1;
+        }
+
+        content.style.transform = `scale(${scale})`;
     }
     
     function escalarMapaDebounced() {

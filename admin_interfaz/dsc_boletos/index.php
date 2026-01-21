@@ -638,7 +638,7 @@ $CATEGORIAS_BASE_JSON = json_encode($categorias_base, JSON_UNESCAPED_UNICODE);
 </div>
 
 <!-- Botón de regreso -->
-<a href="../index.php" class="btn btn-secondary back-btn">
+<a href="../../index.php" target="_top" class="btn btn-secondary back-btn">
     <i class="bi bi-arrow-left"></i> Menú
 </a>
 
