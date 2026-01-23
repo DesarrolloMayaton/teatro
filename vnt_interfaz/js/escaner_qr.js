@@ -10,7 +10,7 @@ function abrirGestionBoletos(modo = 'verificar') {
     modoActual = modo;
     metodoInput = 'camara'; // Por defecto, iniciar con cámara
 
-    console.log('Abriendo gestión de boletos, modo:', modoActual);
+    console.debug('Abriendo gestión de boletos, modo:', modoActual);
 
     crearModalGestionBoletos();
     modalGestionBoletos = new bootstrap.Modal(document.getElementById('modalGestionBoletos'));
@@ -154,7 +154,7 @@ function cambiarModoGestion(nuevoModo) {
         tituloModal.innerHTML = '<i class="bi bi-qr-code-scan"></i> Verificar Boleto';
     }
 
-    console.log('Modo cambiado a:', nuevoModo);
+    console.debug('Modo cambiado a:', nuevoModo);
 }
 
 // Cambiar método de entrada
@@ -184,7 +184,7 @@ function cambiarMetodoInput(nuevoMetodo) {
         }, 100);
     }
 
-    console.log('Método cambiado a:', nuevoMetodo);
+    console.debug('Método cambiado a:', nuevoMetodo);
 }
 
 // Buscar boleto por código escrito
@@ -228,6 +228,23 @@ async function iniciarEscaner() {
         </div>
     `;
 
+    // VERIFICACIÓN CRÍTICA: Asegurar que la librería existe
+    if (typeof Html5Qrcode === 'undefined') {
+        console.error('❌ La librería Html5Qrcode no está cargada');
+        qrReader.innerHTML = `
+            <div class="alert alert-danger text-center m-3">
+                <i class="bi bi-exclamation-octagon fs-1 d-block mb-2"></i>
+                <strong>Error de sistema</strong>
+                <p class="mt-2 small">No se cargó la librería de escáner.</p>
+                <p class="small text-muted">Verifique que js/html5-qrcode.min.js existe.</p>
+                <button class="btn btn-outline-secondary mt-2" onclick="cambiarMetodoInput('manual')">
+                    <i class="bi bi-keyboard"></i> Usar modo manual
+                </button>
+            </div>
+        `;
+        return;
+    }
+
     // Detener escáner anterior si existe
     if (html5QrCode) {
         try {
@@ -239,7 +256,7 @@ async function iniciarEscaner() {
         html5QrCode = null;
     }
 
-    console.log('🔍 Iniciando detección de cámaras...');
+    console.debug('🔍 Iniciando detección de cámaras...');
 
     // ============================================
     // CONFIGURACIÓN DEL ESCÁNER
@@ -266,14 +283,14 @@ async function iniciarEscaner() {
 
     // Intentar primero con facingMode (evita enumerar y parpadear)
     try {
-        console.log('🚀 Intentando conectar con facingMode: environment');
+        console.debug('🚀 Intentando conectar con facingMode: environment');
         await html5QrCode.start(
             { facingMode: "environment" },
             config,
             onScanSuccess,
             onScanError
         );
-        console.log('✅ Cámara trasera conectada');
+        console.debug('✅ Cámara trasera conectada');
         forzarVisibilidadVideo();
         return; // Éxito, salir
     } catch (err1) {
@@ -282,7 +299,7 @@ async function iniciarEscaner() {
 
     // Si falla, intentar con cámara frontal
     try {
-        console.log('🚀 Intentando con facingMode: user');
+        console.debug('🚀 Intentando con facingMode: user');
         html5QrCode = new Html5Qrcode("qr-reader");
         await html5QrCode.start(
             { facingMode: "user" },
@@ -290,7 +307,7 @@ async function iniciarEscaner() {
             onScanSuccess,
             onScanError
         );
-        console.log('✅ Cámara frontal conectada');
+        console.debug('✅ Cámara frontal conectada');
         forzarVisibilidadVideo();
         return; // Éxito, salir
     } catch (err2) {
@@ -301,11 +318,11 @@ async function iniciarEscaner() {
     // ÚLTIMO INTENTO: Enumerar y usar ID específico
     // ============================================
     try {
-        console.log('🔄 Enumerando cámaras disponibles...');
+        console.debug('🔄 Enumerando cámaras disponibles...');
         const cameras = await Html5Qrcode.getCameras();
 
         if (cameras && cameras.length > 0) {
-            console.log('📷 Cámaras encontradas:', cameras);
+            console.debug('📷 Cámaras encontradas:', cameras);
             html5QrCode = new Html5Qrcode("qr-reader");
             await html5QrCode.start(
                 cameras[0].id,
@@ -313,7 +330,7 @@ async function iniciarEscaner() {
                 onScanSuccess,
                 onScanError
             );
-            console.log('✅ Cámara conectada por ID:', cameras[0].label);
+            console.debug('✅ Cámara conectada por ID:', cameras[0].label);
             forzarVisibilidadVideo();
             return; // Éxito, salir
         }
@@ -360,7 +377,7 @@ function forzarVisibilidadVideo() {
                 transform: scaleX(-1);
                 background: #000;
             `;
-            console.log('✅ Video configurado:', video.videoWidth, 'x', video.videoHeight);
+            console.debug('✅ Video configurado:', video.videoWidth, 'x', video.videoHeight);
         } else {
             console.warn('⚠️ Video no encontrado, reintentando...');
         }
@@ -413,7 +430,7 @@ function detenerEscaner() {
 
 // Cuando se escanea exitosamente
 function onScanSuccess(decodedText, decodedResult) {
-    console.log(`Código escaneado: ${decodedText}, Modo: ${modoActual}`);
+    console.debug(`Código escaneado: ${decodedText}, Modo: ${modoActual}`);
 
     detenerEscaner();
     modalGestionBoletos.hide();

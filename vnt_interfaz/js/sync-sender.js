@@ -18,7 +18,7 @@ function enviarEventoInicial() {
             titulo: tituloEvento.replace(/[\u{1F3AB}\u{1F39F}]/gu, '').trim()
         });
 
-        console.log('📤 Enviando INIT al visor:', { id_evento: idEvento, titulo: tituloEvento });
+        console.debug('📤 Enviando INIT al visor:', { id_evento: idEvento, titulo: tituloEvento });
     }
 }
 
@@ -36,7 +36,7 @@ function enviarFuncion() {
             timestamp: Date.now()
         });
 
-        console.log('📤 Enviando función al visor:', { texto, id_funcion: idFuncion });
+        console.debug('📤 Enviando función al visor:', { texto, id_funcion: idFuncion });
     }
 }
 
@@ -75,7 +75,7 @@ function enviarCarrito(carritoArray) {
         cantidad: arraySimple.length
     });
 
-    console.log('📤 Enviando carrito al visor:', { items: arraySimple.length, total, descuento: totalDescuento });
+    console.debug('📤 Enviando carrito al visor:', { items: arraySimple.length, total, descuento: totalDescuento });
 }
 
 // 4. Enviar Vendidos
@@ -86,7 +86,7 @@ function enviarVendidos(listaIds) {
         cantidad: listaIds.length
     });
 
-    console.log('📤 Enviando vendidos al visor:', listaIds.length);
+    console.debug('📤 Enviando vendidos al visor:', listaIds.length);
 }
 
 // 5. Enviar compra exitosa (muestra animación de gracias)
@@ -98,7 +98,7 @@ function enviarCompraExitosa(total, cantidadBoletos) {
         timestamp: Date.now()
     });
 
-    console.log('📤 Enviando compra exitosa al visor:', { total, cantidad: cantidadBoletos });
+    console.debug('📤 Enviando compra exitosa al visor:', { total, cantidad: cantidadBoletos });
 }
 
 // 6. Enviar a cliente de regreso a cartelera
@@ -108,7 +108,7 @@ function enviarRegresarCartelera() {
         timestamp: Date.now()
     });
 
-    console.log('📤 Enviando regreso a cartelera al visor');
+    console.debug('📤 Enviando regreso a cartelera al visor');
 }
 
 // 6b. Enviar a cliente a la vista de horarios (después de una venta)
@@ -128,7 +128,7 @@ function enviarMostrarHorarios() {
             timestamp: Date.now()
         });
 
-        console.log('📤 Enviando mostrar horarios al visor');
+        console.debug('📤 Enviando mostrar horarios al visor');
     }
 }
 
@@ -141,7 +141,7 @@ function enviarSeleccionEvento(idEvento, titulo) {
         timestamp: Date.now()
     });
 
-    console.log('📤 Enviando selección de evento al visor:', { id_evento: idEvento, titulo });
+    console.debug('📤 Enviando selección de evento al visor:', { id_evento: idEvento, titulo });
 }
 
 // Inicializadores
@@ -170,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    console.log('🔄 Sync-sender inicializado');
+    console.debug('🔄 Sync-sender inicializado');
 });
 
 // Exponer funciones globalmente
