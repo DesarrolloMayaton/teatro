@@ -251,18 +251,22 @@ $CATEGORIAS_BASE_JSON = json_encode($categorias_base, JSON_UNESCAPED_UNICODE);
             border-radius: var(--radius-md);
             text-align: center;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
             border: 2px solid var(--border);
             background: var(--bg-input);
         }
         
         .discount-type-btn:hover {
             border-color: var(--primary);
+            background: rgba(21, 97, 240, 0.1);
+            box-shadow: 0 0 0 3px rgba(21, 97, 240, 0.2);
+            transform: translateY(-2px);
         }
         
         .discount-type-btn.active {
             border-color: var(--primary);
             background: rgba(99, 102, 241, 0.15);
+            box-shadow: 0 0 12px rgba(21, 97, 240, 0.3);
         }
         
         .discount-type-btn i {
@@ -274,6 +278,7 @@ $CATEGORIAS_BASE_JSON = json_encode($categorias_base, JSON_UNESCAPED_UNICODE);
         .discount-type-btn span {
             font-weight: 600;
             font-size: 0.85rem;
+            color: var(--text-primary);
         }
         
         /* Form grid */
@@ -387,6 +392,7 @@ $CATEGORIAS_BASE_JSON = json_encode($categorias_base, JSON_UNESCAPED_UNICODE);
         .empty-state h3 {
             font-size: 1.1rem;
             margin-bottom: 6px;
+            color: var(--text-primary);
         }
         
         .empty-state p {
@@ -421,6 +427,60 @@ $CATEGORIAS_BASE_JSON = json_encode($categorias_base, JSON_UNESCAPED_UNICODE);
             bottom: 16px;
             left: 16px;
             z-index: 100;
+        }
+        
+        /* Event Selector */
+        .event-selector {
+            background: linear-gradient(135deg, var(--bg-card), var(--bg-input));
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .event-selector form {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+            max-width: 450px;
+        }
+        
+        .event-selector form::after {
+            content: '▼';
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            color: var(--text-primary);
+            font-size: 0.8rem;
+            transition: transform 0.3s ease, color 0.3s ease;
+        }
+        
+        .event-selector select:focus + ::after,
+        .event-selector form:focus-within::after {
+            transform: translateY(-50%) rotate(180deg);
+            color: var(--primary);
+        }
+        
+        .event-selector select {
+            width: 100%;
+            margin: 0 auto;
+            font-size: 1rem;
+            font-weight: 600;
+            padding: 12px 40px 12px 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+        
+        .event-selector select:hover {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(21, 97, 240, 0.2);
+            transform: translateY(-2px);
         }
         
         /* Scrollbar */

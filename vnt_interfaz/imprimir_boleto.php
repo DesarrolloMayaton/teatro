@@ -58,7 +58,19 @@ $pdf = new FPDF('P', 'mm', array($ancho, 200)); // Alto variable
 $pdf->AddPage();
 $pdf->SetMargins(3, 5, 3); // Márgenes muy pequeños
 
-// Línea separadora superior
+// Logo del teatro (esquina superior izquierda)
+$logo_path = __DIR__ . '/../resources/LogoTicket.png';
+if (file_exists($logo_path)) {
+    // x=3 (margen izquierdo), y=5 (margen superior), ancho=10mm
+    $pdf->Image($logo_path, 3, 5, 10); 
+    // Bajamos el cursor para dejar espacio al logo
+    $pdf->Ln(6);
+} else {
+    // Si no hay logo, solo bajamos un poco
+    $pdf->Ln(2);
+}
+
+// Línea separadora superior (ahora debajo del logo)
 $pdf->SetLineWidth(0.5);
 $pdf->Line(3, $pdf->GetY(), $ancho - 3, $pdf->GetY());
 $pdf->Ln(3);
@@ -89,7 +101,7 @@ if ($boleto['funcion_fecha']) {
     $hora_str = $fecha_obj->format('H:i');
     
     $pdf->SetFont('Arial', 'B', 8);
-    $pdf->Cell(0, 4, 'FUNCIÓN', 0, 1, 'C');
+    $pdf->Cell(0, 4, convertirTexto('FUNCIÓN'), 0, 1, 'C');
     $pdf->SetFont('Arial', '', 8);
     $pdf->Cell(0, 4, 'Fecha: ' . $fecha_str, 0, 1, 'C');
     $pdf->Cell(0, 4, 'Hora: ' . $hora_str, 0, 1, 'C');

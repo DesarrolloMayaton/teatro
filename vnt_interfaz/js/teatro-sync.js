@@ -19,10 +19,10 @@
     // ============================================
     const CONFIG = {
         // URL del endpoint SSE
-        SSE_URL: '/teatro/api/cambios_api.php',
+        SSE_URL: '/teatro-main/api/cambios_api.php',
 
         // URL del endpoint de polling (fallback)
-        POLL_URL: '/teatro/api/cambios_poll.php',
+        POLL_URL: '/teatro-main/api/cambios_poll.php',
 
         // Intervalo de polling si SSE no está disponible (ms)
         POLL_INTERVAL: 3000,
