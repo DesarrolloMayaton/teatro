@@ -1,5 +1,7 @@
 <?php
-// 1. CONFIGURACIÓN Y SEGURIDAD
+// ════════════════════════════════════════════════════════════════════════════
+// CREAR EVENTO - VERSIÓN RENOVADA CON VALIDACIONES COMPLETAS
+// ════════════════════════════════════════════════════════════════════════════
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
@@ -14,35 +16,49 @@ if (!isset($_SESSION['usuario_id']) || ($_SESSION['usuario_rol'] !== 'admin' && 
 
 $errores_php = [];
 
-// ==================================================================
-// 2. PROCESAR FORMULARIO (POST)
-// ==================================================================
+// ════════════════════════════════════════════════════════════════════════════
+// PROCESAR FORMULARIO (POST)
+// ════════════════════════════════════════════════════════════════════════════
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
-    $titulo = trim($_POST['titulo']);
-    $desc = trim($_POST['descripcion']);
-    $tipo = $_POST['tipo'];
-    $ini = $_POST['inicio_venta'];
-    $fin = $_POST['cierre_venta']; 
+    $titulo = trim($_POST['titulo'] ?? '');
+    $desc = trim($_POST['descripcion'] ?? '');
+    $tipo = $_POST['tipo'] ?? '';
+    $ini = $_POST['inicio_venta'] ?? '';
+    $fin = $_POST['cierre_venta'] ?? ''; 
     
-    // Validaciones básicas
-    if (empty($titulo)) $errores_php[] = "Falta el título.";
+    // Validaciones del servidor
+    if (empty($titulo)) $errores_php[] = "El título es obligatorio.";
+    if (empty($desc)) $errores_php[] = "La descripción es obligatoria.";
+    if (empty($tipo)) $errores_php[] = "Selecciona el tipo de escenario.";
     if (empty($_POST['funciones'])) $errores_php[] = "Debe agregar al menos una función.";
-    if (empty($ini)) $errores_php[] = "Falta inicio de venta.";
+    if (empty($ini)) $errores_php[] = "Define la fecha de inicio de venta.";
+
+    // Validar que las funciones sean futuras
+    if (!empty($_POST['funciones'])) {
+        $ahora = new DateTime();
+        foreach ($_POST['funciones'] as $fh) {
+            $fechaFunc = new DateTime($fh);
+            if ($fechaFunc <= $ahora) {
+                $errores_php[] = "Todas las funciones deben ser futuras.";
+                break;
+            }
+        }
+    }
 
     // Imagen (Obligatoria al crear)
     $imagen_ruta = "";
     if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] == 0) {
          $ext = strtolower(pathinfo($_FILES['imagen']['name'], PATHINFO_EXTENSION));
-         if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])) {
+         if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
              if (!is_dir("imagenes")) mkdir("imagenes", 0755, true);
              $ruta = "imagenes/evt_" . time() . "." . $ext;
              if (move_uploaded_file($_FILES['imagen']['tmp_name'], $ruta)) {
                  $imagen_ruta = $ruta;
-             } else $errores_php[] = "Error al guardar imagen.";
-         } else $errores_php[] = "Formato de imagen no válido.";
+             } else $errores_php[] = "Error al guardar la imagen.";
+         } else $errores_php[] = "Formato de imagen no válido (usa JPG, PNG, GIF o WEBP).";
     } else {
-        $errores_php[] = "La imagen es obligatoria.";
+        $errores_php[] = "La imagen promocional es obligatoria.";
     }
 
     if (empty($errores_php)) {
@@ -50,7 +66,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             // 1. Insertar Evento
             $stmt = $conn->prepare("INSERT INTO evento (titulo, descripcion, imagen, tipo, inicio_venta, cierre_venta, finalizado) VALUES (?, ?, ?, ?, ?, ?, 0)");
-            // Solo 6 letras: s (titulo), s (desc), s (img), i (tipo), s (ini), s (fin)
             $stmt->bind_param("sssiss", $titulo, $desc, $imagen_ruta, $tipo, $ini, $fin);
             $stmt->execute();
             $id_nuevo = $conn->insert_id;
@@ -64,48 +79,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt_f->close();
 
-            // =========================================================
-            // 3. INSERTAR 3 CATEGORÍAS POR DEFECTO (MODIFICADO)
-            // =========================================================
+            // 3. INSERTAR 3 CATEGORÍAS POR DEFECTO
             $stmt_c = $conn->prepare("INSERT INTO categorias (id_evento, nombre_categoria, precio, color) VALUES (?, ?, ?, ?)");
             
-            // A) General (Color Claro)
-            $nom = 'General'; 
-            $prec = 80; 
-            $col = '#cbd5e1'; // Gris claro
+            // A) General
+            $nom = 'General'; $prec = 80; $col = '#cbd5e1';
             $stmt_c->bind_param("isds", $id_nuevo, $nom, $prec, $col);
             $stmt_c->execute();
-            $id_cat_gen = $conn->insert_id; // Guardamos ID para pintar el mapa inicial
+            $id_cat_gen = $conn->insert_id;
 
-            // B) Discapacitado (Azul)
-            $nom = 'Discapacitado'; 
-            $prec = 80; 
-            $col = '#2563eb'; // Azul vibrante
+            // B) Discapacitado
+            $nom = 'Discapacitado'; $prec = 80; $col = '#2563eb';
             $stmt_c->bind_param("isds", $id_nuevo, $nom, $prec, $col);
             $stmt_c->execute();
 
-            // C) No Venta (Color Oscuro)
-            $nom = 'No Venta'; 
-            $prec = 0; 
-            $col = '#0f172a'; // Muy oscuro (casi negro)
+            // C) No Venta
+            $nom = 'No Venta'; $prec = 0; $col = '#0f172a';
             $stmt_c->bind_param("isds", $id_nuevo, $nom, $prec, $col);
             $stmt_c->execute();
-            
             $stmt_c->close();
-            // =========================================================
 
-            // 4. Generar Mapa de Asientos (Todo en "General" al principio)
+            // 4. Generar Mapa de Asientos
             $mapa = [];
             if ($tipo == 2) { // Pasarela
                 for ($f=1; $f<=10; $f++) {
                     for ($a=1; $a<=12; $a++) $mapa["PB$f-$a"] = $id_cat_gen;
                 }
             }
-            // Teatro (A-O)
             foreach (range('A','O') as $l) {
                 for ($a=1; $a<=26; $a++) $mapa["$l$a"] = $id_cat_gen;
             }
-            // Palco
             for ($a=1; $a<=30; $a++) $mapa["P$a"] = $id_cat_gen;
 
             $json = json_encode($mapa);
@@ -124,23 +127,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
             <style>
-                body { background-color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: system-ui, sans-serif; overflow: hidden; }
-                .success-card { background: white; border-radius: 24px; padding: 40px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.08); max-width: 380px; width: 90%; opacity: 0; transform: scale(0.9); animation: popIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-                .icon-circle { width: 80px; height: 80px; background: #dcfce7; color: #16a34a; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 40px; margin: 0 auto 20px; box-shadow: 0 0 0 8px #f0fdf4; }
-                .progress-track { height: 6px; background: #f1f5f9; border-radius: 3px; margin-top: 30px; overflow: hidden; }
-                .progress-fill { height: 100%; background: #16a34a; width: 0; border-radius: 3px; transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1); }
-                @keyframes popIn { to { opacity: 1; transform: scale(1); } }
-                @keyframes fadeOut { to { opacity: 0; transform: translateY(10px); } }
-                body.exiting { animation: fadeOut 0.4s ease-in forwards; }
+                body { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: 'Inter', system-ui, sans-serif; overflow: hidden; }
+                .success-card { background: linear-gradient(145deg, #1e293b, #334155); border-radius: 24px; padding: 48px; text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05); max-width: 420px; width: 90%; opacity: 0; transform: scale(0.9) translateY(20px); animation: popIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+                .icon-circle { width: 88px; height: 88px; background: linear-gradient(135deg, #22c55e, #16a34a); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 44px; margin: 0 auto 24px; box-shadow: 0 0 0 8px rgba(34, 197, 94, 0.15), 0 10px 30px rgba(34, 197, 94, 0.3); color: white; }
+                h4 { color: #f8fafc; font-weight: 700; margin-bottom: 8px; }
+                p { color: #94a3b8; }
+                .progress-track { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin-top: 32px; overflow: hidden; }
+                .progress-fill { height: 100%; background: linear-gradient(90deg, #22c55e, #4ade80); width: 0; border-radius: 3px; transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1); }
+                @keyframes popIn { to { opacity: 1; transform: scale(1) translateY(0); } }
+                body.exiting .success-card { animation: fadeOut 0.4s ease-in forwards; }
+                @keyframes fadeOut { to { opacity: 0; transform: scale(0.95) translateY(-10px); } }
             </style>
             </head>
             <body>
                 <div class="success-card">
                     <div class="icon-circle"><i class="bi bi-check-lg"></i></div>
-                    <h4 class="fw-bold text-dark mb-2">¡Evento Creado!</h4>
-                    <p class="text-muted small mb-0">El evento ya está disponible en cartelera.</p>
+                    <h4>¡Evento Creado Exitosamente!</h4>
+                    <p class="small mb-0">El evento ya está disponible en cartelera.</p>
                     <div class="progress-track"><div class="progress-fill" id="pBar"></div></div>
-                    <p class="text-muted mt-2" style="font-size: 0.75rem; font-weight: 600;">VOLVIENDO A ACTIVOS...</p>
+                    <p class="mt-3 small" style="color: #64748b; font-weight: 600; letter-spacing: 0.05em;">VOLVIENDO A EVENTOS...</p>
                 </div>
                 <script>
                     setTimeout(() => document.getElementById('pBar').style.width = '100%', 100);
@@ -148,336 +153,1004 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     setTimeout(() => { 
                         document.body.classList.add('exiting'); 
                         setTimeout(() => { window.location.href = "act_evento.php"; }, 350); 
-                    }, 1300); 
+                    }, 1400); 
                 </script>
             </body>
             </html>
             <?php exit;
 
-        } catch (Exception $e) { $conn->rollback(); $errores_php[] = "Error DB: " . $e->getMessage(); }
+        } catch (Exception $e) { $conn->rollback(); $errores_php[] = "Error de base de datos: " . $e->getMessage(); }
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Crear Evento</title>
+<title>Crear Evento · Teatro</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-    :root { 
-        --primary-color: #1561f0; 
-        --primary-dark: #0d4fc4; 
-        --success-color: #32d74b; 
-        --danger-color: #ff453a; 
-        --bg-primary: #131313; 
-        --bg-secondary: #1c1c1e; 
-        --text-primary: #ffffff; 
-        --text-secondary: #86868b;
-        --border-color: #3a3a3c; 
-        --radius-lg: 16px; 
+    :root {
+        --bg-primary: #0f172a;
+        --bg-secondary: #1e293b;
+        --bg-tertiary: #334155;
+        --bg-input: #1e293b;
+        --accent: #3b82f6;
+        --accent-hover: #2563eb;
+        --accent-glow: rgba(59, 130, 246, 0.25);
+        --success: #22c55e;
+        --danger: #ef4444;
+        --warning: #f59e0b;
+        --text-primary: #f8fafc;
+        --text-secondary: #94a3b8;
+        --text-muted: #64748b;
+        --border: #334155;
+        --border-focus: #3b82f6;
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --radius-xl: 20px;
+        --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+        --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+        --shadow-lg: 0 12px 40px rgba(0,0,0,0.5);
+        --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    body { 
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
-        background: var(--bg-primary); 
-        color: var(--text-primary); 
-        padding: 30px 20px; 
-        min-height: 100vh; 
-        opacity: 0; 
-        transition: opacity 0.4s ease; 
+
+    * { box-sizing: border-box; }
+    
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background: linear-gradient(135deg, var(--bg-primary) 0%, #1a1a2e 100%);
+        color: var(--text-primary);
+        padding: 32px 20px;
+        min-height: 100vh;
+        opacity: 0;
+        transition: opacity 0.4s ease;
     }
     body.loaded { opacity: 1; }
-    body.exiting { opacity: 0; }
+    body.exiting { opacity: 0; transform: translateY(-10px); }
 
-    .main-wrapper { max-width: 850px; margin: 0 auto; }
-    .card { 
-        background: var(--bg-secondary); 
-        border-radius: 16px; 
-        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); 
-        padding: 40px; 
-        border: 1px solid var(--border-color); 
+    .main-wrapper { max-width: 900px; margin: 0 auto; }
+
+    /* Header del formulario */
+    .form-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 32px;
     }
     
-    .form-control, .form-select { 
-        border-radius: 8px; 
-        padding: 12px; 
-        border: 1px solid var(--border-color); 
-        background: #2b2b2b; 
+    .btn-back {
+        width: 48px;
+        height: 48px;
+        border-radius: var(--radius-md);
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+    .btn-back:hover {
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+        transform: translateX(-3px);
+    }
+
+    .header-title {
+        flex: 1;
+    }
+    .header-title h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin: 0 0 4px 0;
+        background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    .header-title p {
+        color: var(--text-muted);
+        margin: 0;
+        font-size: 0.9rem;
+    }
+
+    /* Card principal */
+    .form-card {
+        background: var(--bg-secondary);
+        border-radius: var(--radius-xl);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-lg);
+        overflow: hidden;
+    }
+
+    .card-section {
+        padding: 32px;
+        border-bottom: 1px solid var(--border);
+    }
+    .card-section:last-child { border-bottom: none; }
+
+    .section-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 24px;
+    }
+    .section-title i {
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, var(--accent), #6366f1);
+        border-radius: var(--radius-sm);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+    }
+
+    /* Inputs */
+    .form-group { margin-bottom: 20px; }
+    .form-group:last-child { margin-bottom: 0; }
+
+    .form-label {
+        display: block;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+    }
+    .form-label.required::after {
+        content: ' *';
+        color: var(--danger);
+    }
+
+    .form-control, .form-select {
+        width: 100%;
+        padding: 14px 16px;
+        background: var(--bg-input);
+        border: 2px solid var(--border);
+        border-radius: var(--radius-md);
+        color: var(--text-primary);
+        font-size: 1rem;
+        font-family: inherit;
+        transition: var(--transition);
+    }
+    .form-control:focus, .form-select:focus {
+        outline: none;
+        border-color: var(--border-focus);
+        box-shadow: 0 0 0 4px var(--accent-glow);
+        background: var(--bg-tertiary);
+    }
+    .form-control::placeholder { color: var(--text-muted); }
+
+    .form-control.is-invalid {
+        border-color: var(--danger);
+        background: rgba(239, 68, 68, 0.1);
+    }
+
+    textarea.form-control {
+        min-height: 120px;
+        resize: vertical;
+    }
+
+    /* Gestión de Funciones */
+    .funciones-container {
+        background: var(--bg-primary);
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--border);
+        padding: 24px;
+    }
+
+    .funciones-input-group {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    .funciones-input-group .form-control {
+        flex: 1;
+    }
+
+    .btn-add-funcion {
+        padding: 14px 20px;
+        background: linear-gradient(135deg, var(--success), #16a34a);
+        border: none;
+        border-radius: var(--radius-md);
+        color: white;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        transition: var(--transition);
+        white-space: nowrap;
+    }
+    .btn-add-funcion:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(34, 197, 94, 0.3);
+    }
+    .btn-add-funcion:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .funciones-lista {
+        min-height: 80px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 16px;
+        background: var(--bg-secondary);
+        border-radius: var(--radius-md);
+        border: 2px dashed var(--border);
+    }
+
+    .funcion-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-secondary));
+        border: 1px solid var(--accent);
+        border-radius: 50px;
+        color: var(--accent);
+        font-weight: 600;
+        font-size: 0.9rem;
+        animation: slideIn 0.3s ease;
+    }
+    @keyframes slideIn {
+        from { opacity: 0; transform: scale(0.8); }
+        to { opacity: 1; transform: scale(1); }
+    }
+
+    .funcion-item .btn-remove {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: rgba(239, 68, 68, 0.2);
+        border: none;
+        color: var(--danger);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: var(--transition);
+        font-size: 0.75rem;
+    }
+    .funcion-item .btn-remove:hover {
+        background: var(--danger);
+        color: white;
+        transform: scale(1.1);
+    }
+
+    .funciones-empty {
+        width: 100%;
+        text-align: center;
+        color: var(--text-muted);
+        font-style: italic;
+        padding: 20px;
+    }
+
+    .validation-msg {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--danger);
+    }
+    .validation-msg.show { display: flex; }
+
+    /* Grid de fechas */
+    .dates-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    .date-field-locked {
+        position: relative;
+    }
+    .date-field-locked .form-control {
+        background: var(--bg-primary);
+        cursor: not-allowed;
+        padding-right: 45px;
+    }
+    .date-field-locked .lock-icon {
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-muted);
+        font-size: 1rem;
+    }
+
+    /* Upload de imagen */
+    .image-upload {
+        position: relative;
+    }
+    .image-upload-area {
+        border: 2px dashed var(--border);
+        border-radius: var(--radius-lg);
+        padding: 40px 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: var(--transition);
+        background: var(--bg-primary);
+    }
+    .image-upload-area:hover {
+        border-color: var(--accent);
+        background: rgba(59, 130, 246, 0.05);
+    }
+    .image-upload-area.has-file {
+        border-style: solid;
+        border-color: var(--success);
+        background: rgba(34, 197, 94, 0.05);
+    }
+    .image-upload-area i {
+        font-size: 2.5rem;
+        color: var(--text-muted);
+        margin-bottom: 12px;
+    }
+    .image-upload-area.has-file i { color: var(--success); }
+    .image-upload-area p {
+        color: var(--text-secondary);
+        margin: 0;
+    }
+    .image-upload-area .file-name {
+        color: var(--success);
+        font-weight: 600;
+        margin-top: 8px;
+    }
+    .image-upload input[type="file"] {
+        position: absolute;
+        opacity: 0;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        cursor: pointer;
+    }
+
+    /* Tipo escenario */
+    .escenario-options {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+    .escenario-option {
+        position: relative;
+    }
+    .escenario-option input {
+        position: absolute;
+        opacity: 0;
+    }
+    .escenario-option label {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 24px;
+        background: var(--bg-primary);
+        border: 2px solid var(--border);
+        border-radius: var(--radius-lg);
+        cursor: pointer;
+        transition: var(--transition);
+        text-align: center;
+    }
+    .escenario-option label:hover {
+        border-color: var(--accent);
+        background: rgba(59, 130, 246, 0.05);
+    }
+    .escenario-option input:checked + label {
+        border-color: var(--accent);
+        background: rgba(59, 130, 246, 0.1);
+        box-shadow: 0 0 0 4px var(--accent-glow);
+    }
+    .escenario-option .icon {
+        font-size: 2rem;
+    }
+    .escenario-option .name {
+        font-weight: 600;
         color: var(--text-primary);
     }
-    .form-control:focus { 
-        border-color: var(--primary-color); 
-        box-shadow: 0 0 0 4px rgba(21,97,240,0.2); 
-        background: #2b2b2b;
-        color: var(--text-primary);
+    .escenario-option .seats {
+        font-size: 0.85rem;
+        color: var(--text-muted);
     }
-    .form-control::placeholder { color: var(--text-secondary); }
-    .form-label { color: var(--text-primary); }
-    .fw-bold { color: var(--text-primary); }
-    .text-muted { color: var(--text-secondary) !important; }
-    
-    .btn { padding: 12px 24px; border-radius: 8px; font-weight: 600; border: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
-    .btn-primary { background: var(--primary-color); color: white; } 
-    .btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); }
-    .btn-secondary { background: #2b2b2b; color: var(--text-primary); border: 1px solid var(--border-color); } 
-    .btn-secondary:hover { background: #3a3a3c; }
-    .btn-danger { background: #ff453a; color: white; } 
-    .btn-danger:hover { background: #e03e34; }
-    .btn-success { background: var(--success-color); color: white; }
 
-    .input-error { border-color: #ff453a !important; background: rgba(255,69,58,0.15) !important; }
-    .tooltip-error { color: #ff453a; font-size: 0.85em; margin-top: 5px; display: none; font-weight: 600; }
-    
-    #lista-funciones { 
-        background: #2b2b2b; 
-        border: 2px dashed var(--border-color); 
-        border-radius: 8px; 
-        padding: 15px; 
-        min-height: 70px; 
-        display: flex; 
-        flex-wrap: wrap; 
-        gap: 10px; 
+    /* Botón submit */
+    .submit-section {
+        padding: 32px;
+        background: linear-gradient(180deg, transparent, rgba(59, 130, 246, 0.05));
     }
-    .funcion-item { 
-        background: var(--bg-secondary); 
-        padding: 6px 12px; 
-        border-radius: 20px; 
-        border: 1px solid var(--primary-color); 
-        color: var(--primary-color); 
-        font-weight: 600; 
-        display: flex; 
-        align-items: center; 
-        gap: 8px; 
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2); 
-    }
-    .funcion-item button { background: none; border: none; color: #ff453a; font-size: 1.1em; padding: 0; cursor: pointer; line-height: 1; }
-    .funcion-item button:hover { transform: scale(1.2); }
 
-    .bg-light { background: #2b2b2b !important; }
-    .border { border-color: var(--border-color) !important; }
-    .border-bottom { border-color: var(--border-color) !important; }
-    .text-primary { color: var(--primary-color) !important; }
-    .form-text { color: var(--text-secondary) !important; }
-    .alert-danger { background: rgba(255,69,58,0.15) !important; border-color: rgba(255,69,58,0.3) !important; color: #ff453a !important; }
+    .btn-submit {
+        width: 100%;
+        padding: 18px 32px;
+        background: linear-gradient(135deg, var(--accent), #6366f1);
+        border: none;
+        border-radius: var(--radius-md);
+        color: white;
+        font-size: 1.1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: var(--transition);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+    }
+    .btn-submit:hover:not(:disabled) {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 30px rgba(59, 130, 246, 0.4);
+    }
+    .btn-submit:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    /* Alertas de error */
+    .alert-errors {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: var(--radius-md);
+        padding: 16px 20px;
+        margin-bottom: 24px;
+    }
+    .alert-errors ul {
+        margin: 0;
+        padding-left: 20px;
+        color: var(--danger);
+    }
+    .alert-errors li { margin: 4px 0; }
 
     /* Modal */
-    .modal-content { background: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary); }
-    .modal-header, .modal-footer { border-color: var(--border-color); }
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    .modal-overlay.show {
+        display: flex;
+        opacity: 1;
+    }
+    .modal-box {
+        background: var(--bg-secondary);
+        border-radius: var(--radius-xl);
+        border: 1px solid var(--border);
+        padding: 32px;
+        max-width: 400px;
+        width: 90%;
+        text-align: center;
+        transform: scale(0.9);
+        transition: transform 0.3s ease;
+    }
+    .modal-overlay.show .modal-box {
+        transform: scale(1);
+    }
+    .modal-box h3 {
+        margin: 0 0 12px 0;
+        color: var(--text-primary);
+    }
+    .modal-box p {
+        color: var(--text-secondary);
+        margin-bottom: 24px;
+    }
+    .modal-buttons {
+        display: flex;
+        gap: 12px;
+    }
+    .modal-buttons button {
+        flex: 1;
+        padding: 12px;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+    .btn-modal-cancel {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+    }
+    .btn-modal-cancel:hover { background: var(--bg-primary); }
+    .btn-modal-confirm {
+        background: var(--danger);
+        border: none;
+        color: white;
+    }
+    .btn-modal-confirm:hover { filter: brightness(1.1); }
+
+    @media (max-width: 768px) {
+        .funciones-input-group { flex-direction: column; }
+        .dates-grid { grid-template-columns: 1fr; }
+        .escenario-options { grid-template-columns: 1fr; }
+    }
 </style>
 </head>
 <body>
 
 <div class="main-wrapper">
-    <div class="mb-4">
-        <button onclick="confirmarSalida()" class="btn btn-secondary shadow-sm"> 
-            <i class="bi bi-arrow-left"></i> Volver a Eventos
+    <!-- Header -->
+    <div class="form-header">
+        <button type="button" class="btn-back" onclick="confirmarSalida()">
+            <i class="bi bi-arrow-left"></i>
         </button>
+        <div class="header-title">
+            <h1><i class="bi bi-plus-circle-fill me-2"></i>Crear Nuevo Evento</h1>
+            <p>Configura todos los detalles del evento</p>
+        </div>
     </div>
 
-    <div class="card">
-        <div class="d-flex align-items-center mb-4 pb-3 border-bottom">
-            <h2 class="m-0 text-primary">
-                <i class="bi bi-plus-circle-fill me-3"></i>Crear Nuevo Evento
-            </h2>
-        </div>
-
+    <!-- Card Principal -->
+    <div class="form-card">
         <?php if($errores_php): ?>
-            <div class="alert alert-danger border-0 shadow-sm mb-4">
-                <ul class="m-0 ps-3"><?php foreach($errores_php as $e) echo "<li>$e</li>"; ?></ul>
+            <div class="card-section">
+                <div class="alert-errors">
+                    <ul><?php foreach($errores_php as $e) echo "<li>$e</li>"; ?></ul>
+                </div>
             </div>
         <?php endif; ?>
 
-        <form id="fCreate" method="POST" enctype="multipart/form-data">
-            <div class="row g-4">
-                <div class="col-12">
-                    <label class="form-label fw-bold">Título del Evento</label>
-                    <input type="text" id="tit" name="titulo" class="form-control form-control-lg fw-bold" required>
+        <form id="formEvento" method="POST" enctype="multipart/form-data">
+            <!-- Sección: Información Básica -->
+            <div class="card-section">
+                <div class="section-title">
+                    <i class="bi bi-info-circle"></i>
+                    <span>Información Básica</span>
                 </div>
 
-                <div class="col-12">
-                    <div class="p-4 bg-light rounded-4 border">
-                        <label class="fw-bold mb-3"><i class="bi bi-calendar-week me-2"></i>Gestión de Funciones</label>
-                        <div class="input-group mb-3 shadow-sm">
-                            <input type="text" id="fDate" class="form-control" placeholder="Selecciona Fecha" readonly>
-                            <input type="text" id="fTime" class="form-control" placeholder="Hora" readonly style="max-width:130px">
-                            <button type="button" id="fAdd" class="btn btn-success" disabled><i class="bi bi-plus-lg"></i> Agregar</button>
-                        </div>
-                        <div id="ttFunc" class="tooltip-error mb-2"></div>
-                        <div id="lista-funciones">
-                            <p id="noFunc" class="text-muted m-0 w-100 text-center fst-italic small">
-                                <i class="bi bi-inbox me-2"></i>No hay funciones asignadas.
-                            </p>
-                        </div>
-                        <div id="hidFunc"></div>
-                    </div>
+                <div class="form-group">
+                    <label class="form-label required">Título del Evento</label>
+                    <input type="text" id="titulo" name="titulo" class="form-control" placeholder="Ej: Concierto de Rock en Vivo" required>
+                    <div class="validation-msg" id="val-titulo"><i class="bi bi-exclamation-circle"></i> <span></span></div>
                 </div>
 
-                <div class="col-md-6">
-                    <label class="fw-bold">Inicio Venta</label>
-                    <input type="text" id="ini" name="inicio_venta" class="form-control" readonly required placeholder="Selecciona fecha">
-                    <div id="ttIni" class="tooltip-error"></div>
-                </div>
-                
-                <div class="col-md-6">
-                    <label class="fw-bold" style="color: #94a3b8;">Cierre Venta (Automático)</label>
-                    <input type="text" id="fin" name="cierre_venta" class="form-control" readonly required style="background-color: #e9ecef; color: #1e293b; cursor: not-allowed;">
-                    <div class="form-text small" style="color: #64748b;"><i class="bi bi-info-circle"></i> Se calcula 2 horas después de la última función.</div>
-                </div>
-                
-                <div class="col-12">
-                    <label class="fw-bold">Descripción</label>
-                    <textarea id="desc" name="descripcion" class="form-control" rows="4" required></textarea>
-                    <div id="ttDesc" class="tooltip-error"></div>
-                </div>
-                
-                <div class="col-md-7">
-                    <label class="fw-bold">Imagen Promocional</label>
-                    <input type="file" id="img" name="imagen" class="form-control" accept="image/*" required>
-                    <div id="ttImg" class="tooltip-error"></div>
-                </div>
-                
-                <div class="col-md-5">
-                    <label class="fw-bold">Tipo de Escenario</label>
-                    <select id="tipo" name="tipo" class="form-select" required>
-                        <option value="">-- Selecciona --</option>
-                        <option value="1">🎭 Teatro (420 Butacas)</option>
-                        <option value="2">🚶 Pasarela (540 Butacas)</option>
-                    </select>
-                    <div id="ttTipo" class="tooltip-error"></div>
+                <div class="form-group">
+                    <label class="form-label required">Descripción</label>
+                    <textarea id="descripcion" name="descripcion" class="form-control" placeholder="Describe el evento, artistas participantes, etc." required></textarea>
+                    <div class="validation-msg" id="val-desc"><i class="bi bi-exclamation-circle"></i> <span></span></div>
                 </div>
             </div>
 
-            <hr class="my-5">
-            <button type="submit" id="bSub" class="btn btn-primary w-100 py-3 fs-5 fw-bold shadow-sm" disabled>
-                <i class="bi bi-check2-circle me-2"></i> Crear Evento
-            </button>
+            <!-- Sección: Funciones -->
+            <div class="card-section">
+                <div class="section-title">
+                    <i class="bi bi-calendar-event"></i>
+                    <span>Programación de Funciones</span>
+                </div>
+
+                <div class="funciones-container">
+                    <div class="funciones-input-group">
+                        <input type="text" id="inputFecha" class="form-control" placeholder="📅 Selecciona fecha" readonly>
+                        <input type="text" id="inputHora" class="form-control" placeholder="🕐 Hora" readonly style="max-width: 150px;">
+                        <button type="button" id="btnAgregarFuncion" class="btn-add-funcion" disabled>
+                            <i class="bi bi-plus-lg"></i> Agregar
+                        </button>
+                    </div>
+                    <div class="validation-msg" id="val-func-add"><i class="bi bi-exclamation-circle"></i> <span></span></div>
+                    
+                    <div class="funciones-lista" id="listaFunciones">
+                        <div class="funciones-empty" id="funcionesEmpty">
+                            <i class="bi bi-inbox"></i> No hay funciones programadas
+                        </div>
+                    </div>
+                    <div id="funcionesHidden"></div>
+                </div>
+                <div class="validation-msg" id="val-funciones"><i class="bi bi-exclamation-circle"></i> <span></span></div>
+            </div>
+
+            <!-- Sección: Fechas de Venta -->
+            <div class="card-section">
+                <div class="section-title">
+                    <i class="bi bi-shop"></i>
+                    <span>Periodo de Venta</span>
+                </div>
+
+                <div class="dates-grid">
+                    <div class="form-group">
+                        <label class="form-label required">Inicio de Venta</label>
+                        <input type="text" id="inicioVenta" name="inicio_venta" class="form-control" placeholder="📅 Selecciona fecha y hora" readonly required>
+                        <div class="validation-msg" id="val-inicio"><i class="bi bi-exclamation-circle"></i> <span></span></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Cierre de Venta</label>
+                        <div class="date-field-locked">
+                            <input type="text" id="cierreVenta" name="cierre_venta" class="form-control" readonly>
+                            <i class="bi bi-lock-fill lock-icon"></i>
+                        </div>
+                        <small style="color: var(--text-muted); display: block; margin-top: 6px;">
+                            <i class="bi bi-info-circle"></i> Se calcula automáticamente: 2 horas después de la última función
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sección: Imagen y Escenario -->
+            <div class="card-section">
+                <div class="section-title">
+                    <i class="bi bi-image"></i>
+                    <span>Imagen y Configuración</span>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                    <div class="form-group">
+                        <label class="form-label required">Imagen Promocional</label>
+                        <div class="image-upload">
+                            <div class="image-upload-area" id="uploadArea">
+                                <i class="bi bi-cloud-arrow-up"></i>
+                                <p>Arrastra o haz clic para subir</p>
+                                <p class="file-name" id="fileName" style="display: none;"></p>
+                            </div>
+                            <input type="file" id="imagen" name="imagen" accept="image/*" required>
+                        </div>
+                        <div class="validation-msg" id="val-imagen"><i class="bi bi-exclamation-circle"></i> <span></span></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label required">Tipo de Escenario</label>
+                        <div class="escenario-options">
+                            <div class="escenario-option">
+                                <input type="radio" name="tipo" id="tipo1" value="1" required>
+                                <label for="tipo1">
+                                    <span class="icon">🎭</span>
+                                    <span class="name">Teatro</span>
+                                    <span class="seats">420 butacas</span>
+                                </label>
+                            </div>
+                            <div class="escenario-option">
+                                <input type="radio" name="tipo" id="tipo2" value="2">
+                                <label for="tipo2">
+                                    <span class="icon">🚶</span>
+                                    <span class="name">Pasarela</span>
+                                    <span class="seats">540 butacas</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="validation-msg" id="val-tipo"><i class="bi bi-exclamation-circle"></i> <span></span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botón Submit -->
+            <div class="submit-section">
+                <button type="submit" id="btnSubmit" class="btn-submit" disabled>
+                    <i class="bi bi-check2-circle"></i>
+                    Crear Evento
+                </button>
+            </div>
         </form>
     </div>
 </div>
 
-<div class="modal fade" id="modalCancelar" tabindex="-1" data-bs-backdrop="static">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0 shadow-lg">
-      <div class="modal-header border-0">
-        <h5 class="modal-title fw-bold">¿Salir sin guardar?</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <p class="text-muted">Si sales ahora, perderás la información del nuevo evento.</p>
-      </div>
-      <div class="modal-footer border-0">
-        <button type="button" class="btn btn-secondary fw-bold px-4" data-bs-dismiss="modal">Seguir Creando</button>
-        <button type="button" class="btn btn-danger fw-bold px-4" onclick="goBack()">Salir</button>
-      </div>
+<!-- Modal de confirmación -->
+<div class="modal-overlay" id="modalSalir">
+    <div class="modal-box">
+        <h3>¿Salir sin guardar?</h3>
+        <p>Si sales ahora, perderás toda la información ingresada del nuevo evento.</p>
+        <div class="modal-buttons">
+            <button type="button" class="btn-modal-cancel" onclick="cerrarModal()">Seguir</button>
+            <button type="button" class="btn-modal-confirm" onclick="salir()">Salir</button>
+        </div>
     </div>
-  </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script><script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     document.body.classList.add('loaded');
     flatpickr.localize(flatpickr.l10ns.es);
-    const now = new Date();
-    let funcs = [];
 
-    const els={add:document.getElementById('fAdd'),sub:document.getElementById('bSub'),list:document.getElementById('lista-funciones'),hid:document.getElementById('hidFunc'),no:document.getElementById('noFunc'),ttF:document.getElementById('ttFunc'),ttI:document.getElementById('ttIni'),ini:document.getElementById('ini'),fin:document.getElementById('fin'),desc:document.getElementById('desc'),img:document.getElementById('img'),tipo:document.getElementById('tipo'),ttDesc:document.getElementById('ttDesc'),ttImg:document.getElementById('ttImg'),ttTipo:document.getElementById('ttTipo')};
+    // ═══════════════════════════════════════════════════════════════════
+    // ESTADO Y ELEMENTOS
+    // ═══════════════════════════════════════════════════════════════════
+    let funciones = [];
+    const ahora = new Date();
     
-    const fpD=flatpickr("#fDate",{minDate:"today",onChange:(s,d)=>{
-        if(d===new Date().toISOString().split('T')[0]) fpT.set('minTime',new Date().setMinutes(new Date().getMinutes()+5));
-        else fpT.set('minTime',null);
-        check();
-    }});
-    const fpT=flatpickr("#fTime",{enableTime:true,noCalendar:true,dateFormat:"H:i",time_24hr:true,minuteIncrement:15,onChange:check});
-    const fpI=flatpickr("#ini",{enableTime:true,minDate:now,onChange:val});
-    const fpE=flatpickr("#fin",{enableTime:true, clickOpens:false}); // Bloqueado
-
-    function check(){ els.add.disabled=!(fpD.selectedDates.length && fpT.selectedDates.length); }
-
-    els.add.onclick=()=>{
-        if (!fpD.selectedDates[0] || !fpT.selectedDates[0]) return;
-        
-        let dt = new Date(fpD.selectedDates[0].getTime());
-        dt.setHours(fpT.selectedDates[0].getHours());
-        dt.setMinutes(fpT.selectedDates[0].getMinutes());
-        dt.setSeconds(0);
-
-        if(dt <= new Date(Date.now() + 60000)) return alert("La función debe ser futura.");
-        if(funcs.some(d=>d.getTime()===dt.getTime())) return alert("Ya existe esta función.");
-        
-        funcs.push(dt); funcs.sort((a,b)=>a-b); fpD.clear(); fpT.clear(); check(); upd();
+    const els = {
+        titulo: document.getElementById('titulo'),
+        desc: document.getElementById('descripcion'),
+        imagen: document.getElementById('imagen'),
+        uploadArea: document.getElementById('uploadArea'),
+        fileName: document.getElementById('fileName'),
+        listaFunciones: document.getElementById('listaFunciones'),
+        funcionesEmpty: document.getElementById('funcionesEmpty'),
+        funcionesHidden: document.getElementById('funcionesHidden'),
+        btnAgregar: document.getElementById('btnAgregarFuncion'),
+        btnSubmit: document.getElementById('btnSubmit'),
+        inicioVenta: document.getElementById('inicioVenta'),
+        cierreVenta: document.getElementById('cierreVenta')
     };
 
-    function upd(){
-        els.list.innerHTML=''; els.hid.innerHTML='';
-        if(!funcs.length){ 
-            els.list.appendChild(els.no); 
-            fpI.set('maxDate',null); 
-            fpE.setDate(null); 
-        } else {
-            funcs.forEach((d,i)=>{
-                const fechaStr = d.toLocaleDateString('es-ES', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'});
-                const year = d.getFullYear();
-                const month = String(d.getMonth() + 1).padStart(2, '0');
-                const day = String(d.getDate()).padStart(2, '0');
-                const hours = String(d.getHours()).padStart(2, '0');
-                const mins = String(d.getMinutes()).padStart(2, '0');
-                const sqlDate = `${year}-${month}-${day} ${hours}:${mins}:00`;
-                
-                els.list.innerHTML+=`<div class="funcion-item"><i class="bi bi-calendar-event"></i> ${fechaStr}<button type="button" onclick="del(${i})" class="btn-close ms-2" style="font-size:0.6em"></button></div>`;
-                els.hid.innerHTML+=`<input type="hidden" name="funciones[]" value="${sqlDate}">`;
+    // ═══════════════════════════════════════════════════════════════════
+    // FLATPICKR CONFIGURATIONS
+    // ═══════════════════════════════════════════════════════════════════
+    const fpFecha = flatpickr("#inputFecha", {
+        minDate: "today",
+        dateFormat: "Y-m-d",
+        onChange: (selectedDates, dateStr) => {
+            // Si es hoy, limitar hora mínima
+            const hoy = new Date().toISOString().split('T')[0];
+            if (dateStr === hoy) {
+                const minTime = new Date();
+                minTime.setMinutes(minTime.getMinutes() + 30);
+                fpHora.set('minTime', minTime.getHours() + ':' + String(minTime.getMinutes()).padStart(2, '0'));
+            } else {
+                fpHora.set('minTime', null);
+            }
+            checkAgregarBtn();
+        }
+    });
+
+    const fpHora = flatpickr("#inputHora", {
+        enableTime: true,
+        noCalendar: true,
+        dateFormat: "H:i",
+        time_24hr: true,
+        minuteIncrement: 15,
+        onChange: checkAgregarBtn
+    });
+
+    const fpInicio = flatpickr("#inicioVenta", {
+        enableTime: true,
+        minDate: ahora,
+        dateFormat: "Y-m-d H:i",
+        onChange: validarFormulario
+    });
+
+    const fpCierre = flatpickr("#cierreVenta", {
+        enableTime: true,
+        dateFormat: "Y-m-d H:i",
+        clickOpens: false // Bloqueado 
+    });
+
+    // ═══════════════════════════════════════════════════════════════════
+    // FUNCIONES DE FUNCIONES (valga la redundancia)
+    // ═══════════════════════════════════════════════════════════════════
+    function checkAgregarBtn() {
+        els.btnAgregar.disabled = !(fpFecha.selectedDates.length && fpHora.selectedDates.length);
+    }
+
+    els.btnAgregar.addEventListener('click', () => {
+        if (!fpFecha.selectedDates[0] || !fpHora.selectedDates[0]) return;
+
+        // Construir fecha completa
+        const fecha = new Date(fpFecha.selectedDates[0]);
+        fecha.setHours(fpHora.selectedDates[0].getHours());
+        fecha.setMinutes(fpHora.selectedDates[0].getMinutes());
+        fecha.setSeconds(0);
+
+        // Validaciones
+        const ahora = new Date();
+        
+        // 1. No puede ser en el pasado o muy pronto
+        if (fecha <= new Date(ahora.getTime() + 30 * 60 * 1000)) {
+            mostrarError('val-func-add', 'La función debe ser al menos 30 minutos en el futuro.');
+            return;
+        }
+
+        // 2. No duplicados
+        if (funciones.some(f => f.getTime() === fecha.getTime())) {
+            mostrarError('val-func-add', 'Esta función ya existe.');
+            return;
+        }
+
+        // 3. Validar separación mínima de 2 horas entre funciones
+        for (const f of funciones) {
+            const diff = Math.abs(fecha.getTime() - f.getTime());
+            if (diff < 2 * 60 * 60 * 1000) {
+                mostrarError('val-func-add', 'Debe haber al menos 2 horas entre funciones.');
+                return;
+            }
+        }
+
+        ocultarError('val-func-add');
+        funciones.push(fecha);
+        funciones.sort((a, b) => a - b);
+        
+        fpFecha.clear();
+        fpHora.clear();
+        checkAgregarBtn();
+        renderizarFunciones();
+        actualizarCierreVenta();
+        validarFormulario();
+    });
+
+    function renderizarFunciones() {
+        els.listaFunciones.innerHTML = '';
+        els.funcionesHidden.innerHTML = '';
+
+        if (funciones.length === 0) {
+            els.listaFunciones.appendChild(els.funcionesEmpty);
+            fpInicio.set('maxDate', null);
+            return;
+        }
+
+        funciones.forEach((fecha, index) => {
+            const item = document.createElement('div');
+            item.className = 'funcion-item';
+            
+            const fechaStr = fecha.toLocaleDateString('es-MX', {
+                weekday: 'short',
+                day: '2-digit',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit'
             });
-            
-            fpI.set('maxDate', new Date(funcs[0].getTime() - 60000));
-            
-            const ultima = funcs[funcs.length-1];
-            const cierre = new Date(ultima.getTime() + 7200000);
-            fpE.setDate(cierre, true);
-        }
-        val();
-    }
-    window.del=i=>{funcs.splice(i,1);upd();};
 
-    function val(){
-        let ok=true; 
-        [els.ttF, els.ttI, els.ttDesc, els.ttImg, els.ttTipo].forEach(e=>{ if(e) e.style.display='none'; });
-        document.querySelectorAll('.input-error').forEach(e=>e.classList.remove('input-error'));
-        
-        if(!document.getElementById('tit').value.trim()) ok=false;
-        if(!funcs.length){ err(els.ttF,null,'Añade funciones.'); ok=false; }
-        
-        if(!fpI.selectedDates.length){ 
-             if (funcs.length) { err(els.ttI,els.ini,'Requerido.'); ok=false; }
-        } else if(funcs.length && fpI.selectedDates[0] >= funcs[0]){ 
-             err(els.ttI,els.ini,'Inicio venta posterior a 1ª función.'); ok=false; 
-        }
+            item.innerHTML = `
+                <i class="bi bi-calendar-event"></i>
+                ${fechaStr}
+                <button type="button" class="btn-remove" onclick="eliminarFuncion(${index})">
+                    <i class="bi bi-x"></i>
+                </button>
+            `;
+            els.listaFunciones.appendChild(item);
 
-        if(!els.desc.value.trim()){ err(els.ttDesc,els.desc,'Descripción obligatoria.'); ok=false; }
-        if(!els.img.files.length){ err(els.ttImg,els.img,'Imagen obligatoria.'); ok=false; }
-        if(!els.tipo.value){ err(els.ttTipo,els.tipo,'Selecciona escenario.'); ok=false; }
-        
-        els.sub.disabled = !ok;
-        return ok;
+            // Hidden input para el form
+            const sqlDate = formatoSQL(fecha);
+            els.funcionesHidden.innerHTML += `<input type="hidden" name="funciones[]" value="${sqlDate}">`;
+        });
+
+        // Limitar inicio de venta a antes de la primera función
+        const primeraFuncion = funciones[0];
+        fpInicio.set('maxDate', new Date(primeraFuncion.getTime() - 60000));
     }
 
-    function err(t,i,m){ t.textContent=m; t.style.display='flex'; if(i) i.classList.add('input-error'); }
-    
-    ['tit','desc','img','tipo'].forEach(id=>document.getElementById(id).addEventListener(id==='img'||id==='tipo'?'change':'input',val));
-    document.getElementById('fCreate').addEventListener('submit',e=>{ if(!val()){ e.preventDefault(); alert("Faltan campos."); } });
+    window.eliminarFuncion = (index) => {
+        funciones.splice(index, 1);
+        renderizarFunciones();
+        actualizarCierreVenta();
+        validarFormulario();
+    };
+
+    function actualizarCierreVenta() {
+        if (funciones.length === 0) {
+            fpCierre.clear();
+            return;
+        }
+        const ultimaFuncion = funciones[funciones.length - 1];
+        const cierre = new Date(ultimaFuncion.getTime() + 2 * 60 * 60 * 1000); // +2 horas
+        fpCierre.setDate(cierre, true);
+    }
+
+    function formatoSQL(fecha) {
+        return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')} ${String(fecha.getHours()).padStart(2, '0')}:${String(fecha.getMinutes()).padStart(2, '0')}:00`;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // UPLOAD DE IMAGEN
+    // ═══════════════════════════════════════════════════════════════════
+    els.imagen.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            const file = e.target.files[0];
+            els.uploadArea.classList.add('has-file');
+            els.fileName.textContent = file.name;
+            els.fileName.style.display = 'block';
+            els.uploadArea.querySelector('p:first-of-type').textContent = '✓ Imagen seleccionada';
+        } else {
+            els.uploadArea.classList.remove('has-file');
+            els.fileName.style.display = 'none';
+            els.uploadArea.querySelector('p:first-of-type').textContent = 'Arrastra o haz clic para subir';
+        }
+        validarFormulario();
+    });
+
+    // ═══════════════════════════════════════════════════════════════════
+    // VALIDACIÓN GENERAL
+    // ═══════════════════════════════════════════════════════════════════
+    function validarFormulario() {
+        let valido = true;
+
+        // Reset errores
+        document.querySelectorAll('.validation-msg').forEach(el => el.classList.remove('show'));
+        document.querySelectorAll('.form-control').forEach(el => el.classList.remove('is-invalid'));
+
+        // Título
+        if (!els.titulo.value.trim()) {
+            valido = false;
+        }
+
+        // Descripción
+        if (!els.desc.value.trim()) {
+            valido = false;
+        }
+
+        // Funciones
+        if (funciones.length === 0) {
+            mostrarError('val-funciones', 'Agrega al menos una función.');
+            valido = false;
+        }
+
+        // Inicio de venta
+        if (!fpInicio.selectedDates.length) {
+            if (funciones.length > 0) {
+                mostrarError('val-inicio', 'Define cuándo inicia la venta.');
+                valido = false;
+            }
+        } else if (funciones.length > 0) {
+            const primeraFuncion = funciones[0];
+            if (fpInicio.selectedDates[0] >= primeraFuncion) {
+                mostrarError('val-inicio', 'Debe ser antes de la primera función.');
+                valido = false;
+            }
+        }
+
+        // Imagen
+        if (!els.imagen.files.length) {
+            valido = false;
+        }
+
+        // Tipo escenario
+        const tipoSeleccionado = document.querySelector('input[name="tipo"]:checked');
+        if (!tipoSeleccionado) {
+            valido = false;
+        }
+
+        els.btnSubmit.disabled = !valido;
+        return valido;
+    }
+
+    function mostrarError(id, msg) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.querySelector('span').textContent = msg;
+            el.classList.add('show');
+        }
+    }
+
+    function ocultarError(id) {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('show');
+    }
+
+    // Event listeners para validación en tiempo real
+    els.titulo.addEventListener('input', validarFormulario);
+    els.desc.addEventListener('input', validarFormulario);
+    document.querySelectorAll('input[name="tipo"]').forEach(r => r.addEventListener('change', validarFormulario));
+
+    // Submit
+    document.getElementById('formEvento').addEventListener('submit', (e) => {
+        if (!validarFormulario()) {
+            e.preventDefault();
+            alert('Por favor, completa todos los campos requeridos.');
+        }
+    });
 });
 
-const modalCancel = new bootstrap.Modal(document.getElementById('modalCancelar'));
+// ═══════════════════════════════════════════════════════════════════
+// MODAL DE SALIR
+// ═══════════════════════════════════════════════════════════════════
 function confirmarSalida() {
-    modalCancel.show();
+    document.getElementById('modalSalir').classList.add('show');
 }
 
-function goBack() {
-    document.body.classList.remove('loaded');
+function cerrarModal() {
+    document.getElementById('modalSalir').classList.remove('show');
+}
+
+function salir() {
     document.body.classList.add('exiting');
     setTimeout(() => window.location.href = 'act_evento.php', 350);
 }

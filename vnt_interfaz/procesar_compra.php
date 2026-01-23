@@ -58,11 +58,12 @@ if (!isset($conn) || !$conn) {
 }
 
 // Importar clases de QR Code para v6.x
-use Endroid\QrCode\Builder\Builder;
-use Endroid\QrCode\Encoding\Encoding;
-use Endroid\QrCode\ErrorCorrectionLevel\ErrorCorrectionLevelHigh;
-use Endroid\QrCode\RoundBlockSizeMode\RoundBlockSizeModeMargin;
+use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
+use Endroid\QrCode\Encoding\Encoding;
+use Endroid\QrCode\ErrorCorrectionLevel;
+use Endroid\QrCode\RoundBlockSizeMode;
+use Endroid\QrCode\Color\Color;
 
 // Leer datos JSON del request
 $input = file_get_contents('php://input');
@@ -291,18 +292,23 @@ try {
             $stmt->close();
         }
 
-        // Generar código QR - compatible con endroid/qr-code 4.4.9
+        // Generar código QR - compatible con endroid/qr-code 6.x
         try {
-            $result = Builder::create()
-                ->writer(new PngWriter())
-                ->writerOptions([])
-                ->data($codigo_unico)
-                ->encoding(new Encoding('UTF-8'))
-                ->errorCorrectionLevel(new ErrorCorrectionLevelHigh())
-                ->size(300)
-                ->margin(10)
-                ->roundBlockSizeMode(new RoundBlockSizeModeMargin())
-                ->build();
+            // Crear el código QR con la nueva API v6.x
+            $qrCode = new QrCode(
+                data: $codigo_unico,
+                encoding: new Encoding('UTF-8'),
+                errorCorrectionLevel: ErrorCorrectionLevel::High,
+                size: 300,
+                margin: 10,
+                roundBlockSizeMode: RoundBlockSizeMode::Margin,
+                foregroundColor: new Color(0, 0, 0),
+                backgroundColor: new Color(255, 255, 255)
+            );
+
+            // Crear el writer y generar la imagen
+            $writer = new PngWriter();
+            $result = $writer->write($qrCode);
 
             // Guardar imagen QR
             $qr_path = $qr_dir . '/' . $codigo_unico . '.png';

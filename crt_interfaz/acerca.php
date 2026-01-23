@@ -82,6 +82,25 @@
             color: #ffffff;
             transform: translateY(-1px);
         }
+        .nav a.nav-active {
+            color: #e53935;
+            position: relative;
+        }
+        .nav a.nav-active::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #e53935, #ff6f61);
+            border-radius: 2px;
+        }
+        @media (max-width: 900px) {
+            .nav a.nav-active::after {
+                bottom: -4px;
+            }
+        }
         .cta {
             margin-left: 6px;
             padding: 10px 14px;
@@ -542,7 +561,7 @@
             </a>
             <nav class="nav" id="mainNav">
                 <a href="index.php">Inicio</a>
-                <a href="acerca.php">Acerca del teatro</a>
+                <a href="acerca.php" class="nav-active">Acerca del teatro</a>
                 <a href="contacto.php">Contacto / Reservaciones</a>
                 <a href="cartelera_cliente.php" class="cta">Ver cartelera completa <i class="bi bi-arrow-right"></i></a>
             </nav>
