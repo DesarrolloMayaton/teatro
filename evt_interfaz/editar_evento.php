@@ -81,22 +81,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        $titulo = trim($_POST['titulo'] ?? '');
-        $desc = trim($_POST['descripcion'] ?? '');
+        $titulo = trim(strip_tags($_POST['titulo'] ?? ''));
+        $titulo = preg_replace('/[<>"\'\/\\\\;]/', '', $titulo);
+        $titulo = mb_substr($titulo, 0, 200);
+        
+        $desc = trim(strip_tags($_POST['descripcion'] ?? ''));
+        $desc = preg_replace('/[<>]/', '', $desc);
+        $desc = mb_substr($desc, 0, 2000);
+        
         $tipo = $_POST['tipo'] ?? '';
+        if (!in_array($tipo, ['1', '2'])) $tipo = '';
+        
         $ini = $_POST['inicio_venta'] ?? '';
         $fin = $_POST['cierre_venta'] ?? '';
         $img = $_POST['imagen_actual'] ?? '';
 
+        // Función para validar formato de fechas
+        function validarFecha($fecha) {
+            return preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/', $fecha);
+        }
+
         // Validaciones básicas
         if (empty($titulo)) $errores_php[] = "El título es obligatorio.";
+        if (strlen($titulo) < 3) $errores_php[] = "El título debe tener al menos 3 caracteres.";
         if (empty($desc)) $errores_php[] = "La descripción es obligatoria.";
+        if (strlen($desc) < 10) $errores_php[] = "La descripción debe tener al menos 10 caracteres.";
         
         // Verificar que haya al menos una función (existente o nueva)
         $tiene_funciones = !empty($_POST['funciones_ids']) || !empty($_POST['funciones_nuevas']);
         if (!$tiene_funciones) $errores_php[] = "Debe agregar al menos una función.";
         
         if (empty($ini)) $errores_php[] = "Define la fecha de inicio de venta.";
+        if (!empty($ini) && !validarFecha($ini)) $errores_php[] = "Formato de fecha de inicio inválido.";
+        if (!empty($fin) && !validarFecha($fin)) $errores_php[] = "Formato de fecha de cierre inválido.";
 
         // Subida de imagen (opcional en edición)
         if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] == 0) {
@@ -460,11 +477,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     .dates-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
+    .btn-toggle-cierre {
+        padding: 6px 12px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .btn-toggle-cierre:hover {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: white;
+    }
+    .btn-toggle-cierre.active {
+        background: var(--success);
+        border-color: var(--success);
+        color: white;
+    }
+
     .date-field-locked { position: relative; }
     .date-field-locked .form-control {
         background: var(--bg-primary);
         cursor: not-allowed;
         padding-right: 45px;
+    }
+    .date-field-locked.unlocked .form-control {
+        background: var(--bg-input);
+        cursor: pointer;
+        border-color: var(--success);
     }
     .date-field-locked .lock-icon {
         position: absolute; right: 14px; top: 50%;
@@ -686,15 +733,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Cierre de Venta</label>
-                        <div class="date-field-locked">
+                        <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+                            <span>Cierre de Venta</span>
+                            <button type="button" id="btnToggleCierre" class="btn-toggle-cierre" onclick="toggleCierreManual()" title="Activar modo manual">
+                                <i class="bi bi-pencil-fill"></i> Personalizar
+                            </button>
+                        </label>
+                        <div class="date-field-locked" id="cierreContainer">
                             <input type="text" id="cierreVenta" name="cierre_venta" class="form-control" 
                                    value="<?= $defaultCierre ?>" readonly>
-                            <i class="bi bi-lock-fill lock-icon"></i>
+                            <i class="bi bi-lock-fill lock-icon" id="cierreLockIcon"></i>
                         </div>
-                        <small style="color: var(--text-muted); display: block; margin-top: 6px;">
-                            <i class="bi bi-info-circle"></i> 2 horas después de la última función
+                        <small id="cierreInfo" style="color: var(--text-muted); display: block; margin-top: 6px;">
+                            <i class="bi bi-info-circle"></i> Automático: 2 horas después de la última función
                         </small>
+                        <div class="validation-msg" id="val-cierre"><i class="bi bi-exclamation-circle"></i> <span></span></div>
                     </div>
                 </div>
             </div>
@@ -947,15 +1000,60 @@ document.addEventListener('DOMContentLoaded', () => {
         validarFormulario();
     };
 
+    let cierreManual = false;
+
     function actualizarCierreVenta() {
         if (funciones.length === 0) {
             fpCierre.clear();
             return;
         }
-        const ultimaFuncion = funciones[funciones.length - 1].fecha;
-        const cierre = new Date(ultimaFuncion.getTime() + 2 * 60 * 60 * 1000);
-        fpCierre.setDate(cierre, true);
+        if (!cierreManual) {
+            const ultimaFuncion = funciones[funciones.length - 1].fecha;
+            const cierre = new Date(ultimaFuncion.getTime() + 2 * 60 * 60 * 1000);
+            fpCierre.setDate(cierre, true);
+        }
+        actualizarLimitesCierre();
     }
+
+    function actualizarLimitesCierre() {
+        if (funciones.length === 0) return;
+        const ultimaFuncion = funciones[funciones.length - 1].fecha;
+        const minCierre = new Date(ultimaFuncion.getTime() + 30 * 60 * 1000);
+        fpCierre.set('minDate', minCierre);
+    }
+
+    window.toggleCierreManual = function() {
+        cierreManual = !cierreManual;
+        const btn = document.getElementById('btnToggleCierre');
+        const container = document.getElementById('cierreContainer');
+        const icon = document.getElementById('cierreLockIcon');
+        const info = document.getElementById('cierreInfo');
+        
+        if (cierreManual) {
+            btn.classList.add('active');
+            btn.innerHTML = '<i class="bi bi-check-lg"></i> Manual activo';
+            container.classList.add('unlocked');
+            icon.className = 'bi bi-unlock-fill lock-icon';
+            info.innerHTML = '<i class="bi bi-pencil"></i> Modo manual: selecciona la fecha de cierre';
+            info.style.color = 'var(--success)';
+            fpCierre.set('clickOpens', true);
+            actualizarLimitesCierre();
+        } else {
+            btn.classList.remove('active');
+            btn.innerHTML = '<i class="bi bi-pencil-fill"></i> Personalizar';
+            container.classList.remove('unlocked');
+            icon.className = 'bi bi-lock-fill lock-icon';
+            info.innerHTML = '<i class="bi bi-info-circle"></i> Automático: 2 horas después de la última función';
+            info.style.color = 'var(--text-muted)';
+            fpCierre.set('clickOpens', false);
+            if (funciones.length > 0) {
+                const ultimaFuncion = funciones[funciones.length - 1].fecha;
+                const cierre = new Date(ultimaFuncion.getTime() + 2 * 60 * 60 * 1000);
+                fpCierre.setDate(cierre, true);
+            }
+        }
+        validarFormulario();
+    };
 
     function formatoSQL(fecha) {
         return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')} ${String(fecha.getHours()).padStart(2, '0')}:${String(fecha.getMinutes()).padStart(2, '0')}:00`;
@@ -965,9 +1063,32 @@ document.addEventListener('DOMContentLoaded', () => {
         let valido = true;
 
         document.querySelectorAll('.validation-msg').forEach(el => el.classList.remove('show'));
+        document.querySelectorAll('.form-control').forEach(el => el.classList.remove('is-invalid'));
 
-        if (!els.titulo.value.trim()) valido = false;
-        if (!els.desc.value.trim()) valido = false;
+        // Título
+        const titulo = els.titulo.value.trim();
+        if (!titulo) {
+            mostrarError('val-titulo', 'El título es obligatorio.');
+            els.titulo.classList.add('is-invalid');
+            valido = false;
+        } else if (titulo.length < 3) {
+            mostrarError('val-titulo', 'Mínimo 3 caracteres.');
+            els.titulo.classList.add('is-invalid');
+            valido = false;
+        } else if (/[<>"'\/\\;]/.test(titulo)) {
+            mostrarError('val-titulo', 'Caracteres no permitidos.');
+            els.titulo.classList.add('is-invalid');
+            valido = false;
+        }
+
+        // Descripción
+        const desc = els.desc.value.trim();
+        if (!desc) {
+            valido = false;
+        } else if (desc.length < 10) {
+            valido = false;
+        }
+
         if (funciones.length === 0) {
             mostrarError('val-funciones', 'Agrega al menos una función.');
             valido = false;
@@ -976,6 +1097,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!fpInicio.selectedDates.length && funciones.length > 0) {
             mostrarError('val-inicio', 'Define cuándo inicia la venta.');
             valido = false;
+        }
+
+        // Validar cierre manual
+        if (cierreManual && fpCierre.selectedDates.length && funciones.length > 0) {
+            const cierre = fpCierre.selectedDates[0];
+            const ultimaFuncion = funciones[funciones.length - 1].fecha;
+            const minCierre = new Date(ultimaFuncion.getTime() + 30 * 60 * 1000);
+            if (cierre < minCierre) {
+                mostrarError('val-cierre', 'Debe ser al menos 30 min después de la última función.');
+                valido = false;
+            }
         }
 
         const tipoSeleccionado = document.querySelector('input[name="tipo"]:checked');
@@ -995,14 +1127,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (el) el.classList.remove('show');
     }
 
-    els.titulo.addEventListener('input', validarFormulario);
-    els.desc.addEventListener('input', validarFormulario);
+    els.titulo.addEventListener('input', function() {
+        this.value = this.value.replace(/[<>]/g, '');
+        validarFormulario();
+    });
+    els.desc.addEventListener('input', function() {
+        this.value = this.value.replace(/[<>]/g, '');
+        validarFormulario();
+    });
     document.querySelectorAll('input[name="tipo"]').forEach(r => r.addEventListener('change', validarFormulario));
 
     document.getElementById('formEvento').addEventListener('submit', (e) => {
+        els.titulo.value = els.titulo.value.trim().replace(/[<>"'\/\\;]/g, '').substring(0, 200);
+        els.desc.value = els.desc.value.trim().replace(/[<>]/g, '').substring(0, 2000);
+        
         if (!validarFormulario()) {
             e.preventDefault();
-            alert('Completa todos los campos requeridos.');
+            const primerError = document.querySelector('.validation-msg.show');
+            if (primerError) primerError.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     });
 
