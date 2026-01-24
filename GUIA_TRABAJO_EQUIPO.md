@@ -120,9 +120,6 @@ git pull origin main
 # 5. Integra tu rama en main
 git merge [tu-rama]
 
-#Easter egg
-
-
 # 6. Sube los cambios a main
 git push origin main
 
