@@ -880,7 +880,8 @@ if ($res_admin->num_rows > 0) {
                                         <i class="bi bi-shield-fill-check admin-crown" title="Administrador Principal"></i>
                                     <?php endif; ?>
                                     <div style="color: #9ca3af; font-size: 0.85em;">
-                                        <?php echo htmlspecialchars($emp['apellido']); ?></div>
+                                        <?php echo htmlspecialchars($emp['apellido']); ?>
+                                    </div>
                                 </td>
                                 <td>
                                     <span class="badge badge-<?php echo $emp['rol']; ?>">
@@ -939,6 +940,10 @@ if ($res_admin->num_rows > 0) {
                 <p class="security-text">Ingresa tu contraseña de administrador para continuar</p>
                 <input type="password" id="passwordSeguridad" class="password-input-security" placeholder="••••••"
                     maxlength="20" onkeypress="if(event.key==='Enter') verificarPassword()">
+                <div id="errorSeguridad" style="color: #ef4444; text-align: center; margin-top: 15px; display: none;">
+                    <i class="bi bi-exclamation-triangle"></i> <span id="errorSeguridadTexto">Contraseña
+                        incorrecta</span>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn-modal btn-cancelar" onclick="cerrarModalSeguridad()">Cancelar</button>
@@ -959,7 +964,7 @@ if ($res_admin->num_rows > 0) {
             <div class="modal-body">
                 <input type="hidden" id="editar_id">
                 <input type="hidden" id="editar_es_admin_principal">
-                
+
                 <!-- Alerta de error del modal -->
                 <div class="alert alert-error" id="errorEditar" style="display: none;">
                     <i class="bi bi-exclamation-triangle-fill"></i>
@@ -1001,6 +1006,42 @@ if ($res_admin->num_rows > 0) {
     <script>
         let idPendienteEditar = null;
 
+        // Mostrar error en modal de seguridad
+        function mostrarErrorSeguridad(mensaje) {
+            const errorDiv = document.getElementById('errorSeguridad');
+            document.getElementById('errorSeguridadTexto').textContent = mensaje;
+            errorDiv.style.display = 'block';
+        }
+
+        // Ocultar error de seguridad
+        function ocultarErrorSeguridad() {
+            document.getElementById('errorSeguridad').style.display = 'none';
+        }
+
+        // Mostrar notificación flotante
+        function mostrarNotificacion(mensaje, tipo) {
+            const notif = document.createElement('div');
+            notif.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 25px;
+                border-radius: 10px;
+                z-index: 9999;
+                animation: slideIn 0.3s ease;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                font-weight: 500;
+                ${tipo === 'error'
+                    ? 'background: rgba(239, 68, 68, 0.9); color: white; border: 1px solid #ef4444;'
+                    : 'background: rgba(16, 185, 129, 0.9); color: white; border: 1px solid #10b981;'}
+            `;
+            notif.innerHTML = `<i class="bi bi-${tipo === 'error' ? 'exclamation-triangle' : 'check-circle'}"></i> ${mensaje}`;
+            document.body.appendChild(notif);
+            setTimeout(() => notif.remove(), 4000);
+        }
+
         // Verificar acceso inicial a la página
         async function verificarAccesoInicial() {
             const password = document.getElementById('passwordAccesoInicial').value;
@@ -1041,6 +1082,7 @@ if ($res_admin->num_rows > 0) {
         function solicitarEditar(id) {
             idPendienteEditar = id;
             document.getElementById('passwordSeguridad').value = '';
+            ocultarErrorSeguridad();
             document.getElementById('modalSeguridad').classList.add('active');
             document.getElementById('passwordSeguridad').focus();
         }
@@ -1056,7 +1098,7 @@ if ($res_admin->num_rows > 0) {
             const password = document.getElementById('passwordSeguridad').value;
 
             if (!password) {
-                alert('Ingresa tu contraseña');
+                mostrarErrorSeguridad('Ingresa tu contraseña');
                 return;
             }
 
@@ -1073,7 +1115,7 @@ if ($res_admin->num_rows > 0) {
                 idPendienteEditar = null;
                 abrirModalEditar(idEditar);
             } else {
-                alert('Contraseña incorrecta');
+                mostrarErrorSeguridad('Contraseña incorrecta');
                 document.getElementById('passwordSeguridad').value = '';
                 document.getElementById('passwordSeguridad').focus();
             }
@@ -1111,7 +1153,7 @@ if ($res_admin->num_rows > 0) {
 
                 document.getElementById('modalEditar').classList.add('active');
             } else {
-                alert('Error: ' + data.message);
+                mostrarErrorSeguridad('Error: ' + data.message);
             }
         }
 
@@ -1124,7 +1166,7 @@ if ($res_admin->num_rows > 0) {
         async function guardarEdicion() {
             // Ocultar error previo
             document.getElementById('errorEditar').style.display = 'none';
-            
+
             const formData = new FormData();
             formData.append('ajax', 'guardar_usuario');
             formData.append('id', document.getElementById('editar_id').value);
@@ -1159,7 +1201,7 @@ if ($res_admin->num_rows > 0) {
 
             if (!data.success) {
                 checkbox.checked = !checkbox.checked;
-                alert('Error: ' + data.message);
+                mostrarNotificacion('Error: ' + data.message, 'error');
             }
         }
 
@@ -1179,7 +1221,7 @@ if ($res_admin->num_rows > 0) {
             if (data.success) {
                 document.getElementById('fila-' + id).remove();
             } else {
-                alert('Error: ' + data.message);
+                mostrarNotificacion('Error: ' + data.message, 'error');
             }
         }
 
