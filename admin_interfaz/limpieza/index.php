@@ -22,19 +22,19 @@ $tipo_mensaje = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
     $password = $_POST['password'] ?? '';
-    
+
     // Verificar contraseña del admin
     $stmt = $conn->prepare("SELECT password FROM usuarios WHERE id_usuario = ? AND rol = 'admin'");
     $stmt->bind_param("i", $_SESSION['usuario_id']);
     $stmt->execute();
     $result = $stmt->get_result();
-    
+
     if ($result->num_rows === 0) {
         $mensaje = "Error de autenticación";
         $tipo_mensaje = "error";
     } else {
         $admin = $result->fetch_assoc();
-        
+
         // Verificar contraseña (usando password_verify ya que están hasheadas)
         if (!password_verify($password, $admin['password'])) {
             $mensaje = "Contraseña incorrecta";
@@ -43,36 +43,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
             // Contraseña correcta, proceder con la limpieza
             try {
                 $conn->query("SET FOREIGN_KEY_CHECKS = 0");
-                
+
                 // Obtener todas las tablas de la BD
                 $result = $conn->query("SHOW TABLES");
                 $tablas_limpiadas = [];
-                
+
                 while ($row = $result->fetch_row()) {
                     $tabla = $row[0];
-                    
+
                     // Verificar si está protegida
                     if (in_array($tabla, $tablas_protegidas)) {
                         continue;
                     }
-                    
+
                     // Truncar la tabla
                     if ($conn->query("TRUNCATE TABLE `$tabla`")) {
                         $tablas_limpiadas[] = $tabla;
                     }
                 }
-                
+
                 $conn->query("SET FOREIGN_KEY_CHECKS = 1");
-                
+
                 // Registrar la acción
                 if (function_exists('registrar_transaccion')) {
                     require_once '../../transacciones_helper.php';
                     registrar_transaccion('limpieza_bd', 'Limpieza completa de BD: ' . implode(', ', $tablas_limpiadas));
                 }
-                
+
                 $mensaje = "Limpieza completada. Se limpiaron " . count($tablas_limpiadas) . " tablas";
                 $tipo_mensaje = "success";
-                
+
             } catch (Exception $e) {
                 $conn->query("SET FOREIGN_KEY_CHECKS = 1");
                 $mensaje = "Error durante la limpieza: " . $e->getMessage();
@@ -91,7 +91,7 @@ while ($row = $result->fetch_row()) {
     $count_result = $conn->query("SELECT COUNT(*) as total FROM `$tabla`");
     $count = $count_result ? $count_result->fetch_assoc()['total'] : 0;
     $protegida = in_array($tabla, $tablas_protegidas);
-    
+
     $tablas_info[] = [
         'nombre' => $tabla,
         'registros' => $count,
@@ -102,6 +102,7 @@ $conn->close();
 ?>
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -121,8 +122,12 @@ $conn->close();
             --success: #10b981;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg-main);
@@ -148,8 +153,17 @@ $conn->close();
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.7; transform: scale(1.05); }
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.7;
+                transform: scale(1.05);
+            }
         }
 
         .header h1 {
@@ -164,7 +178,7 @@ $conn->close();
         }
 
         .warning-box {
-            background: linear-gradient(135deg, rgba(239,68,68,0.2) 0%, rgba(220,38,38,0.1) 100%);
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.1) 100%);
             border: 2px solid var(--danger);
             border-radius: 12px;
             padding: 20px;
@@ -207,7 +221,7 @@ $conn->close();
 
         .table-item.protected {
             border-color: var(--success);
-            background: linear-gradient(135deg, rgba(16,185,129,0.1) 0%, transparent 100%);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, transparent 100%);
         }
 
         .table-item.danger {
@@ -282,7 +296,7 @@ $conn->close();
             align-items: flex-start;
             gap: 12px;
             padding: 15px;
-            background: rgba(239,68,68,0.1);
+            background: rgba(239, 68, 68, 0.1);
             border-radius: 10px;
             margin-bottom: 20px;
         }
@@ -319,7 +333,7 @@ $conn->close();
 
         .btn-danger:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(239,68,68,0.4);
+            box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4);
         }
 
         .btn-danger:disabled {
@@ -339,13 +353,13 @@ $conn->close();
         }
 
         .alert-success {
-            background: rgba(16,185,129,0.2);
+            background: rgba(16, 185, 129, 0.2);
             border: 1px solid var(--success);
             color: var(--success);
         }
 
         .alert-error {
-            background: rgba(239,68,68,0.2);
+            background: rgba(239, 68, 68, 0.2);
             border: 1px solid var(--danger);
             color: var(--danger);
         }
@@ -379,10 +393,16 @@ $conn->close();
             border-radius: 50%;
         }
 
-        .legend-dot.protected { background: var(--success); }
-        .legend-dot.danger { background: var(--danger); }
+        .legend-dot.protected {
+            background: var(--success);
+        }
+
+        .legend-dot.danger {
+            background: var(--danger);
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -392,16 +412,17 @@ $conn->close();
         </div>
 
         <?php if ($mensaje): ?>
-        <div class="alert alert-<?= $tipo_mensaje ?>">
-            <i class="bi bi-<?= $tipo_mensaje === 'success' ? 'check-circle' : 'x-circle' ?>"></i>
-            <?= htmlspecialchars($mensaje) ?>
-        </div>
+            <div class="alert alert-<?= $tipo_mensaje ?>">
+                <i class="bi bi-<?= $tipo_mensaje === 'success' ? 'check-circle' : 'x-circle' ?>"></i>
+                <?= htmlspecialchars($mensaje) ?>
+            </div>
         <?php endif; ?>
 
         <div class="warning-box">
             <h3><i class="bi bi-shield-exclamation"></i> Advertencia Importante</h3>
             <ul>
-                <li><strong>Esta acción es IRREVERSIBLE</strong> - No hay forma de recuperar los datos una vez eliminados</li>
+                <li><strong>Esta acción es IRREVERSIBLE</strong> - No hay forma de recuperar los datos una vez
+                    eliminados</li>
                 <li>Se eliminarán: eventos, funciones, boletos, ventas, descuentos, categorías, etc.</li>
                 <li>Se conservarán: usuarios del sistema y estructura de asientos</li>
                 <li>Ideal para: reiniciar el sistema antes de una nueva temporada</li>
@@ -425,28 +446,28 @@ $conn->close();
 
         <div class="tables-grid">
             <?php foreach ($tablas_info as $tabla): ?>
-            <div class="table-item <?= $tabla['protegida'] ? 'protected' : 'danger' ?>">
-                <div>
-                    <div class="table-name"><?= htmlspecialchars($tabla['nombre']) ?></div>
-                    <span class="table-count"><?= number_format($tabla['registros']) ?> registros</span>
+                <div class="table-item <?= $tabla['protegida'] ? 'protected' : 'danger' ?>">
+                    <div>
+                        <div class="table-name"><?= htmlspecialchars($tabla['nombre']) ?></div>
+                        <span class="table-count"><?= number_format($tabla['registros']) ?> registros</span>
+                    </div>
+                    <?php if ($tabla['protegida']): ?>
+                        <span class="protected-badge"><i class="bi bi-shield-check"></i> PROTEGIDA</span>
+                    <?php endif; ?>
                 </div>
-                <?php if ($tabla['protegida']): ?>
-                <span class="protected-badge"><i class="bi bi-shield-check"></i> PROTEGIDA</span>
-                <?php endif; ?>
-            </div>
             <?php endforeach; ?>
         </div>
 
         <div class="action-section">
             <h3><i class="bi bi-trash3"></i> Ejecutar Limpieza Completa</h3>
-            
+
             <form method="POST" id="formLimpieza" onsubmit="return validarFormulario()">
                 <input type="hidden" name="accion" value="limpiar">
-                
+
                 <div class="checkbox-group">
                     <input type="checkbox" id="confirmacion1" name="confirmacion1" required>
                     <label for="confirmacion1">
-                        Entiendo que esta acción <strong>ELIMINARÁ PERMANENTEMENTE</strong> todos los eventos, 
+                        Entiendo que esta acción <strong>ELIMINARÁ PERMANENTEMENTE</strong> todos los eventos,
                         boletos, ventas, descuentos y demás datos del sistema.
                     </label>
                 </div>
@@ -454,7 +475,7 @@ $conn->close();
                 <div class="checkbox-group">
                     <input type="checkbox" id="confirmacion2" name="confirmacion2" required>
                     <label for="confirmacion2">
-                        Confirmo que he realizado un <strong>respaldo de la base de datos</strong> antes de proceder 
+                        Confirmo que he realizado un <strong>respaldo de la base de datos</strong> antes de proceder
                         y acepto la responsabilidad de esta acción.
                     </label>
                 </div>
@@ -463,8 +484,8 @@ $conn->close();
                     <label for="password">
                         <i class="bi bi-key"></i> Ingrese su contraseña de administrador para confirmar
                     </label>
-                    <input type="password" id="password" name="password" required 
-                           placeholder="Contraseña del administrador">
+                    <input type="password" id="password" name="password" required
+                        placeholder="Contraseña del administrador">
                 </div>
 
                 <button type="submit" class="btn-danger" id="btnLimpiar" disabled>
@@ -500,7 +521,7 @@ $conn->close();
                 alert('Debe ingresar su contraseña');
                 return false;
             }
-            
+
             // Mostrar modal de confirmación personalizado
             mostrarModalConfirmacion();
             return false; // Prevenir envío hasta confirmar
@@ -523,7 +544,7 @@ $conn->close();
                 z-index: 9999;
                 animation: fadeIn 0.3s ease;
             `;
-            
+
             overlay.innerHTML = `
                 <div style="
                     background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
@@ -569,7 +590,7 @@ $conn->close();
                     </div>
                 </div>
             `;
-            
+
             document.body.appendChild(overlay);
         }
 
@@ -582,30 +603,56 @@ $conn->close();
 
         function ejecutarLimpieza() {
             cerrarModalConfirmacion();
-            
+
             // Mostrar indicador de carga
             btnLimpiar.innerHTML = '<i class="bi bi-hourglass-split" style="animation: spin 1s infinite linear;"></i> Procesando...';
             btnLimpiar.disabled = true;
-            
+
             // Enviar formulario
             document.getElementById('formLimpieza').onsubmit = null;
             document.getElementById('formLimpieza').submit();
         }
     </script>
-    
+
     <style>
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
+
         @keyframes scaleIn {
-            from { transform: scale(0.8); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
+            from {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
+
         @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
         }
     </style>
+
+    <!-- Botón de regreso -->
+    <a href="../Ajs_interfaz/index.php"
+        style="position: fixed; bottom: 16px; left: 16px; padding: 10px 16px; background: #334155; color: #f1f5f9; border-radius: 10px; text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 8px; z-index: 100;">
+        <i class="bi bi-arrow-left"></i> Ajustes
+    </a>
 </body>
+
 </html>
