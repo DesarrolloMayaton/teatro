@@ -87,10 +87,6 @@ $stmt->close();
             min-height: 100vh;
         }
         
-        .fs-4 {
-            color: var(--text-primary) !important;
-        }
-        
         .container-fluid {
             max-width: 1200px;
             margin: 0 auto;
@@ -105,13 +101,6 @@ $stmt->close();
             transition: all 0.2s ease;
         }
         
-        .card.p-4.mb-4 {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            background: var(--bg-card);
-        }
-        
         .card:hover { box-shadow: var(--shadow-lg); }
         
         h2, h3 {
@@ -121,36 +110,22 @@ $stmt->close();
         }
         
         .table {
-            color: var(--text-primary) !important;
+            color: var(--text-primary);
             margin: 0;
-            background: transparent !important;
         }
         
-        .table thead { 
-            background: var(--bg-input) !important; 
-        }
+        .table thead { background: var(--bg-input); }
         
         .table th {
-            color: var(--text-secondary) !important;
+            color: var(--text-secondary);
             text-transform: uppercase;
             font-size: 0.75rem;
             letter-spacing: 0.5px;
             border-color: var(--border);
-            background: var(--bg-input) !important;
         }
         
         .table td {
             border-color: var(--border);
-            background: transparent !important;
-            color: var(--text-primary) !important;
-        }
-        
-        .table tbody tr {
-            background: transparent !important;
-        }
-        
-        .table tbody tr:hover {
-            background: rgba(99, 102, 241, 0.08) !important;
         }
         
         .badge-accion {
@@ -252,11 +227,6 @@ $stmt->close();
             border-radius: 8px;
         }
         
-        .form-control::placeholder {
-            color: var(--text-secondary);
-            opacity: 1;
-        }
-        
         .form-control:focus {
             background: var(--bg-input);
             border-color: var(--primary);
@@ -322,26 +292,9 @@ $stmt->close();
         .status-indicator .pulse {
             width: 8px;
             height: 8px;
-            border-radius: 50%%;
+            border-radius: 50%;
             background: currentColor;
             animation: pulse 2s infinite;
-        }
-        
-        /* Form controls */
-        .form-control {
-            color: var(--text-primary) !important;
-            background: var(--bg-input) !important;
-            border-color: var(--border) !important;
-        }
-        
-        .form-control::placeholder {
-            color: var(--text-secondary) !important;
-            opacity: 1 !important;
-        }
-        
-        .form-control:focus {
-            color: var(--text-primary) !important;
-            background: var(--bg-input) !important;
         }
         
         @keyframes pulse {
@@ -373,19 +326,15 @@ $stmt->close();
             </div>
         </div>
         <form method="GET" class="row g-3 align-items-end">
-            <div class="col-md-3">
-                <label for="buscar_descripcion" class="filtros-label">Filtrar por palabra</label>
-                <input type="text" id="buscar_descripcion" class="form-control" placeholder="Escribe para filtrar...">
-            </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label for="fecha_desde" class="filtros-label">Desde</label>
                 <input type="date" id="fecha_desde" name="fecha_desde" class="form-control" value="<?php echo htmlspecialchars($fecha_desde); ?>">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label for="fecha_hasta" class="filtros-label">Hasta</label>
                 <input type="date" id="fecha_hasta" name="fecha_hasta" class="form-control" value="<?php echo htmlspecialchars($fecha_hasta); ?>">
             </div>
-            <div class="col-md-3 d-flex gap-2">
+            <div class="col-md-4 d-flex gap-2">
                 <button type="button" onclick="aplicarFiltros()" class="btn btn-primary flex-grow-1"><i class="bi bi-funnel"></i> Filtrar</button>
                 <a href="index.php" class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i></a>
                 <button type="button" onclick="toggleAutoUpdate()" class="btn btn-outline-primary" id="btnToggleUpdate" title="Pausar/Reanudar actualización automática">
@@ -891,32 +840,6 @@ async function abrirDetalleTransaccion(idTransaccion) {
         `;
     }
 }
-</script>
-
-<script>
-// Filtro de búsqueda en tiempo real
-document.getElementById('buscar_descripcion').addEventListener('input', function() {
-    const searchTerm = this.value.toLowerCase();
-    const rows = document.querySelectorAll('#transaccionesBody tr[data-id]');
-    let visibleCount = 0;
-    
-    rows.forEach(row => {
-        const descripcion = row.querySelector('.descripcion').textContent.toLowerCase();
-        const usuario = row.cells[1].textContent.toLowerCase();
-        const accion = row.querySelector('.badge-accion').textContent.toLowerCase();
-        
-        // Buscar en descripción, usuario y acción
-        if (descripcion.includes(searchTerm) || usuario.includes(searchTerm) || accion.includes(searchTerm)) {
-            row.style.display = '';
-            visibleCount++;
-        } else {
-            row.style.display = 'none';
-        }
-    });
-    
-    // Actualizar contador de registros mostrados
-    document.getElementById('countTransacciones').textContent = visibleCount;
-});
 </script>
 </body>
 </html>

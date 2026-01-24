@@ -19,6 +19,7 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
 ?>
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -199,6 +200,7 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
         }
     </style>
 </head>
+
 <body>
     <aside class="admin-sidebar">
         <div class="admin-sidebar-header">
@@ -209,26 +211,14 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
         </div>
 
         <nav class="admin-menu">
-            <a class="admin-menu-item active" href="inicio/inicio.php" target="contentFrame">
-                <i class="bi bi-house-door-fill"></i> <span>Inicio</span>
-            </a>
-            <a class="admin-menu-item" href="dsc_boletos/index.php" target="contentFrame">
-                <i class="bi bi-percent"></i> <span>Descuentos</span>
-            </a>
-            <a class="admin-menu-item" href="rpt_reportes/index.php" target="contentFrame">
+            <a class="admin-menu-item active" href="rpt_reportes/index.php" target="contentFrame">
                 <i class="bi bi-graph-up-arrow"></i> <span>Reportes</span>
-            </a>
-            <a class="admin-menu-item" href="ctg_boletos/index.php" target="contentFrame">
-                <i class="bi bi-tags-fill"></i> <span>Categorías</span>
             </a>
             <a class="admin-menu-item" href="transacciones/index.php" target="contentFrame">
                 <i class="bi bi-clock-history"></i> <span>Transacciones</span>
             </a>
             <?php if ($_SESSION['usuario_rol'] === 'admin'): ?>
-            <div class="admin-menu-divider"></div>
-            <a class="admin-menu-item danger" href="limpieza/index.php" target="contentFrame">
-                <i class="bi bi-trash3-fill"></i> <span>Limpiar BD</span>
-            </a>
+                <div class="admin-menu-divider"></div>
             <?php endif; ?>
         </nav>
     </aside>
@@ -243,11 +233,12 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
                 <div class="db-toggle">
                     <button id="btnAmbas" onclick="cambiarBD('ambas')"><i class="bi bi-collection"></i> Ambas</button>
                     <button id="btnActual" onclick="cambiarBD('actual')"><i class="bi bi-database"></i> Actual</button>
-                    <button id="btnHistorico" onclick="cambiarBD('historico')"><i class="bi bi-archive"></i> Histórico</button>
+                    <button id="btnHistorico" onclick="cambiarBD('historico')"><i class="bi bi-archive"></i>
+                        Histórico</button>
                 </div>
             </div>
         </header>
-        <iframe class="admin-frame" name="contentFrame" id="contentFrame" src="inicio/inicio.php"></iframe>
+        <iframe class="admin-frame" name="contentFrame" id="contentFrame" src="rpt_reportes/index.php"></iframe>
     </main>
 
     <script>
@@ -255,9 +246,9 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
 
         document.addEventListener('DOMContentLoaded', () => {
             actualizarEstadoToggle();
-            
+
             document.querySelectorAll('.admin-menu-item').forEach(link => {
-                link.addEventListener('click', function(e) {
+                link.addEventListener('click', function (e) {
                     e.preventDefault();
                     document.querySelectorAll('.admin-menu-item').forEach(item => item.classList.remove('active'));
                     this.classList.add('active');
@@ -265,7 +256,7 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
                 });
             });
 
-            document.getElementById('contentFrame').src = agregarParamDB('inicio/inicio.php');
+            document.getElementById('contentFrame').src = agregarParamDB('rpt_reportes/index.php');
         });
 
         function cambiarBD(db) {
@@ -273,7 +264,7 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
             sessionStorage.setItem('admin_db', db);
             actualizarEstadoToggle();
             const activeLink = document.querySelector('.admin-menu-item.active');
-            const href = activeLink ? activeLink.getAttribute('href') : 'inicio/inicio.php';
+            const href = activeLink ? activeLink.getAttribute('href') : 'rpt_reportes/index.php';
             document.getElementById('contentFrame').src = agregarParamDB(href);
         }
 
@@ -288,4 +279,5 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
         }
     </script>
 </body>
+
 </html>

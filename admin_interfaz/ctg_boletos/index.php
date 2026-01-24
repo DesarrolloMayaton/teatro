@@ -265,91 +265,30 @@ $conn->close();
             padding: 20px;
             margin-bottom: 20px;
             text-align: center;
-            position: relative;
-        }
-        
-        .event-selector form {
-            position: relative;
-            display: inline-block;
-            width: 100%;
-            max-width: 450px;
-        }
-        
-        .event-selector form::after {
-            content: '▼';
-            position: absolute;
-            right: 16px;
-            top: 50%;
-            transform: translateY(-50%);
-            pointer-events: none;
-            color: var(--text-primary);
-            font-size: 0.8rem;
-            transition: transform 0.3s ease, color 0.3s ease;
-        }
-        
-        .event-selector select:focus + ::after,
-        .event-selector form:focus-within::after {
-            transform: translateY(-50%) rotate(180deg);
-            color: var(--primary);
         }
         
         .event-selector select {
-            width: 100%;
+            max-width: 450px;
             margin: 0 auto;
             font-size: 1rem;
             font-weight: 600;
-            padding: 12px 40px 12px 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            appearance: none;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-        }
-        
-        .event-selector select:hover {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(21, 97, 240, 0.2);
-            transform: translateY(-2px);
+            padding: 12px 16px;
         }
         
         .table {
-            color: var(--text-primary) !important;
-            background: transparent !important;
-        }
-        
-        .table thead {
-            background: var(--bg-input) !important;
+            color: var(--text-primary);
         }
         
         .table th {
             border-color: var(--border);
-            color: var(--text-secondary) !important;
+            color: var(--text-secondary);
             font-size: 0.75rem;
             text-transform: uppercase;
-            background: var(--bg-input) !important;
         }
         
         .table td {
             border-color: var(--border);
             vertical-align: middle;
-            background: transparent !important;
-            color: var(--text-primary) !important;
-        }
-        
-        .table tbody tr {
-            background: transparent !important;
-        }
-        
-        .table tbody tr:hover {
-            background: var(--bg-input) !important;
-        }
-        
-        .table .text-success {
-            color: var(--success) !important;
-        }
-        
-        .table .fw-bold {
-            color: var(--text-primary) !important;
         }
         
         .color-dot {
@@ -383,16 +322,6 @@ $conn->close();
             border-radius: 4px;
             font-size: 0.7rem;
             font-weight: 600;
-        }
-        
-        /* SweetAlert2 Dark Theme */
-        .swal-dark-popup {
-            border: 1px solid var(--border) !important;
-        }
-        
-        .swal2-icon.swal2-warning {
-            border-color: #ff9f0a !important;
-            color: #ff9f0a !important;
         }
     </style>
 </head>
@@ -492,7 +421,7 @@ $conn->close();
                     <i class="bi bi-globe"></i> Usar Precios Globales
                 </button>
                 <?php else: ?>
-                <button type="button" onclick="confirmarAplicarTodos()" class="btn btn-primary">
+                <button type="submit" name="accion" value="aplicar_todos" class="btn btn-primary">
                     <i class="bi bi-broadcast"></i> Aplicar a Todos los Eventos
                 </button>
                 <?php endif; ?>
@@ -608,7 +537,7 @@ function editCat(cat) {
     document.getElementById('nombre_categoria').value = cat.nombre_categoria;
     document.getElementById('precio').value = cat.precio;
     document.getElementById('color').value = cat.color;
-    document.getElementById('accion').value = 'actualizar';
+    document.getElementById('accion').value = 'editar';
     document.getElementById('form-title-text').textContent = 'Editar Categoría';
     document.getElementById('btn-cancel').classList.remove('d-none');
 }
@@ -621,41 +550,6 @@ function resetForm() {
     document.getElementById('btn-cancel').classList.add('d-none');
 }
 
-function confirmarAplicarTodos() {
-    Swal.fire({
-        title: '⚠️ ¿Aplicar precios a TODOS los eventos?',
-        html: `
-            <p style="margin-bottom: 12px;">Esta acción aplicará los precios globales actuales a <strong>todos los eventos existentes</strong>.</p>
-            <p style="color: #ff9f0a; font-weight: 600;">⚠️ Los precios específicos de cada evento serán reemplazados.</p>
-        `,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#1561f0',
-        cancelButtonColor: '#64748b',
-        confirmButtonText: '<i class="bi bi-broadcast"></i> Sí, aplicar a todos',
-        cancelButtonText: 'Cancelar',
-        reverseButtons: true,
-        background: '#1c1c1e',
-        color: '#ffffff',
-        customClass: {
-            popup: 'swal-dark-popup',
-            title: 'swal-dark-title',
-            htmlContainer: 'swal-dark-html'
-        }
-    }).then((result) => {
-        if (result.isConfirmed) {
-            // Crear un input hidden y enviar el formulario
-            const form = document.getElementById('form-precios-tipo');
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'accion';
-            input.value = 'aplicar_todos';
-            form.appendChild(input);
-            form.submit();
-        }
-    });
-}
-
 function borrar(id, nombre) {
     Swal.fire({
         title: `¿Eliminar "${nombre}"?`,
@@ -665,14 +559,7 @@ function borrar(id, nombre) {
         confirmButtonColor: '#ef4444',
         cancelButtonColor: '#64748b',
         confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar',
-        background: '#1c1c1e',
-        color: '#ffffff',
-        customClass: {
-            popup: 'swal-dark-popup',
-            title: 'swal-dark-title',
-            htmlContainer: 'swal-dark-html'
-        }
+        cancelButtonText: 'Cancelar'
     }).then((result) => {
         if (result.isConfirmed) {
             window.location.href = `action.php?accion=borrar&id_categoria=${id}&id_evento=<?= $id_evento_seleccionado ?>`;
@@ -682,17 +569,6 @@ function borrar(id, nombre) {
 
 // Mostrar mensajes de éxito/error
 document.addEventListener('DOMContentLoaded', () => {
-    // Reset select focus state to fix arrow animation
-    const eventSelect = document.querySelector('.event-selector select');
-    if (eventSelect) {
-        eventSelect.blur();
-        
-        // Blur after selection to reset arrow
-        eventSelect.addEventListener('change', function() {
-            setTimeout(() => this.blur(), 50);
-        });
-    }
-    
     const urlParams = new URLSearchParams(window.location.search);
     const status = urlParams.get('status');
     const msg = urlParams.get('msg');

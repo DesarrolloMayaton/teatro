@@ -166,29 +166,6 @@ if ($resultado && $resultado->num_rows > 0) {
             color: #ffffff;
             transform: translateY(-1px);
         }
-        .nav a.nav-active {
-            color: #e53935;
-            position: relative;
-        }
-        .nav a.nav-active::after {
-            content: '';
-            position: absolute;
-            bottom: -8px;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #e53935, #ff6f61);
-            border-radius: 2px;
-        }
-        @media (max-width: 900px) {
-            .nav a.nav-active::after {
-                bottom: -4px;
-            }
-        }
-        .cta.cta-active {
-            background: linear-gradient(135deg, #ff6f61, #e53935);
-            box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.4), 0 8px 18px rgba(229, 57, 53, 0.35);
-        }
         .cta {
             margin-left: 6px;
             padding: 10px 14px;
@@ -533,7 +510,7 @@ if ($resultado && $resultado->num_rows > 0) {
                 <a href="index.php">Inicio</a>
                 <a href="acerca.php">Acerca del teatro</a>
                 <a href="contacto.php">Contacto / Reservaciones</a>
-                <a href="cartelera_cliente.php" class="cta cta-active">Ver cartelera completa <i class="bi bi-arrow-right"></i></a>
+                <a href="cartelera_cliente.php" class="cta">Ver cartelera completa <i class="bi bi-arrow-right"></i></a>
             </nav>
             <button class="hamburger" id="hamburgerBtn" aria-label="Menú">
                 <i class="bi bi-list" style="font-size:1.25rem"></i>

@@ -178,7 +178,7 @@
      */
     function startSSE() {
         if (!state.sseSupported) {
-            console.debug('[TeatroSync] SSE no soportado, usando polling');
+            console.log('[TeatroSync] SSE no soportado, usando polling');
             startPolling();
             return;
         }
@@ -196,26 +196,26 @@
             url += `&id_funcion=${state.currentFuncionId}`;
         }
 
-        console.debug('[TeatroSync] Conectando SSE:', url);
+        console.log('[TeatroSync] Conectando SSE:', url);
 
         try {
             state.sseConnection = new EventSource(url);
 
             state.sseConnection.onopen = () => {
-                console.debug('[TeatroSync] SSE conectado');
+                console.log('[TeatroSync] SSE conectado');
                 state.reconnectAttempts = 0;
             };
 
             // Evento de conexión exitosa
             state.sseConnection.addEventListener('connected', (e) => {
                 const data = JSON.parse(e.data);
-                console.debug('[TeatroSync] Conexión confirmada:', data);
+                console.log('[TeatroSync] Conexión confirmada:', data);
             });
 
             // Evento de cambio
             state.sseConnection.addEventListener('cambio', (e) => {
                 const cambio = JSON.parse(e.data);
-                console.debug('[TeatroSync] Cambio recibido:', cambio);
+                console.log('[TeatroSync] Cambio recibido:', cambio);
 
                 // Actualizar último ID y persistir
                 if (cambio.id > state.lastChangeId) {
@@ -244,13 +244,13 @@
             });
 
             state.sseConnection.onerror = (e) => {
-                console.debug('[TeatroSync] Error SSE, reintentando...');
+                console.warn('[TeatroSync] Error SSE, reintentando...', e);
                 state.sseConnection.close();
 
                 state.reconnectAttempts++;
 
                 if (state.reconnectAttempts >= CONFIG.MAX_RECONNECT_ATTEMPTS) {
-                    console.warn('[TeatroSync] Máximo de reintentos SSE, cambiando a polling');
+                    console.log('[TeatroSync] Máximo de reintentos SSE, cambiando a polling');
                     startPolling();
                 } else {
                     setTimeout(() => {
@@ -286,7 +286,7 @@
         if (state.polling) return;
 
         state.polling = true;
-        console.debug('[TeatroSync] Iniciando polling cada', CONFIG.POLL_INTERVAL, 'ms');
+        console.log('[TeatroSync] Iniciando polling cada', CONFIG.POLL_INTERVAL, 'ms');
 
         // Ejecutar inmediatamente
         pollChanges();
@@ -340,11 +340,7 @@
      */
     function handleBroadcastMessage(event) {
         const cambio = event.data;
-        // Ignorar mensajes sin tipo válido
-        if (!cambio || !cambio.tipo) {
-            return;
-        }
-        console.debug('[TeatroSync] Mensaje de otra pestaña:', cambio.tipo);
+        console.log('[TeatroSync] Mensaje de otra pestaña:', cambio);
         handleChange(cambio.tipo, cambio, true); // true = fromBroadcast
     }
 
@@ -352,19 +348,14 @@
      * Manejar un cambio detectado
      */
     function handleChange(tipo, data, fromBroadcast = false) {
-        // Ignorar cambios sin tipo válido
-        if (!tipo) {
-            return;
-        }
-
         const eventId = data?.id_evento;
         const funcionId = data?.id_funcion;
 
-        console.debug('[TeatroSync] Procesando cambio:', tipo);
+        console.log('[TeatroSync] Procesando cambio:', tipo, data);
 
         // Verificar si afecta al evento actual
         if (eventId && state.currentEventId && eventId != state.currentEventId) {
-            console.debug('[TeatroSync] Cambio en otro evento, ignorando');
+            console.log('[TeatroSync] Cambio en otro evento, ignorando');
             return;
         }
 
@@ -391,17 +382,19 @@
     function handleAutoReload(tipo, data) {
         // BLOQUEO TOTAL: Si el modal de venta exitosa está abierto, NO hacer nada
         if (window.TEATRO_VENTA_MODAL_ABIERTO === true || state.ventaModalAbierto === true) {
-            console.debug('[TeatroSync] Modal de venta abierto, bloqueando recarga');
+            console.log('[TeatroSync] Modal de venta exitosa abierto - BLOQUEANDO recarga');
             return;
         }
 
         // Evitar recargas en cascada
         if (state.reloadCooldown) {
+            console.log('[TeatroSync] En cooldown, ignorando recarga');
             return;
         }
 
         // NO recargar si acabamos de hacer una venta propia (para poder imprimir)
         if (state.saleInProgress) {
+            console.log('[TeatroSync] Venta propia en progreso, ignorando recarga');
             return;
         }
 
@@ -409,17 +402,20 @@
         const modalBoletos = document.getElementById('modalBoletosNuevo');
         const modalTipoBoleto = document.getElementById('modalTipoBoleto');
         if (modalBoletos || modalTipoBoleto) {
+            console.log('[TeatroSync] Modal de venta detectado en DOM, ignorando recarga');
             return;
         }
 
         // Evitar múltiples notificaciones/recargas simultáneas
         if (state.pendingReload) {
+            console.log('[TeatroSync] Ya hay recarga pendiente, ignorando');
             return;
         }
 
         // Debounce: ignorar si ya mostramos notificación hace menos de 3 segundos
         const now = Date.now();
         if (now - state.lastNotification < 3000) {
+            console.log('[TeatroSync] Debounce activo, ignorando notificación');
             return;
         }
         state.lastNotification = now;
@@ -514,7 +510,7 @@
          */
         init(options = {}) {
             if (state.initialized) {
-                console.debug('[TeatroSync] Ya inicializado');
+                console.log('[TeatroSync] Ya inicializado');
                 return this;
             }
 
@@ -534,11 +530,11 @@
             const lastReloadTime = parseInt(sessionStorage.getItem('teatro_sync_reloading') || '0');
             if (Date.now() - lastReloadTime < 5000) {
                 state.reloadCooldown = true;
-                console.debug('[TeatroSync] Cooldown activo');
+                console.log('[TeatroSync] Cooldown activo (recarga reciente)');
                 setTimeout(() => {
                     state.reloadCooldown = false;
                     sessionStorage.removeItem('teatro_sync_reloading');
-                    console.debug('[TeatroSync] Cooldown terminado');
+                    console.log('[TeatroSync] Cooldown terminado');
                 }, 5000 - (Date.now() - lastReloadTime));
             }
 
@@ -546,7 +542,7 @@
             startSSE();
 
             state.initialized = true;
-            console.debug('[TeatroSync] Sistema inicializado v3.0', {
+            console.log('[TeatroSync] Sistema inicializado v3.0', {
                 eventoId: state.currentEventId,
                 funcionId: state.currentFuncionId,
                 sseSupported: state.sseSupported,
@@ -579,7 +575,7 @@
                 localStorage.removeItem(`teatro_sync_${type}`);
             }, 1000);
 
-            console.debug('[TeatroSync] Cambio emitido:', payload.tipo);
+            console.log('[TeatroSync] Cambio emitido:', payload);
             return this;
         },
 
@@ -647,10 +643,10 @@
          */
         pauseReloads(duration = 120000) {
             state.saleInProgress = true;
-            console.debug('[TeatroSync] Recargas pausadas por', duration / 1000, 'segundos');
+            console.log('[TeatroSync] Recargas pausadas por', duration / 1000, 'segundos');
             setTimeout(() => {
                 state.saleInProgress = false;
-                console.debug('[TeatroSync] Recargas reactivadas');
+                console.log('[TeatroSync] Recargas reactivadas');
             }, duration);
             return this;
         },
@@ -678,7 +674,7 @@
                 broadcastChannel.close();
             }
             state.initialized = false;
-            console.debug('[TeatroSync] Sistema detenido');
+            console.log('[TeatroSync] Sistema detenido');
         },
 
         // Constantes de tipos de cambio

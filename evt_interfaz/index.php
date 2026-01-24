@@ -164,105 +164,16 @@ if ($tab === 'historial') {
         <iframe class="event-frame" name="contentFrame" id="contentFrame" src="<?php echo $src_inicial; ?>"></iframe>
     </main>
 
-    <!-- Modal de confirmación -->
-    <div id="modalConfirm" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px); z-index:1000; align-items:center; justify-content:center;">
-        <div style="background:var(--bg-secondary); border-radius:var(--radius-lg); border:1px solid var(--border-color); padding:32px; max-width:380px; width:90%; text-align:center;">
-            <i class="bi bi-exclamation-triangle-fill" style="font-size:3rem; color:var(--warning); display:block; margin-bottom:16px;"></i>
-            <h4 style="color:var(--text-primary); margin-bottom:12px;">¿Descartar cambios?</h4>
-            <p style="color:var(--text-muted); margin-bottom:24px; font-size:0.95rem;">Tienes cambios sin guardar. Si continúas, se perderán.</p>
-            <div style="display:flex; gap:12px;">
-                <button id="btnCancelNav" style="flex:1; padding:12px; background:var(--bg-tertiary); border:1px solid var(--border-color); border-radius:var(--radius-sm); color:var(--text-primary); font-weight:600; cursor:pointer;">Cancelar</button>
-                <button id="btnConfirmNav" style="flex:1; padding:12px; background:var(--danger); border:none; border-radius:var(--radius-sm); color:white; font-weight:600; cursor:pointer;">Descartar</button>
-            </div>
-        </div>
-    </div>
-
     <script>
         const iframe = document.getElementById('contentFrame');
         const menuItems = document.querySelectorAll('.event-menu-item');
-        const modal = document.getElementById('modalConfirm');
-        let pendingUrl = null;
-        let pendingElement = null;
-
-        // Verificar si el iframe tiene un formulario con cambios
-        function tieneFormularioConCambios() {
-            try {
-                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                const path = iframe.contentWindow.location.pathname;
-                
-                // Solo verificar en páginas de crear/editar
-                if (!path.includes('crear_evento.php') && !path.includes('editar_evento.php')) {
-                    return false;
-                }
-                
-                // Buscar campos de formulario con datos
-                const titulo = iframeDoc.getElementById('titulo');
-                const descripcion = iframeDoc.getElementById('descripcion');
-                const listaFunciones = iframeDoc.getElementById('listaFunciones');
-                
-                // Verificar si hay datos ingresados
-                if (titulo && titulo.value.trim() !== '') return true;
-                if (descripcion && descripcion.value.trim() !== '') return true;
-                if (listaFunciones) {
-                    const funciones = listaFunciones.querySelectorAll('.funcion-item');
-                    if (funciones.length > 0) return true;
-                }
-                
-                // También verificar si el formulario fue modificado (para editar)
-                const form = iframeDoc.getElementById('formEvento');
-                if (form && form.dataset.modified === 'true') return true;
-                
-                return false;
-            } catch (e) {
-                return false; // Si no puede acceder, permitir navegación
-            }
-        }
-
-        function navegarA(url, element) {
-            menuItems.forEach(m => m.classList.remove('active'));
-            if (element) element.classList.add('active');
-            iframe.src = url;
-        }
-
-        function mostrarModal(url, element) {
-            pendingUrl = url;
-            pendingElement = element;
-            modal.style.display = 'flex';
-        }
-
-        function cerrarModal() {
-            modal.style.display = 'none';
-            pendingUrl = null;
-            pendingElement = null;
-        }
-
-        document.getElementById('btnCancelNav').addEventListener('click', cerrarModal);
-        
-        document.getElementById('btnConfirmNav').addEventListener('click', function() {
-            if (pendingUrl) {
-                navegarA(pendingUrl, pendingElement);
-            }
-            cerrarModal();
-        });
-
-        // Cerrar con Escape
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && modal.style.display === 'flex') {
-                cerrarModal();
-            }
-        });
 
         menuItems.forEach(item => {
             item.addEventListener('click', function(e) {
                 e.preventDefault();
-                const url = this.getAttribute('href');
-                
-                // Si el iframe actual es crear/editar y tiene cambios, preguntar
-                if (tieneFormularioConCambios()) {
-                    mostrarModal(url, this);
-                } else {
-                    navegarA(url, this);
-                }
+                menuItems.forEach(m => m.classList.remove('active'));
+                this.classList.add('active');
+                iframe.src = this.getAttribute('href');
             });
         });
 

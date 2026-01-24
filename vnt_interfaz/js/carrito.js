@@ -72,25 +72,25 @@ async function cargarDescuentos() {
     ID_EVENTO = obtenerIdEvento();
     const idEvento = ID_EVENTO;
 
-    console.debug('Cargando descuentos para evento:', idEvento);
+    console.log('Cargando descuentos para evento:', idEvento);
 
     if (!idEvento) {
-        console.debug('No hay evento seleccionado');
+        console.log('No hay evento seleccionado');
         return;
     }
 
     try {
         const response = await fetch(`obtener_descuentos.php?id_evento=${idEvento}`);
-        console.debug('Response status:', response.status);
+        console.log('Response status:', response.status);
 
         const data = await response.json();
-        console.debug('Datos recibidos:', data);
+        console.log('Datos recibidos:', data);
 
         if (data.success) {
             descuentos = data.descuentos;
             // Guardar en variable global para el modal de venta
             window.DESCUENTOS = descuentos;
-            console.debug('Descuentos cargados y guardados en DESCUENTOS:', descuentos.length);
+            console.log('Descuentos cargados y guardados en DESCUENTOS:', descuentos.length);
             actualizarSelectDescuentos();
         } else {
             console.error('Error en respuesta:', data.message);
@@ -105,11 +105,11 @@ function actualizarSelectDescuentos() {
     const select = document.getElementById('selectDescuento');
     if (!select) {
         // El selector ya no existe en el panel lateral (ahora está en el modal de venta)
-        console.debug('Descuentos cargados, disponibles para el modal de venta');
+        console.log('Descuentos cargados, disponibles para el modal de venta');
         return;
     }
 
-    console.debug('Actualizando select con', descuentos.length, 'descuentos');
+    console.log('Actualizando select con', descuentos.length, 'descuentos');
 
     select.innerHTML = '<option value="">-- Sin descuento --</option>';
 
@@ -471,8 +471,8 @@ function procesarPago() {
 function generarBotonesDescuento() {
     const descuentosDisponibles = typeof DESCUENTOS !== 'undefined' ? DESCUENTOS : [];
 
-    console.debug('=== GENERANDO BOTONES DE DESCUENTO ===');
-    console.debug('Boletos en carrito:', carrito.length);
+    console.log('=== GENERANDO BOTONES DE DESCUENTO ===');
+    console.log('Boletos en carrito:', carrito.length);
 
     let botonesDescuento = '';
     if (descuentosDisponibles.length > 0) {
@@ -509,12 +509,12 @@ function generarBotonesDescuento() {
 
             // 1. Verificar cantidad mínima de boletos
             const cantidadMinima = parseInt(d.min_cantidad) || 1;
-            console.debug(`Descuento "${d.nombre}": min_cantidad=${cantidadMinima}, carrito.length=${carrito.length}`);
+            console.log(`Descuento "${d.nombre}": min_cantidad=${cantidadMinima}, carrito.length=${carrito.length}`);
 
             if (carrito.length < cantidadMinima) {
                 puedeAplicar = false;
                 razonNoAplicable = `Mín. ${cantidadMinima} boletos (tienes ${carrito.length})`;
-                console.debug(`  ❌ NO PUEDE APLICAR: ${razonNoAplicable}`);
+                console.log(`  ❌ NO PUEDE APLICAR: ${razonNoAplicable}`);
             }
 
             // 2. Verificar si hay cortesías (no se puede aplicar descuento a cortesías)
@@ -522,7 +522,7 @@ function generarBotonesDescuento() {
             if (hayCortesias && puedeAplicar) {
                 puedeAplicar = false;
                 razonNoAplicable = 'No aplica con cortesías';
-                console.debug(`  ❌ NO PUEDE APLICAR: ${razonNoAplicable}`);
+                console.log(`  ❌ NO PUEDE APLICAR: ${razonNoAplicable}`);
             }
 
             // 3. Verificar tipo de boleto requerido
@@ -540,7 +540,7 @@ function generarBotonesDescuento() {
                         'discapacitado': 'Discap.'
                     };
                     razonNoAplicable = `Solo para ${tipoNombres[tipoRequerido] || tipoRequerido}`;
-                    console.debug(`  ❌ NO PUEDE APLICAR: ${razonNoAplicable}`);
+                    console.log(`  ❌ NO PUEDE APLICAR: ${razonNoAplicable}`);
                 }
             }
 
@@ -552,19 +552,19 @@ function generarBotonesDescuento() {
                 if (boletosOtraCategoria.length > 0) {
                     puedeAplicar = false;
                     razonNoAplicable = `Solo para ${d.nombre_categoria || 'categoría específica'}`;
-                    console.debug(`  ❌ NO PUEDE APLICAR: ${razonNoAplicable}`);
+                    console.log(`  ❌ NO PUEDE APLICAR: ${razonNoAplicable}`);
                 }
             }
 
             // Si ya está activo pero ya no cumple requisitos, desactivarlo
             if (esActivo && !puedeAplicar) {
-                console.debug(`  ⚠️ Descuento activo pero ya no cumple requisitos, desactivando...`);
+                console.log(`  ⚠️ Descuento activo pero ya no cumple requisitos, desactivando...`);
                 descuentoSeleccionado = null;
                 carrito.forEach(item => item.descuentoAplicado = false);
             }
 
             if (puedeAplicar) {
-                console.debug(`  ✅ PUEDE APLICAR`);
+                console.log(`  ✅ PUEDE APLICAR`);
             }
 
             // Clases y estilos según si puede aplicar
@@ -665,7 +665,7 @@ function abrirModalTipoBoleto() {
     // Obtener descuentos disponibles
     const descuentosDisponibles = typeof DESCUENTOS !== 'undefined' ? DESCUENTOS : [];
 
-    console.debug('Descuentos disponibles:', descuentosDisponibles);
+    console.log('Descuentos disponibles:', descuentosDisponibles);
 
     // Usar la función centralizada para generar botones con validación
     const botonesDescuento = generarBotonesDescuento();
@@ -1263,13 +1263,13 @@ async function confirmarYProcesarPago() {
     // BLOQUEO TOTAL: Marcar que vamos a abrir el modal de venta exitosa
     // Esto bloquea TODAS las actualizaciones automáticas hasta que el usuario presione un botón
     window.TEATRO_VENTA_MODAL_ABIERTO = true;
-    console.debug('[Carrito] BLOQUEO DE ACTUALIZACIONES ACTIVADO');
+    console.log('[Carrito] BLOQUEO DE ACTUALIZACIONES ACTIVADO');
 
     // IMPORTANTE: Pausar recargas automáticas ANTES de procesar la venta
     // Esto evita que el sistema detecte el cambio y recargue la página
     if (typeof TeatroSync !== 'undefined' && TeatroSync.pauseReloads) {
         TeatroSync.pauseReloads(300000); // 5 minutos para dar tiempo a imprimir/descargar
-        console.debug('[Carrito] Recargas automáticas pausadas');
+        console.log('[Carrito] Recargas automáticas pausadas');
     }
 
     // Preparar datos con descuentos y tipo de boleto
@@ -1306,7 +1306,7 @@ async function confirmarYProcesarPago() {
         const data = await response.json();
 
         if (data.success) {
-            console.debug('Boletos recibidos:', data.boletos);
+            console.log('Boletos recibidos:', data.boletos);
             notify.success(`¡Compra exitosa! Se generaron ${data.boletos.length} boleto(s)`);
 
             // Calcular total de la compra
@@ -1546,7 +1546,7 @@ function mostrarBoletosGenerados(boletos) {
 
     // Guardar boletos en variable global para acciones
     window.boletosActuales = boletos;
-    console.debug('[Boletos] Boletos guardados para acciones:', window.boletosActuales);
+    console.log('[Boletos] Boletos guardados para acciones:', window.boletosActuales);
 
     // Limpiar al cerrar el modal
     document.getElementById('modalBoletosNuevo').addEventListener('hidden.bs.modal', function () {
@@ -1554,7 +1554,7 @@ function mostrarBoletosGenerados(boletos) {
         delete window.boletosActuales;
         // Liberar el bloqueo de actualizaciones - la recarga se hace en los botones
         window.TEATRO_VENTA_MODAL_ABIERTO = false;
-        console.debug('[Carrito] BLOQUEO DE ACTUALIZACIONES LIBERADO');
+        console.log('[Carrito] BLOQUEO DE ACTUALIZACIONES LIBERADO');
     });
 }
 
@@ -1818,7 +1818,7 @@ function cambiarDeEvento() {
 
 // Descargar todos los boletos en un solo PDF usando fetch + Blob
 async function descargarTodosBoletos() {
-    console.debug('[Boletos] Intentando descargar PDF. boletosActuales:', window.boletosActuales);
+    console.log('[Boletos] Intentando descargar PDF. boletosActuales:', window.boletosActuales);
 
     if (!window.boletosActuales || window.boletosActuales.length === 0) {
         notify.warning('No hay boletos para descargar');
@@ -1827,7 +1827,7 @@ async function descargarTodosBoletos() {
 
     // Crear string con todos los códigos separados por comas
     const codigos = window.boletosActuales.map(b => {
-        console.debug('[Boletos] Procesando boleto:', b);
+        console.log('[Boletos] Procesando boleto:', b);
         return b.codigo_unico;
     }).filter(c => c); // Filtrar valores vacíos
 
@@ -1837,7 +1837,7 @@ async function descargarTodosBoletos() {
     }
 
     const url = `descargar_todos_boletos.php?codigos=${codigos.join(',')}`;
-    console.debug('[Boletos] URL de descarga:', url);
+    console.log('[Boletos] URL de descarga:', url);
 
     notify.info('Generando PDF...');
 
@@ -1918,7 +1918,7 @@ function enviarBoletoPorWhatsApp(codigoBoleto) {
 
 // Función para abrir WhatsApp con todos los boletos
 function enviarTodosBoletosPorWhatsApp() {
-    console.debug('[WhatsApp] Intentando enviar boletos. boletosActuales:', window.boletosActuales);
+    console.log('[WhatsApp] Intentando enviar boletos. boletosActuales:', window.boletosActuales);
 
     if (!window.boletosActuales || window.boletosActuales.length === 0) {
         notify.warning('No hay boletos para enviar');
@@ -1926,7 +1926,7 @@ function enviarTodosBoletosPorWhatsApp() {
     }
 
     const codigos = window.boletosActuales.map(b => b.codigo_unico).filter(c => c);
-    console.debug('[WhatsApp] Códigos a enviar:', codigos);
+    console.log('[WhatsApp] Códigos a enviar:', codigos);
 
     if (codigos.length === 0) {
         notify.error('Error: Los boletos no tienen código único');
@@ -2457,7 +2457,7 @@ function inicializarEventListenersAsientos() {
         });
 
         eventListenersInicializados = true;
-        console.debug('Event delegation de asientos inicializado');
+        console.log('Event delegation de asientos inicializado');
     }
 
     // Configurar estilos para row labels
@@ -2472,7 +2472,7 @@ function inicializarEventListenersAsientos() {
     // Inicializar estadísticas
     actualizarEstadisticas();
 
-    console.debug('Event listeners de asientos configurados');
+    console.log('Event listeners de asientos configurados');
 }
 
 // Exponer la función globalmente
@@ -2494,7 +2494,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Si el cambio es para nuestro evento actual, recargar descuentos
                 if (data.id_evento == idEventoActual || !data.id_evento) {
-                    console.debug('Descuentos actualizados desde admin, recargando...');
+                    console.log('Descuentos actualizados desde admin, recargando...');
                     cargarDescuentos();
                     notify.info('Los descuentos han sido actualizados');
                 }
