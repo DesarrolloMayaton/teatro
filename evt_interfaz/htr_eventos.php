@@ -66,8 +66,51 @@ if (isset($_POST['accion']) && $_POST['accion'] === 'borrar_permanente') {
 }
 
 
-// CARGA DE DATOS (HISTORIAL)
-$historial = $conn->query("SELECT * FROM trt_historico_evento.evento ORDER BY cierre_venta DESC");
+// PARÁMETROS DE FILTRADO
+$filtro_titulo = $_GET['filtro_titulo'] ?? '';
+$fecha_desde = $_GET['fecha_desde'] ?? '';
+$fecha_hasta = $_GET['fecha_hasta'] ?? '';
+
+// CARGA DE DATOS (HISTORIAL) con filtros
+$sql_base = "SELECT * FROM trt_historico_evento.evento";
+$condiciones = [];
+$params = [];
+$types = '';
+
+if (!empty($filtro_titulo)) {
+    $condiciones[] = "titulo LIKE ?";
+    $params[] = "%$filtro_titulo%";
+    $types .= 's';
+}
+
+if (!empty($fecha_desde)) {
+    $condiciones[] = "cierre_venta >= ?";
+    $params[] = $fecha_desde;
+    $types .= 's';
+}
+
+if (!empty($fecha_hasta)) {
+    $condiciones[] = "cierre_venta <= ?";
+    $params[] = $fecha_hasta;
+    $types .= 's';
+}
+
+if (count($condiciones) > 0) {
+    $sql_base .= " WHERE " . implode(" AND ", $condiciones);
+}
+
+$sql_base .= " ORDER BY cierre_venta DESC";
+
+if (count($params) > 0) {
+    $stmt = $conn->prepare($sql_base);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $historial = $stmt->get_result();
+} else {
+    $historial = $conn->query($sql_base);
+}
+
+$total_eventos = $historial->num_rows;
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -112,7 +155,7 @@ $historial = $conn->query("SELECT * FROM trt_historico_evento.evento ORDER BY ci
     .card:hover { 
         transform: translateY(-3px); 
         box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-        border-color: var(--primary-color);
+        border-color: #ffffff;
     }
     
     /* Estilo para histórico */
@@ -198,24 +241,163 @@ $historial = $conn->query("SELECT * FROM trt_historico_evento.evento ORDER BY ci
     /* Modal */
     .modal-content { background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); }
     .modal-header, .modal-footer { border-color: var(--border-color); }
-    .form-control { background: #2b2b2b; border-color: var(--border-color); color: var(--text-primary); }
-    .form-control:focus { background: #2b2b2b; border-color: var(--primary-color); color: var(--text-primary); }
+    .form-control { background: #2b2b2b; border-color: var(--border-color); color: #ffffff !important; }
+    .form-control::placeholder { color: rgba(255, 255, 255, 0.5) !important; opacity: 1; }
+    .form-control:focus { background: #2b2b2b; border-color: #ffffff; color: #ffffff !important; }
     .bg-light { background: #2b2b2b !important; }
     .alert-warning { background: rgba(255, 159, 10, 0.15) !important; border-color: rgba(255, 159, 10, 0.3) !important; color: #ff9f0a !important; }
+    
+    /* Estilos para el card de filtros */
+    .filter-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        padding: 20px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+    
+    .filtros-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+        display: block;
+    }
+    
+    .form-control {
+        background: #2b2b2b !important;
+        border: 1px solid var(--border-color) !important;
+        color: var(--text-primary) !important;
+        border-radius: 8px;
+    }
+    
+    .form-control::placeholder {
+        color: var(--text-secondary) !important;
+        opacity: 1;
+    }
+    
+    .form-control:focus {
+        background: #2b2b2b !important;
+        border-color: var(--primary-color) !important;
+        box-shadow: 0 0 0 3px rgba(21, 97, 240, 0.2);
+        color: var(--text-primary) !important;
+    }
+    
+    .btn-primary {
+        background: var(--primary-color) !important;
+        border-color: var(--primary-color) !important;
+        color: white !important;
+    }
+    
+    .btn-primary:hover {
+        background: #0d4fc4 !important;
+        border-color: #0d4fc4 !important;
+    }
+    
+    .btn-outline-secondary {
+        color: var(--text-secondary) !important;
+        border-color: var(--border-color) !important;
+        background: transparent !important;
+    }
+    
+    .btn-outline-secondary:hover {
+        background: #2b2b2b !important;
+        color: var(--text-primary) !important;
+        border-color: var(--border-color) !important;
+    }
+    
+    /* Secciones por mes */
+    .users-section { margin-bottom: 32px; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; padding: 16px 20px; background: var(--bg-card); border-radius: var(--radius-md); border-left: 4px solid var(--primary-color); cursor: pointer; transition: all 0.2s; }
+    .section-header:hover { background: #2b2b2b; }
+    .section-header h2 { font-size: 1.2rem; font-weight: 600; color: var(--text-primary); margin: 0; display: flex; align-items: center; gap: 10px; flex: 1; }
+    .section-header h2 i { font-size: 1.3rem; color: #ffffff; }
+    .section-header .user-count { background: #2b2b2b; color: var(--text-secondary); padding: 4px 12px; border-radius: 999px; font-size: 0.85rem; font-weight: 600; }
+    .section-toggle-btn { background: transparent; border: none; color: var(--text-muted); font-size: 1.4rem; cursor: pointer; padding: 8px; border-radius: 8px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+    .section-toggle-btn:hover { background: #2b2b2b; color: #ffffff; }
+    .section-toggle-btn i { transition: transform 0.3s ease; }
+    .section-toggle-btn.collapsed i { transform: rotate(-90deg); }
+    .row.g-3.collapsed { max-height: 0; opacity: 0; overflow: hidden; margin-top: 0 !important; pointer-events: none; transition: all 0.3s ease; }
+    
+    /* Secciones por mes */
+    .users-section { margin-bottom: 32px; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; padding: 16px 20px; background: var(--bg-card); border-radius: var(--radius-md); border-left: 4px solid var(--primary-color); cursor: pointer; transition: all 0.2s; }
+    .section-header:hover { background: #2b2b2b; }
+    .section-header h2 { font-size: 1.2rem; font-weight: 600; color: var(--text-primary); margin: 0; display: flex; align-items: center; gap: 10px; flex: 1; }
+    .section-header h2 i { font-size: 1.3rem; color: #ffffff; }
+    .section-header .user-count { background: #2b2b2b; color: var(--text-secondary); padding: 4px 12px; border-radius: 999px; font-size: 0.85rem; font-weight: 600; }
+    .section-toggle-btn { background: transparent; border: none; color: var(--text-muted); font-size: 1.4rem; cursor: pointer; padding: 8px; border-radius: 8px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+    .section-toggle-btn:hover { background: #2b2b2b; color: #ffffff; }
+    .section-toggle-btn i { transition: transform 0.3s ease; }
+    .section-toggle-btn.collapsed i { transform: rotate(-90deg); }
+    .row.g-3.collapsed { max-height: 0; opacity: 0; overflow: hidden; margin-top: 0 !important; pointer-events: none; transition: all 0.3s ease; }
 </style>
 </head>
 <body>
 
 <div class="content-wrapper">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h4 class="fw-bold text-secondary m-0">Historial</h4>
-        <span class="badge bg-secondary bg-opacity-10 text-secondary"><?= $historial->num_rows ?> archivados</span>
+    <!-- Card de Filtros -->
+    <div class="filter-card">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-3">
+            <div>
+                <h4 class="fw-bold text-secondary m-0 d-flex align-items-center">
+                    <i class="bi bi-archive me-2"></i>Historial de Eventos
+                </h4>
+                <p class="text-secondary mb-0 small">Eventos archivados y cerrados</p>
+            </div>
+            <div class="text-end">
+                <span class="text-secondary small">Eventos mostrados:</span>
+                <div class="fs-4 fw-bold" id="countEventos"><?= $total_eventos ?></div>
+            </div>
+        </div>
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label for="filtro_titulo" class="filtros-label">Buscar por título</label>
+                <input type="text" id="filtro_titulo" name="filtro_titulo" class="form-control" placeholder="Escribe para buscar..." value="<?= htmlspecialchars($filtro_titulo) ?>">
+            </div>
+            <div class="col-md-3">
+                <label for="fecha_desde" class="filtros-label">Cierre desde</label>
+                <input type="date" id="fecha_desde" name="fecha_desde" class="form-control" value="<?= htmlspecialchars($fecha_desde) ?>">
+            </div>
+            <div class="col-md-3">
+                <label for="fecha_hasta" class="filtros-label">Cierre hasta</label>
+                <input type="date" id="fecha_hasta" name="fecha_hasta" class="form-control" value="<?= htmlspecialchars($fecha_hasta) ?>">
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-grow-1"><i class="bi bi-funnel"></i> Filtrar</button>
+                <a href="htr_eventos.php" class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i></a>
+            </div>
+        </form>
     </div>
 
-    <div class="row g-3">
-        <?php if($historial && $historial->num_rows > 0): 
-            $delay = 0;
-            while($e = $historial->fetch_assoc()): 
+
+    <?php 
+    if($historial && $historial->num_rows > 0): 
+        $eventos_por_mes = [];
+        $delay = 0;
+        $meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        while($e = $historial->fetch_assoc()): 
+            $fecha_cierre = new DateTime($e['cierre_venta']);
+            $mes_anio = $fecha_cierre->format('Y-m');
+            $mes_nombre = $meses[(int)$fecha_cierre->format('m') - 1] . ' ' . $fecha_cierre->format('Y');
+            if (!isset($eventos_por_mes[$mes_anio])) {
+                $eventos_por_mes[$mes_anio] = ['nombre' => $mes_nombre, 'eventos' => []];
+            }
+            $eventos_por_mes[$mes_anio]['eventos'][] = $e;
+        endwhile;
+        krsort($eventos_por_mes);
+        foreach($eventos_por_mes as $mes_key => $mes_data):
+            $mes_id = str_replace('-', '_', $mes_key);
+    ?>
+    <div class="users-section">
+        <div class="section-header" onclick="toggleSection('<?= $mes_id ?>')">
+            <h2><i class="bi bi-calendar-month"></i> <?= $mes_data['nombre'] ?> <span class="user-count"><?= count($mes_data['eventos']) ?></span></h2>
+            <button class="section-toggle-btn" id="toggle-<?= $mes_id ?>"><i class="bi bi-chevron-down"></i></button>
+        </div>
+        <div class="row g-3" id="grid-<?= $mes_id ?>">
+            <?php foreach($mes_data['eventos'] as $e): 
+                $delay += 30;
                 $delay += 30;
                 
                 // 1. IMAGEN
@@ -238,7 +420,7 @@ $historial = $conn->query("SELECT * FROM trt_historico_evento.evento ORDER BY ci
                     }
                 }
         ?>
-        <div class="col-xxl-2 col-xl-2 col-lg-3 col-md-4 col-6">
+        <div class="col-xxl-2 col-xl-2 col-lg-3 col-md-4 col-6 evento-card" data-titulo="<?= strtolower(htmlspecialchars($e['titulo'])) ?>" data-cierre="<?= $e['cierre_venta'] ?>">
             <div class="card h-100" style="animation-delay: <?= $delay ?>ms">
                 <div class="card-img-container">
                     <?php if($img): ?>
@@ -278,10 +460,13 @@ $historial = $conn->query("SELECT * FROM trt_historico_evento.evento ORDER BY ci
                 </div>
             </div>
         </div>
-        <?php endwhile; else: ?>
+        <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endforeach; else: ?>
         <div class="col-12">
             <div class="alert alert-light border text-center p-5">
-                <i class="bi bi-archive fs-1 text-muted mb-3"></i>
+                <i class="bi bi-archive fs-1 mb-3" style="color: white; display: block;"></i>
                 <p class="mb-0 text-muted">El historial está vacío.</p>
             </div>
         </div>
@@ -299,7 +484,7 @@ $historial = $conn->query("SELECT * FROM trt_historico_evento.evento ORDER BY ci
             <div class="modal-body text-center p-4">
                 <i class="bi bi-person-badge-fill" style="font-size: 4rem; color: #ff453a; margin-bottom: 20px; display: block;"></i>
                 <p id="mMsg" class="fs-5 mb-3"></p>
-                <p class="text-muted small mb-3">Ingresa tu contraseña de administrador para continuar.</p>
+                <p class="text-white small mb-3">Ingresa tu contraseña de administrador para continuar.</p>
                 <input type="password" id="mPin" class="form-control form-control-lg text-center" placeholder="••••••" maxlength="20" style="letter-spacing: 5px;">
                 <div id="mError" class="text-danger small mt-2" style="display: none;">
                     <i class="bi bi-exclamation-triangle"></i> <span id="mErrorText">Contraseña incorrecta</span>
@@ -397,6 +582,36 @@ function ejecutar(act, id) {
         els.btn.innerHTML = '<i class="bi bi-trash3-fill me-2"></i>Confirmar Eliminación'; 
     });
 }
+</script>
+<script src="filter_realtime.js"></script>
+<script>
+// JavaScript para toggle de secciones por mes
+function toggleSection(sectionId) {
+    const grid = document.getElementById('grid-' + sectionId);
+    const toggleBtn = document.getElementById('toggle-' + sectionId);
+    if (grid && toggleBtn) {
+        grid.classList.toggle('collapsed');
+        toggleBtn.classList.toggle('collapsed');
+        const isCollapsed = grid.classList.contains('collapsed');
+        localStorage.setItem('section-' + sectionId, isCollapsed ? 'collapsed' : 'expanded');
+    }
+}
+// Restaurar estado de las secciones al cargar la página
+document.addEventListener('DOMContentLoaded', function () {
+    const sections = document.querySelectorAll('[id^="grid-"]');
+    sections.forEach(grid => {
+        const sectionId = grid.id.replace('grid-', '');
+        const savedState = localStorage.getItem('section-' + sectionId);
+        if (savedState === 'collapsed') {
+            const toggleBtn = document.getElementById('toggle-' + sectionId);
+            if (grid && toggleBtn) {
+                grid.classList.add('collapsed');
+                toggleBtn.classList.add('collapsed');
+            }
+        }
+    });
+});
+
 </script>
 </body>
 </html>
