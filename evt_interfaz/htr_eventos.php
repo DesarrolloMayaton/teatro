@@ -65,7 +65,7 @@ if (isset($_POST['accion']) && $_POST['accion'] === 'borrar_permanente') {
     exit;
 }
 
-
+//
 // PARÁMETROS DE FILTRADO
 $filtro_titulo = $_GET['filtro_titulo'] ?? '';
 $fecha_desde = $_GET['fecha_desde'] ?? '';
