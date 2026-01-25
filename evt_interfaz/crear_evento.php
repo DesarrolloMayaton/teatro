@@ -365,30 +365,111 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     hr { border: none; border-top: 1px solid var(--border-color); margin: 30px 0; }
 
-    /* Modal */
+    /* Modal Premium */
     .modal-overlay {
         display: none;
         position: fixed;
         top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(0,0,0,0.8);
-        backdrop-filter: blur(8px);
+        background: rgba(0,0,0,0.85);
+        backdrop-filter: blur(12px);
         z-index: 1000;
         align-items: center;
         justify-content: center;
     }
     .modal-overlay.active { display: flex; }
+    
     .modal-content {
-        background: var(--bg-secondary);
-        border-radius: var(--radius-lg);
-        padding: 30px;
-        max-width: 400px;
+        background: linear-gradient(145deg, var(--bg-secondary) 0%, #1a1a1c 100%);
+        border-radius: 20px;
+        padding: 0;
+        max-width: 420px;
         width: 90%;
-        border: 1px solid var(--border-color);
+        border: 1px solid rgba(255,255,255,0.1);
         text-align: center;
+        box-shadow: 0 25px 80px rgba(0,0,0,0.5);
+        animation: modalPop 0.3s ease;
+        overflow: hidden;
     }
-    .modal-content h5 { color: var(--text-primary); margin-bottom: 12px; }
-    .modal-content p { color: var(--text-muted); margin-bottom: 20px; }
-    .modal-buttons { display: flex; gap: 12px; justify-content: center; }
+    @keyframes modalPop {
+        from { opacity: 0; transform: scale(0.9) translateY(-20px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    
+    .modal-icon-container {
+        background: linear-gradient(135deg, var(--warning) 0%, #ff6b35 100%);
+        padding: 30px;
+        position: relative;
+    }
+    .modal-icon-container::after {
+        content: '';
+        position: absolute;
+        bottom: -20px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-left: 25px solid transparent;
+        border-right: 25px solid transparent;
+        border-top: 20px solid #ff6b35;
+    }
+    .modal-icon {
+        font-size: 3.5rem;
+        color: white;
+        animation: iconBounce 1s ease infinite;
+    }
+    @keyframes iconBounce {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+    }
+    
+    .modal-body-content {
+        padding: 40px 30px 30px;
+    }
+    .modal-content h5 { 
+        color: var(--text-primary); 
+        margin-bottom: 12px; 
+        font-size: 1.3rem;
+        font-weight: 700;
+    }
+    .modal-content p { 
+        color: var(--text-muted); 
+        margin-bottom: 0;
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+    
+    .modal-buttons { 
+        display: flex; 
+        gap: 12px; 
+        padding: 20px 30px 30px;
+        justify-content: center;
+    }
+    .modal-buttons .btn {
+        flex: 1;
+        padding: 14px 20px;
+        font-weight: 600;
+        border-radius: 12px;
+        transition: all 0.2s ease;
+    }
+    .modal-buttons .btn:hover {
+        transform: translateY(-2px);
+    }
+    .btn-stay {
+        background: var(--accent-blue);
+        color: white;
+        border: none;
+    }
+    .btn-stay:hover {
+        background: var(--accent-blue-hover);
+        box-shadow: 0 8px 20px rgba(21,97,240,0.4);
+    }
+    .btn-leave {
+        background: transparent;
+        color: var(--danger);
+        border: 2px solid var(--danger);
+    }
+    .btn-leave:hover {
+        background: var(--danger);
+        color: white;
+    }
 </style>
 </head>
 <body>
@@ -489,11 +570,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="modal-overlay" id="modalCancelar">
     <div class="modal-content">
-        <h5>¿Salir sin guardar?</h5>
-        <p>Si sales ahora, perderás la información del nuevo evento.</p>
+        <div class="modal-icon-container">
+            <i class="bi bi-exclamation-triangle-fill modal-icon"></i>
+        </div>
+        <div class="modal-body-content">
+            <h5>¿Salir sin guardar?</h5>
+            <p>Tienes cambios sin guardar. Si sales ahora, perderás toda la información del nuevo evento.</p>
+        </div>
         <div class="modal-buttons">
-            <button class="btn btn-secondary" onclick="cerrarModal()">Seguir Creando</button>
-            <button class="btn btn-primary" style="background: var(--danger);" onclick="goBack()">Salir</button>
+            <button class="btn btn-leave" onclick="goBack()">
+                <i class="bi bi-box-arrow-left"></i> Salir
+            </button>
+            <button class="btn btn-stay" onclick="cerrarModal()">
+                <i class="bi bi-pencil-fill"></i> Seguir Editando
+            </button>
         </div>
     </div>
 </div>
@@ -720,12 +810,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('ini').addEventListener('change', () => formModificado = true);
     document.getElementById('fin').addEventListener('change', () => formModificado = true);
     
-    // Evento beforeunload - Advertir al salir sin guardar
+    // Interceptar navegación del navegador (tecla atrás, cerrar pestaña)
     window.addEventListener('beforeunload', function(e) {
         if (formModificado) {
             e.preventDefault();
-            e.returnValue = '¿Estás seguro? Los cambios no guardados se perderán.';
-            return e.returnValue;
+            e.returnValue = '';
+            return '';
         }
     });
     
@@ -740,8 +830,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-function confirmarSalida() {
-    document.getElementById('modalCancelar').classList.add('active');
+// Variable global para saber si confirmarSalida viene de clic en botón
+let urlDestino = null;
+
+function confirmarSalida(destino = null) {
+    urlDestino = destino;
+    
+    // Si hay cambios, mostrar modal
+    if (typeof formModificado !== 'undefined' && formModificado) {
+        document.getElementById('modalCancelar').classList.add('active');
+    } else {
+        // No hay cambios, salir directamente
+        goBack();
+    }
 }
 
 function cerrarModal() {
@@ -749,9 +850,14 @@ function cerrarModal() {
 }
 
 function goBack() {
+    // Desactivar beforeunload
+    window.onbeforeunload = null;
+    
     document.body.classList.remove('loaded');
     document.body.classList.add('exiting');
-    setTimeout(() => window.location.href = 'act_evento.php', 350);
+    
+    const destino = urlDestino || 'act_evento.php';
+    setTimeout(() => window.location.href = destino, 350);
 }
 </script>
 </body>
