@@ -41,33 +41,29 @@ function archivar_evento_auto($id, $conn) {
 
 /**
  * Ejecutar auto-archivado de eventos caducados
+ * Los eventos se archivan a medianoche del día siguiente a la última función
  */
 function ejecutar_auto_archivado($conn) {
-    $horas = HORAS_PARA_ARCHIVAR;
     $eventos_archivados = [];
     
-    // Buscar eventos activos cuya ÚLTIMA función terminó hace más de X horas
-    // Un evento se archiva cuando TODAS sus funciones ya pasaron hace más de 4 horas
+    // Buscar eventos activos cuya ÚLTIMA función fue AYER o antes
+    // Es decir, ya pasó la medianoche después de la última función
     $sql = "
         SELECT e.id_evento, e.titulo,
                MAX(f.fecha_hora) as ultima_funcion,
-               TIMESTAMPDIFF(HOUR, MAX(f.fecha_hora), NOW()) as horas_desde_ultima
+               DATE(MAX(f.fecha_hora)) as fecha_ultima_funcion
         FROM evento e
         INNER JOIN funciones f ON e.id_evento = f.id_evento
         WHERE e.finalizado = 0
         GROUP BY e.id_evento, e.titulo
-        HAVING horas_desde_ultima >= ?
+        HAVING DATE(ultima_funcion) < CURDATE()
     ";
     
-    $stmt = $conn->prepare($sql);
-    if (!$stmt) {
-        error_log("Error preparando consulta de auto-archivado: " . $conn->error);
+    $result = $conn->query($sql);
+    if (!$result) {
+        error_log("Error en consulta de auto-archivado: " . $conn->error);
         return [];
     }
-    
-    $stmt->bind_param("i", $horas);
-    $stmt->execute();
-    $result = $stmt->get_result();
     
     while ($evento = $result->fetch_assoc()) {
         $id_evento = $evento['id_evento'];
@@ -82,24 +78,22 @@ function ejecutar_auto_archivado($conn) {
                 'id' => $id_evento,
                 'titulo' => $titulo,
                 'ultima_funcion' => $evento['ultima_funcion'],
-                'horas_desde' => $evento['horas_desde_ultima']
+                'fecha_ultima' => $evento['fecha_ultima_funcion']
             ];
             
             // Registrar en transacciones si está disponible
             if (function_exists('registrar_transaccion')) {
                 registrar_transaccion('evento_auto_archivar', 
-                    "Auto-archivado: \"$titulo\" (última función hace {$evento['horas_desde_ultima']} horas)");
+                    "Auto-archivado a medianoche: \"$titulo\" (última función: {$evento['ultima_funcion']})");
             }
             
-            error_log("Auto-archivado evento ID $id_evento: $titulo");
+            error_log("Auto-archivado evento ID $id_evento: $titulo (última función: {$evento['ultima_funcion']})");
             
         } catch (Exception $e) {
             $conn->rollback();
             error_log("Error auto-archivando evento $id_evento: " . $e->getMessage());
         }
     }
-    
-    $stmt->close();
     
     return $eventos_archivados;
 }

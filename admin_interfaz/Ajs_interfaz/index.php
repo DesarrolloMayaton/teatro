@@ -26,163 +26,414 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
     <style>
         body {
             background: var(--bg-primary);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .settings-sidebar {
+            width: 260px;
+            background: var(--bg-secondary);
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+
+        .settings-sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .settings-sidebar-title {
+            font-size: 1rem;
+            font-weight: 600;
             color: var(--text-primary);
-            min-height: 100vh;
-            padding: 30px;
-        }
-
-        .page-header {
-            margin-bottom: 30px;
-        }
-
-        .page-header h1 {
-            font-size: 1.8rem;
-            font-weight: 700;
             display: flex;
             align-items: center;
             gap: 12px;
-            margin: 0 0 8px 0;
         }
 
-        .page-header h1 i {
-            color: var(--accent-blue);
-        }
-
-        .page-header p {
-            color: var(--text-muted);
-            margin: 0;
-        }
-
-        .settings-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            max-width: 1200px;
-        }
-
-        .settings-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-lg);
-            padding: 24px;
-            text-decoration: none;
-            color: inherit;
-            transition: var(--transition-fast);
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .settings-card:hover {
-            border-color: var(--accent-blue);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(21, 97, 240, 0.15);
-        }
-
-        .settings-card-icon {
-            width: 56px;
-            height: 56px;
+        .settings-sidebar-title i {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
             border-radius: var(--radius-md);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
+            color: white;
+            font-size: 1.1rem;
         }
 
-        .settings-card-icon.blue {
-            background: rgba(21, 97, 240, 0.15);
-            color: var(--accent-blue);
+        .settings-sidebar-subtitle {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            margin-top: 4px;
         }
 
-        .settings-card-icon.green {
-            background: rgba(16, 185, 129, 0.15);
-            color: var(--success);
+        /* Menu */
+        .settings-menu {
+            flex: 1;
+            padding: 16px 10px;
+            overflow-y: auto;
         }
 
-        .settings-card-icon.purple {
+        .settings-menu-section {
+            margin-bottom: 20px;
+        }
+
+        .settings-menu-section-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0 14px;
+            margin-bottom: 8px;
+        }
+
+        .settings-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            margin-bottom: 4px;
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: var(--transition-fast);
+            cursor: pointer;
+        }
+
+        .settings-menu-item:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .settings-menu-item.active {
             background: rgba(139, 92, 246, 0.15);
             color: #8b5cf6;
         }
 
-        .settings-card-content h3 {
-            font-size: 1.1rem;
+        .settings-menu-item i {
+            font-size: 1.15rem;
+            width: 24px;
+            text-align: center;
+        }
+
+        .settings-menu-item .menu-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .settings-menu-item .menu-icon.green {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+        }
+
+        .settings-menu-item .menu-icon.blue {
+            background: rgba(21, 97, 240, 0.15);
+            color: var(--accent-blue);
+        }
+
+        .settings-menu-item .menu-icon.purple {
+            background: rgba(139, 92, 246, 0.15);
+            color: #8b5cf6;
+        }
+
+        .settings-menu-item.active .menu-icon {
+            background: rgba(139, 92, 246, 0.25);
+        }
+
+        .settings-menu-item .menu-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .settings-menu-item .menu-text span {
+            font-size: 0.85rem;
             font-weight: 600;
-            margin: 0 0 6px 0;
         }
 
-        .settings-card-content p {
+        .settings-menu-item .menu-text small {
+            font-size: 0.7rem;
             color: var(--text-muted);
-            font-size: 0.9rem;
-            margin: 0;
-            line-height: 1.5;
+            font-weight: 400;
         }
 
-        .settings-card-arrow {
-            margin-left: auto;
+        .settings-menu-divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 12px 0;
+        }
+
+        /* Back button */
+        .settings-back {
+            padding: 16px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .settings-back a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: var(--radius-md);
             color: var(--text-muted);
-            font-size: 1.2rem;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
             transition: var(--transition-fast);
         }
 
-        .settings-card:hover .settings-card-arrow {
-            color: var(--accent-blue);
-            transform: translateX(4px);
+        .settings-back a:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
         }
 
-        .settings-card-header {
+        .settings-back a i {
+            font-size: 1rem;
+        }
+
+        /* Content area */
+        .settings-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .settings-header {
+            background: var(--bg-secondary);
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 12px;
+        }
+
+        .settings-header-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+
+        .settings-header-icon.green {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+        }
+
+        .settings-header-icon.blue {
+            background: rgba(21, 97, 240, 0.15);
+            color: var(--accent-blue);
+        }
+
+        .settings-header-icon.purple {
+            background: rgba(139, 92, 246, 0.15);
+            color: #8b5cf6;
+        }
+
+        .settings-header-text h2 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .settings-header-text p {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        .settings-frame {
+            flex: 1;
+            width: 100%;
+            border: none;
+            background: var(--bg-primary);
+        }
+
+        /* Welcome content */
+        .settings-welcome {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .settings-welcome-content {
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .settings-welcome-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            font-size: 2rem;
+            color: white;
+        }
+
+        .settings-welcome-content h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin: 0 0 12px 0;
+        }
+
+        .settings-welcome-content p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin: 0;
+            line-height: 1.6;
         }
     </style>
 </head>
 
 <body>
-    <div class="page-header">
-        <h1><i class="bi bi-sliders"></i> Ajustes</h1>
-        <p>Configura descuentos, categorías de boletos y mapeo de asientos</p>
-    </div>
-
-    <div class="settings-grid">
-        <a href="../dsc_boletos/index.php" class="settings-card">
-            <div class="settings-card-header">
-                <div class="settings-card-icon green">
-                    <i class="bi bi-percent"></i>
+    <aside class="settings-sidebar">
+        <div class="settings-sidebar-header">
+            <div class="settings-sidebar-title">
+                <i class="bi bi-sliders"></i>
+                <div>
+                    <span>Ajustes</span>
+                    <div class="settings-sidebar-subtitle">Configuración del sistema</div>
                 </div>
-                <div class="settings-card-content">
-                    <h3>Descuentos</h3>
-                    <p>Gestiona los descuentos disponibles para niños, tercera edad y cortesías</p>
-                </div>
-                <i class="bi bi-chevron-right settings-card-arrow"></i>
             </div>
-        </a>
+        </div>
 
-        <a href="../ctg_boletos/index.php" class="settings-card">
-            <div class="settings-card-header">
-                <div class="settings-card-icon blue">
-                    <i class="bi bi-tags-fill"></i>
-                </div>
-                <div class="settings-card-content">
-                    <h3>Categorías de Boletos</h3>
-                    <p>Configura las categorías y precios de boletos por evento</p>
-                </div>
-                <i class="bi bi-chevron-right settings-card-arrow"></i>
-            </div>
-        </a>
+        <nav class="settings-menu">
+            <div class="settings-menu-section">
+                <div class="settings-menu-section-title">Boletos y Precios</div>
+                
+                <a class="settings-menu-item" href="../dsc_boletos/index.php" data-title="Descuentos" data-desc="Gestiona los descuentos disponibles" data-icon="green">
+                    <div class="menu-icon green">
+                        <i class="bi bi-percent"></i>
+                    </div>
+                    <div class="menu-text">
+                        <span>Descuentos</span>
+                        <small>Niños, tercera edad y cortesías</small>
+                    </div>
+                </a>
 
-        <a href="../../mp_interfaz/index.php" class="settings-card">
-            <div class="settings-card-header">
-                <div class="settings-card-icon purple">
-                    <i class="bi bi-grid-3x3"></i>
-                </div>
-                <div class="settings-card-content">
-                    <h3>Mapeo de Asientos</h3>
-                    <p>Define la distribución de asientos y zonas del teatro</p>
-                </div>
-                <i class="bi bi-chevron-right settings-card-arrow"></i>
+                <a class="settings-menu-item" href="../ctg_boletos/index.php" data-title="Categorías de Boletos" data-desc="Configura categorías y precios" data-icon="blue">
+                    <div class="menu-icon blue">
+                        <i class="bi bi-tags-fill"></i>
+                    </div>
+                    <div class="menu-text">
+                        <span>Categorías de Boletos</span>
+                        <small>Precios y zonas por evento</small>
+                    </div>
+                </a>
             </div>
-        </a>
-    </div>
+
+            <div class="settings-menu-divider"></div>
+
+            <div class="settings-menu-section">
+                <div class="settings-menu-section-title">Teatro</div>
+                
+                <a class="settings-menu-item" href="../../mp_interfaz/index.php" data-title="Mapeo de Asientos" data-desc="Define la distribución del teatro" data-icon="purple">
+                    <div class="menu-icon purple">
+                        <i class="bi bi-grid-3x3"></i>
+                    </div>
+                    <div class="menu-text">
+                        <span>Mapeo de Asientos</span>
+                        <small>Distribución y zonas del teatro</small>
+                    </div>
+                </a>
+            </div>
+        </nav>
+
+        <div class="settings-back">
+            <a href="../../index.php">
+                <i class="bi bi-arrow-left"></i>
+                <span>Volver al inicio</span>
+            </a>
+        </div>
+    </aside>
+
+    <main class="settings-content">
+        <header class="settings-header" id="settingsHeader" style="display: none;">
+            <div class="settings-header-icon" id="headerIcon">
+                <i class="bi bi-sliders"></i>
+            </div>
+            <div class="settings-header-text">
+                <h2 id="headerTitle">Ajustes</h2>
+                <p id="headerDesc">Selecciona una opción del menú</p>
+            </div>
+        </header>
+
+        <div class="settings-welcome" id="welcomeContent">
+            <div class="settings-welcome-content">
+                <div class="settings-welcome-icon">
+                    <i class="bi bi-sliders"></i>
+                </div>
+                <h2>Configuración del Sistema</h2>
+                <p>Selecciona una opción del menú lateral para configurar descuentos, categorías de boletos o el mapeo de asientos del teatro.</p>
+            </div>
+        </div>
+
+        <iframe class="settings-frame" name="contentFrame" id="contentFrame" style="display: none;"></iframe>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const menuItems = document.querySelectorAll('.settings-menu-item');
+            const welcomeContent = document.getElementById('welcomeContent');
+            const contentFrame = document.getElementById('contentFrame');
+            const settingsHeader = document.getElementById('settingsHeader');
+            const headerIcon = document.getElementById('headerIcon');
+            const headerTitle = document.getElementById('headerTitle');
+            const headerDesc = document.getElementById('headerDesc');
+
+            menuItems.forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    // Update active state
+                    menuItems.forEach(mi => mi.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Update header
+                    const title = this.dataset.title;
+                    const desc = this.dataset.desc;
+                    const iconColor = this.dataset.icon;
+                    const iconEl = this.querySelector('.menu-icon i').className;
+                    
+                    headerTitle.textContent = title;
+                    headerDesc.textContent = desc;
+                    headerIcon.className = 'settings-header-icon ' + iconColor;
+                    headerIcon.innerHTML = '<i class="' + iconEl + '"></i>';
+                    
+                    // Show content
+                    welcomeContent.style.display = 'none';
+                    settingsHeader.style.display = 'flex';
+                    contentFrame.style.display = 'block';
+                    contentFrame.src = this.getAttribute('href');
+                });
+            });
+        });
+    </script>
 </body>
 
 </html>
