@@ -130,17 +130,17 @@ if (!$mysqli && !$pdo) {
 }
 
 // ============= CONFIGURACIÓN BD HISTÓRICA =============
-$db_mode = $_GET['db'] ?? 'ambas';
+$db_mode = $_GET['db'] ?? 'actual';
 $db_actual = 'trt_25';
 $db_historico = 'trt_historico_evento';
 
-// Función para agregar prefijo de BD a una tabla
-function db_table($table) {
+// Función para agregar prefijo de BD a una tabla con columnas específicas
+function db_table($table, $columns = '*') {
     global $db_mode, $db_actual, $db_historico;
     
     if ($db_mode === 'ambas') {
-        // Usar UNION para combinar ambas BDs
-        return "(SELECT * FROM {$db_actual}.{$table} UNION ALL SELECT * FROM {$db_historico}.{$table})";
+        // Usar UNION para combinar ambas BDs - IMPORTANTE: especificar columnas explícitas
+        return "(SELECT {$columns} FROM {$db_actual}.{$table} UNION ALL SELECT {$columns} FROM {$db_historico}.{$table})";
     }
     
     $db = ($db_mode === 'historico') ? $db_historico : $db_actual;

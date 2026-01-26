@@ -1,4 +1,4 @@
-<?php
+x<?php
 /**
  * Control de Entrada - Escáner de Boletos
  * Página compacta para validar y marcar boletos como usados

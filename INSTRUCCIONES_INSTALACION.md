@@ -11,11 +11,20 @@
 ### 1. Instalar Composer (si no lo tienes)
 Descarga e instala Composer desde: https://getcomposer.org/download/
 
-### 2. Instalar Dependencias
+### 2. Instalar Dependencias (Método Automático - RECOMENDADO)
+Si estás en Windows, simplemente haz doble clic en el archivo:
+**`INSTALADOR.bat`** en la raíz del proyecto.
+
+Este script hará todo por ti: verificará PHP, Composer, instalará las dependencias y creará las carpetas necesarias.
+
+### 2b. Instalar Dependencias (Método Manual)
+Si prefieres hacerlo manualmente o no estás en Windows:
 Abre una terminal en la carpeta raíz del proyecto y ejecuta:
 
 ```bash
+cd vnt_interfaz
 composer install
+mkdir qr_codes
 ```
 
 Este comando instalará:

@@ -7,19 +7,21 @@
 // ---------- CONEXIÓN ----------
 include_once __DIR__ . '/../../evt_interfaz/conexion.php';
 
-// Detectar qué base de datos usar
-$db_mode = $_GET['db'] ?? 'ambas';
+// Detectar qué base de datos usar - Por defecto usar solo la actual para evitar errores de columnas incompatibles
+$db_mode = $_GET['db'] ?? 'actual';
 $db_actual = 'trt_25';
 $db_historico = 'trt_historico_evento';
 
 // Configurar label
 if ($db_mode === 'ambas') {
     $db_label = 'Datos Combinados';
-    $TABLE_EVENTS   = "(SELECT * FROM {$db_actual}.evento UNION ALL SELECT * FROM {$db_historico}.evento)";
-    $TABLE_BOLETOS  = "(SELECT * FROM {$db_actual}.boletos UNION ALL SELECT * FROM {$db_historico}.boletos)";
-    $TABLE_CATEGORIAS = "(SELECT * FROM {$db_actual}.categorias UNION SELECT * FROM {$db_historico}.categorias)";
-    $TABLE_PROMOCIONES = "(SELECT * FROM {$db_actual}.promociones UNION SELECT * FROM {$db_historico}.promociones)";
-    $TABLE_ASIENTOS = "(SELECT * FROM {$db_actual}.asientos UNION ALL SELECT * FROM {$db_historico}.asientos)";
+    // NOTA: Para usar 'ambas', ambas BDs deben tener exactamente las mismas columnas
+    // De lo contrario, usar consultas específicas con columnas explícitas
+    $TABLE_EVENTS   = "(SELECT id_evento, titulo, descripcion, imagen, tipo, inicio_venta, cierre_venta, finalizado FROM {$db_actual}.evento UNION ALL SELECT id_evento, titulo, descripcion, imagen, tipo, inicio_venta, cierre_venta, finalizado FROM {$db_historico}.evento)";
+    $TABLE_BOLETOS  = "(SELECT id_boleto, id_evento, id_funcion, id_asiento, id_categoria, id_promocion, id_usuario, codigo_unico, precio_base, descuento_aplicado, precio_final, estatus, tipo_boleto, canjeado FROM {$db_actual}.boletos UNION ALL SELECT id_boleto, id_evento, id_funcion, id_asiento, id_categoria, id_promocion, id_usuario, codigo_unico, precio_base, descuento_aplicado, precio_final, estatus, tipo_boleto, canjeado FROM {$db_historico}.boletos)";
+    $TABLE_CATEGORIAS = "(SELECT id_categoria, id_evento, nombre_categoria, precio, color FROM {$db_actual}.categorias UNION SELECT id_categoria, id_evento, nombre_categoria, precio, color FROM {$db_historico}.categorias)";
+    $TABLE_PROMOCIONES = "(SELECT id_promocion, id_evento, nombre, tipo_descuento, valor, codigo, fecha_inicio, fecha_fin, activa FROM {$db_actual}.promociones UNION SELECT id_promocion, id_evento, nombre, tipo_descuento, valor, codigo, fecha_inicio, fecha_fin, activa FROM {$db_historico}.promociones)";
+    $TABLE_ASIENTOS = "(SELECT id_asiento, id_evento, codigo_asiento, id_categoria FROM {$db_actual}.asientos UNION ALL SELECT id_asiento, id_evento, codigo_asiento, id_categoria FROM {$db_historico}.asientos)";
 } else {
     $db_name = ($db_mode === 'historico') ? $db_historico : $db_actual;
     $db_label = ($db_mode === 'historico') ? 'Datos Históricos' : 'Datos Actuales';
