@@ -149,31 +149,37 @@ function renderSeat($codigo, $mapa, $vendidos, $colores, $infos, $id_def, $col_d
     $id_cat = $mapa[$codigo] ?? $id_def;
     $color = $colores[$id_cat] ?? $col_def;
     $esta_vendido = in_array($codigo, $vendidos);
-    
+
     // Datos para tooltip
     $nombre_cat = $infos[$id_cat]['nombre'] ?? 'General';
     $precio = isset($infos[$id_cat]['precio']) ? number_format($infos[$id_cat]['precio'], 2) : '0.00';
-    
-    $clase = "seat";
+
+    $clase = 'seat';
     $style = "background-color: $color;";
     $title = "$codigo | $nombre_cat | $$precio";
-    
+
     if ($esta_vendido) {
-        $clase .= " vendido";
-        $style = ""; // El estilo vendido se maneja por CSS
+        $clase .= ' vendido';
+        $style = '';
         $title = "$codigo | Ocupado";
     }
 
-    return "<div class='$clase' style='$style' title='$title'>$codigo</div>";
-}
-?>
+    $class_attr = htmlspecialchars($clase, ENT_QUOTES, 'UTF-8');
+    $style_attr = $style !== '' ? ' style="' . htmlspecialchars($style, ENT_QUOTES, 'UTF-8') . '"' : '';
+    $title_attr = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+    $codigo_html = htmlspecialchars($codigo, ENT_QUOTES, 'UTF-8');
 
+    return '<div class="' . $class_attr . '"' . $style_attr . ' title="' . $title_attr . '">' . $codigo_html . '</div>';
+}
+
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Disponibilidad - <?= htmlspecialchars($evento['titulo'] ?? 'Evento') ?></title>
+<link rel="icon" href="imagenes_teatro/nat.png" type="image/png">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
