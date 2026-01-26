@@ -4,14 +4,10 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 date_default_timezone_set('America/Mexico_City'); // Zona horaria local
 
-<<<<<<< HEAD
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-=======
-if (session_status() === PHP_SESSION_NONE) { session_start(); }
-date_default_timezone_set('America/Mexico_City'); // Sincronizar con hora local del usuario (-06:00)
->>>>>>> 9ad8a0c7aac8bcdad612d9182d5320658bd19a15
+
 include "../conexion.php";
 if (file_exists("../transacciones_helper.php")) {
     require_once "../transacciones_helper.php";
@@ -321,7 +317,9 @@ $defaultCierre = $modo_reactivacion ? '' : date('Y-m-d H:i', strtotime($evento['
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $modo_reactivacion ? 'Reactivar' : 'Editar' ?> Evento</title>
+    <title>
+        <?= $modo_reactivacion ? 'Reactivar' : 'Editar' ?> Evento
+    </title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -403,7 +401,6 @@ $defaultCierre = $modo_reactivacion ? '' : date('Y-m-d H:i', strtotime($evento['
             cursor: pointer;
         }
 
-<<<<<<< HEAD
         .btn-primary {
             background: var(--accent-blue);
             color: white;
@@ -686,7 +683,7 @@ $defaultCierre = $modo_reactivacion ? '' : date('Y-m-d H:i', strtotime($evento['
             margin-top: 10px;
         }
 
-        /* Modal Premium */
+        /* Modal Ultra Premium */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -694,8 +691,9 @@ $defaultCierre = $modo_reactivacion ? '' : date('Y-m-d H:i', strtotime($evento['
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(12px);
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             z-index: 1000;
             align-items: center;
             justify-content: center;
@@ -706,22 +704,36 @@ $defaultCierre = $modo_reactivacion ? '' : date('Y-m-d H:i', strtotime($evento['
         }
 
         .modal-content {
-            background: linear-gradient(145deg, var(--bg-secondary) 0%, #1a1a1c 100%);
-            border-radius: 20px;
+            background: linear-gradient(160deg, #1e1e22 0%, #141416 50%, #1a1a1e 100%);
+            border-radius: 24px;
             padding: 0;
-            max-width: 420px;
-            width: 90%;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 440px;
+            width: 92%;
+            border: 1px solid rgba(255, 255, 255, 0.08);
             text-align: center;
-            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
-            animation: modalPop 0.3s ease;
+            box-shadow:
+                0 0 0 1px rgba(255, 255, 255, 0.05),
+                0 25px 80px rgba(0, 0, 0, 0.7),
+                0 0 100px rgba(255, 159, 10, 0.15);
+            animation: modalPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
             overflow: hidden;
+            position: relative;
+        }
+
+        .modal-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
         }
 
         @keyframes modalPop {
             from {
                 opacity: 0;
-                transform: scale(0.9) translateY(-20px);
+                transform: scale(0.85) translateY(-30px);
             }
 
             to {
@@ -731,290 +743,155 @@ $defaultCierre = $modo_reactivacion ? '' : date('Y-m-d H:i', strtotime($evento['
         }
 
         .modal-icon-container {
-            background: linear-gradient(135deg, var(--warning) 0%, #ff6b35 100%);
-            padding: 30px;
+            background: linear-gradient(135deg, #ff9f0a 0%, #ff6b35 50%, #ff453a 100%);
+            padding: 40px 30px;
             position: relative;
+            overflow: hidden;
+        }
+
+        .modal-icon-container::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.2) 0%, transparent 50%);
         }
 
         .modal-icon-container::after {
             content: '';
             position: absolute;
-            bottom: -20px;
+            bottom: -25px;
             left: 50%;
             transform: translateX(-50%);
-            border-left: 25px solid transparent;
-            border-right: 25px solid transparent;
-            border-top: 20px solid #ff6b35;
+            border-left: 30px solid transparent;
+            border-right: 30px solid transparent;
+            border-top: 25px solid #ff453a;
+            filter: drop-shadow(0 5px 15px rgba(255, 69, 58, 0.5));
         }
 
         .modal-icon {
-            font-size: 3.5rem;
+            font-size: 4rem;
             color: white;
-            animation: iconBounce 1s ease infinite;
+            position: relative;
+            z-index: 1;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            animation: iconPulse 2s ease-in-out infinite;
         }
 
-        @keyframes iconBounce {
+        @keyframes iconPulse {
 
             0%,
             100% {
-                transform: scale(1);
+                transform: scale(1) rotate(0deg);
             }
 
-            50% {
-                transform: scale(1.1);
+            25% {
+                transform: scale(1.05) rotate(-3deg);
+            }
+
+            75% {
+                transform: scale(1.05) rotate(3deg);
             }
         }
 
         .modal-body-content {
-            padding: 40px 30px 30px;
+            padding: 50px 35px 30px;
+            position: relative;
+        }
+
+        .modal-body-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 10%;
+            right: 10%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 159, 10, 0.3), transparent);
         }
 
         .modal-content h5 {
-            color: var(--text-primary);
-            margin-bottom: 12px;
-            font-size: 1.3rem;
-            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 16px;
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
         }
 
         .modal-content p {
-            color: var(--text-muted);
+            color: rgba(255, 255, 255, 0.7);
             margin-bottom: 0;
-            font-size: 0.95rem;
-            line-height: 1.6;
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        .modal-content p strong {
+            color: var(--warning);
         }
 
         .modal-buttons {
             display: flex;
-            gap: 12px;
-            padding: 20px 30px 30px;
+            gap: 14px;
+            padding: 25px 35px 35px;
             justify-content: center;
         }
 
         .modal-buttons .btn {
             flex: 1;
-            padding: 14px 20px;
-            font-weight: 600;
-            border-radius: 12px;
-            transition: all 0.2s ease;
+            padding: 16px 24px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            border-radius: 14px;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .modal-buttons .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50%;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent);
+            pointer-events: none;
         }
 
         .modal-buttons .btn:hover {
-            transform: translateY(-2px);
+            transform: translateY(-3px) scale(1.02);
+        }
+
+        .modal-buttons .btn:active {
+            transform: translateY(0) scale(0.98);
         }
 
         .btn-stay {
-            background: var(--accent-blue);
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #4f46e5 100%);
             color: white;
             border: none;
+            box-shadow: 0 8px 25px rgba(21, 97, 240, 0.4);
         }
 
         .btn-stay:hover {
-            background: var(--accent-blue-hover);
-            box-shadow: 0 8px 20px rgba(21, 97, 240, 0.4);
+            box-shadow: 0 12px 35px rgba(21, 97, 240, 0.5);
         }
 
         .btn-leave {
-            background: transparent;
+            background: rgba(255, 69, 58, 0.1);
             color: var(--danger);
-            border: 2px solid var(--danger);
+            border: 2px solid rgba(255, 69, 58, 0.5);
         }
 
         .btn-leave:hover {
             background: var(--danger);
             color: white;
+            border-color: var(--danger);
+            box-shadow: 0 8px 25px rgba(255, 69, 58, 0.4);
         }
     </style>
-=======
-    /* Modal Ultra Premium */
-    .modal-overlay {
-        display: none;
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(0,0,0,0.9);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        z-index: 1000;
-        align-items: center;
-        justify-content: center;
-    }
-    .modal-overlay.active { display: flex; }
-    
-    .modal-content {
-        background: linear-gradient(160deg, #1e1e22 0%, #141416 50%, #1a1a1e 100%);
-        border-radius: 24px;
-        padding: 0;
-        max-width: 440px;
-        width: 92%;
-        border: 1px solid rgba(255,255,255,0.08);
-        text-align: center;
-        box-shadow: 
-            0 0 0 1px rgba(255,255,255,0.05),
-            0 25px 80px rgba(0,0,0,0.7),
-            0 0 100px rgba(255,159,10,0.15);
-        animation: modalPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-        overflow: hidden;
-        position: relative;
-    }
-    .modal-content::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-    }
-    @keyframes modalPop {
-        from { opacity: 0; transform: scale(0.85) translateY(-30px); }
-        to { opacity: 1; transform: scale(1) translateY(0); }
-    }
-    
-    .modal-icon-container {
-        background: linear-gradient(135deg, #ff9f0a 0%, #ff6b35 50%, #ff453a 100%);
-        padding: 40px 30px;
-        position: relative;
-        overflow: hidden;
-    }
-    .modal-icon-container::before {
-        content: '';
-        position: absolute;
-        top: -50%;
-        left: -50%;
-        width: 200%;
-        height: 200%;
-        background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.2) 0%, transparent 50%);
-    }
-    .modal-icon-container::after {
-        content: '';
-        position: absolute;
-        bottom: -25px;
-        left: 50%;
-        transform: translateX(-50%);
-        border-left: 30px solid transparent;
-        border-right: 30px solid transparent;
-        border-top: 25px solid #ff453a;
-        filter: drop-shadow(0 5px 15px rgba(255,69,58,0.5));
-    }
-    
-    .modal-icon {
-        font-size: 4rem;
-        color: white;
-        position: relative;
-        z-index: 1;
-        text-shadow: 0 4px 20px rgba(0,0,0,0.3);
-        animation: iconPulse 2s ease-in-out infinite;
-    }
-    @keyframes iconPulse {
-        0%, 100% { transform: scale(1) rotate(0deg); }
-        25% { transform: scale(1.05) rotate(-3deg); }
-        75% { transform: scale(1.05) rotate(3deg); }
-    }
-    
-    .modal-body-content {
-        padding: 50px 35px 30px;
-        position: relative;
-    }
-    .modal-body-content::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 10%;
-        right: 10%;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(255,159,10,0.3), transparent);
-    }
-    
-    .modal-content h5 { 
-        color: #ffffff; 
-        margin-bottom: 16px; 
-        font-size: 1.5rem;
-        font-weight: 800;
-        letter-spacing: -0.5px;
-        text-shadow: 0 2px 10px rgba(0,0,0,0.3);
-    }
-    .modal-content p { 
-        color: rgba(255,255,255,0.7); 
-        margin-bottom: 0;
-        font-size: 1rem;
-        line-height: 1.7;
-    }
-    .modal-content p strong {
-        color: var(--warning);
-    }
-    
-    .warning-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        background: rgba(255,159,10,0.15);
-        border: 1px solid rgba(255,159,10,0.3);
-        color: var(--warning);
-        padding: 10px 20px;
-        border-radius: 50px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        margin-top: 20px;
-    }
-    .warning-badge i {
-        font-size: 1.1rem;
-    }
-    
-    .modal-buttons { 
-        display: flex; 
-        gap: 14px; 
-        padding: 25px 35px 35px;
-        justify-content: center;
-    }
-    .modal-buttons .btn {
-        flex: 1;
-        padding: 16px 24px;
-        font-weight: 700;
-        font-size: 0.95rem;
-        border-radius: 14px;
-        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        position: relative;
-        overflow: hidden;
-    }
-    .modal-buttons .btn::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 50%;
-        background: linear-gradient(180deg, rgba(255,255,255,0.1), transparent);
-        pointer-events: none;
-    }
-    .modal-buttons .btn:hover {
-        transform: translateY(-3px) scale(1.02);
-    }
-    .modal-buttons .btn:active {
-        transform: translateY(0) scale(0.98);
-    }
-    
-    .btn-stay {
-        background: linear-gradient(135deg, var(--accent-blue) 0%, #4f46e5 100%);
-        color: white;
-        border: none;
-        box-shadow: 0 8px 25px rgba(21,97,240,0.4);
-    }
-    .btn-stay:hover {
-        box-shadow: 0 12px 35px rgba(21,97,240,0.5);
-    }
-    
-    .btn-leave {
-        background: rgba(255,69,58,0.1);
-        color: var(--danger);
-        border: 2px solid rgba(255,69,58,0.5);
-    }
-    .btn-leave:hover {
-        background: var(--danger);
-        color: white;
-        border-color: var(--danger);
-        box-shadow: 0 8px 25px rgba(255,69,58,0.4);
-    }
-</style>
->>>>>>> 9ad8a0c7aac8bcdad612d9182d5320658bd19a15
 </head>
 
 <body>
@@ -1047,8 +924,10 @@ $defaultCierre = $modo_reactivacion ? '' : date('Y-m-d H:i', strtotime($evento['
 
             <?php if ($errores_php): ?>
                 <div class="alert-danger">
-                    <ul><?php foreach ($errores_php as $e)
-                        echo "<li>$e</li>"; ?></ul>
+                    <ul>
+                        <?php foreach ($errores_php as $e)
+                            echo "<li>$e</li>"; ?>
+                    </ul>
                 </div>
             <?php endif; ?>
 
@@ -1162,7 +1041,8 @@ $defaultCierre = $modo_reactivacion ? '' : date('Y-m-d H:i', strtotime($evento['
                 <h5>¿Salir sin guardar?</h5>
                 <p>Tienes cambios sin guardar. Si sales ahora, perderás todas las modificaciones.
                     <?php if ($modo_reactivacion): ?><br><strong>El evento no se reactivará y permanecerá en el
-                            historial.</strong><?php endif; ?>
+                            historial.</strong>
+                    <?php endif; ?>
                 </p>
             </div>
             <div class="modal-buttons">
@@ -1176,7 +1056,24 @@ $defaultCierre = $modo_reactivacion ? '' : date('Y-m-d H:i', strtotime($evento['
         </div>
     </div>
 
-<<<<<<< HEAD
+    <!-- Modal de Alertas Premium -->
+    <div class="modal-overlay" id="modalAlerta">
+        <div class="modal-content">
+            <div class="modal-icon-container" id="modalAlertaIconContainer">
+                <i class="bi bi-exclamation-triangle-fill modal-icon" id="modalAlertaIcon"></i>
+            </div>
+            <div class="modal-body-content">
+                <h5 id="modalAlertaTitulo">Atención</h5>
+                <p id="modalAlertaMensaje"></p>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-stay" onclick="cerrarModalAlerta()">
+                    <i class="bi bi-check-lg"></i> Entendido
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
     <script>
@@ -1186,35 +1083,6 @@ $defaultCierre = $modo_reactivacion ? '' : date('Y-m-d H:i', strtotime($evento['
             const now = new Date();
             const esReactivacion = <?= $modo_reactivacion ? 'true' : 'false' ?>;
             let cierreBloqueado = true;
-=======
-<!-- Modal de Alertas Premium -->
-<div class="modal-overlay" id="modalAlerta">
-    <div class="modal-content">
-        <div class="modal-icon-container" id="modalAlertaIconContainer">
-            <i class="bi bi-exclamation-triangle-fill modal-icon" id="modalAlertaIcon"></i>
-        </div>
-        <div class="modal-body-content">
-            <h5 id="modalAlertaTitulo">Atención</h5>
-            <p id="modalAlertaMensaje"></p>
-        </div>
-        <div class="modal-buttons">
-            <button class="btn btn-stay" onclick="cerrarModalAlerta()">
-                <i class="bi bi-check-lg"></i> Entendido
-            </button>
-        </div>
-    </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    document.body.classList.add('loaded');
-    flatpickr.localize(flatpickr.l10ns.es);
-    const now = new Date();
-    const esReactivacion = <?= $modo_reactivacion ? 'true' : 'false' ?>;
-    let cierreBloqueado = true;
->>>>>>> 9ad8a0c7aac8bcdad612d9182d5320658bd19a15
 
             // Cargar funciones existentes desde PHP (solo en modo edición normal)
             // En reactivación, empezamos vacío para obligar a crear nuevas
@@ -1222,18 +1090,18 @@ document.addEventListener('DOMContentLoaded', () => {
             let formModificado = false; // Tracker para beforeunload
 
             <?php if (!$modo_reactivacion): ?>
-                <?php foreach ($funciones_existentes as $f): ?>
-                    <?php
-                    $fechaObj = $f['fecha'];
-                    $esPasada = $f['estado'] == 1 || $fechaObj < new DateTime();
-                    ?>
-                    funcs.push({
-                        id: <?= $f['id_funcion'] ?>,
-                        date: new Date('<?= $fechaObj->format('c') ?>'),
-                        past: <?= $esPasada ? 'true' : 'false' ?>,
-                        boletos: <?= $f['boletos'] ?>
-                    });
-                <?php endforeach; ?>
+                    <?php foreach ($funciones_existentes as $f): ?>
+                            <?php
+                            $fechaObj = $f['fecha'];
+                            $esPasada = $f['estado'] == 1 || $fechaObj < new DateTime();
+                            ?>
+                        funcs.push({
+                            id: <?= $f['id_funcion'] ?>,
+                            date: new Date('<?= $fechaObj->format('c') ?>'),
+                            past: <?= $esPasada ? 'true' : 'false' ?>,
+                            boletos: <?= $f['boletos'] ?>
+                            });
+                    <?php endforeach; ?>
             <?php endif; ?>
 
             const els = {
@@ -1286,134 +1154,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 onChange: val
             });
 
-<<<<<<< HEAD
             const fpE = flatpickr("#fin", {
                 enableTime: true,
                 dateFormat: "Y-m-d H:i",
                 clickOpens: false
             });
 
-            // Botón de candado (visual, el backend siempre ajusta automáticamente)
+            // Botón de candado
             els.lockBtn.onclick = () => {
                 cierreBloqueado = !cierreBloqueado;
                 if (cierreBloqueado) {
                     els.lockBtn.innerHTML = '<i class="bi bi-lock-fill"></i>';
                     els.lockBtn.classList.remove('unlocked');
                     fpE.set('clickOpens', false);
-=======
-    function recalcularCierre() {
-        const futuras = funcs.filter(f => !f.past);
-        if (futuras.length && cierreBloqueado) {
-            const ultima = futuras[futuras.length - 1].date;
-            // Cierre automático: 2 horas después de última función
-            const cierre = new Date(ultima.getTime() + 7200000); // +2 horas
-            fpE.setDate(cierre, true);
-        }
-    }
-
-    function check() { 
-        els.add.disabled = !(fpD.selectedDates.length && fpT.selectedDates.length); 
-    }
-
-    els.add.onclick = () => {
-        if (!fpD.selectedDates[0] || !fpT.selectedDates[0]) return;
-        
-        // Construcción robusta de fecha función (sin segundos ni ms)
-        const dPart = fpD.selectedDates[0];
-        const tPart = fpT.selectedDates[0];
-        const dt = new Date(dPart.getFullYear(), dPart.getMonth(), dPart.getDate(), tPart.getHours(), tPart.getMinutes(), 0, 0);
-
-        // Validar que sea futura con respecto a AHORA mismo (tiempo real)
-        const now = new Date();
-        // Margen de 1 minuto hacia el futuro
-        if (dt <= new Date(now.getTime() + 60000)) {
-            showModal('La función debe ser en el futuro (al menos 1 minuto adelante de ahora).', 'warning');
-            return;
-        }
-        
-        // Validar margen con Inicio de Venta
-        if (fpI.selectedDates.length) {
-            const iPart = fpI.selectedDates[0];
-            const inicioDate = new Date(iPart.getFullYear(), iPart.getMonth(), iPart.getDate(), iPart.getHours(), iPart.getMinutes(), 0, 0);
-            
-            const minInicio = new Date(inicioDate.getTime() + 60000);
-            if (dt < minInicio) {
-                const horaFunc = dt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                const horaMin = minInicio.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                showModal(`Conflicto de horario: La función (${horaFunc}) debe ser posterior al inicio de venta + 1min (${horaMin}).`, 'warning');
-                return;
-            }
-        }
-        
-        // Validar margen con Cierre de Venta (si es manual)
-        if (cierreBloqueado && fpE.selectedDates.length) {
-            const ePart = fpE.selectedDates[0];
-            const cierreDate = new Date(ePart.getFullYear(), ePart.getMonth(), ePart.getDate(), ePart.getHours(), ePart.getMinutes(), 0, 0);
-            
-            const maxCierre = new Date(cierreDate.getTime() - 60000);
-            if (dt > maxCierre) {
-                const horaFunc = dt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                const horaMax = maxCierre.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                showModal(`Conflicto de horario: La función (${horaFunc}) debe ser anterior al cierre de venta - 1min (${horaMax}).`, 'warning');
-                return;
-            }
-        }
-        
-        if (funcs.some(f => f.date.getTime() === dt.getTime())) {
-            showModal('Ya existe una función programada para esta fecha y hora.', 'warning');
-            return;
-        }
-        
-        funcs.push({ id: 0, date: dt, past: false, boletos: 0 });
-        funcs.sort((a, b) => a.date - b.date);
-        formModificado = true; // Marcar como modificado
-        fpD.clear();
-        fpT.clear();
-        check();
-        upd();
-    };
-
-    function upd() {
-        els.list.innerHTML = '';
-        els.hid.innerHTML = '';
-        
-        const futuras = funcs.filter(f => !f.past);
-        
-        if (!funcs.length) { 
-            els.list.appendChild(els.no); 
-            fpI.set('maxDate', null); 
-            fpE.setDate(null); 
-        } else {
-            funcs.forEach((f, i) => {
-                const d = f.date;
-                const fechaStr = d.toLocaleDateString('es-ES', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'});
-                const year = d.getFullYear();
-                const month = String(d.getMonth() + 1).padStart(2, '0');
-                const day = String(d.getDate()).padStart(2, '0');
-                const hours = String(d.getHours()).padStart(2, '0');
-                const mins = String(d.getMinutes()).padStart(2, '0');
-                const sqlDate = `${year}-${month}-${day} ${hours}:${mins}:00`;
-
-                const clase = f.past ? 'past' : 'future';
-                const icono = f.past ? 'bi-hourglass-bottom' : 'bi-calendar-event';
-                
-                // Protección de funciones con boletos vendidos
-                const tieneBoletos = (f.boletos || 0) > 0;
-                let btnDel = '';
-                let boletosInfo = '';
-                
-                if (tieneBoletos) {
-                    // Función protegida: mostrar candado y cantidad de boletos
-                    btnDel = `<span class="func-protected" title="${f.boletos} boletos vendidos - No se puede eliminar"><i class="bi bi-lock-fill"></i></span>`;
-                    boletosInfo = `<span class="boletos-count">${f.boletos} <i class="bi bi-ticket-fill"></i></span>`;
->>>>>>> 9ad8a0c7aac8bcdad612d9182d5320658bd19a15
+                    recalcularCierre();
                 } else {
                     els.lockBtn.innerHTML = '<i class="bi bi-unlock-fill"></i>';
                     els.lockBtn.classList.add('unlocked');
                     fpE.set('clickOpens', true);
                 }
-                // Siempre recalcular automáticamente
-                recalcularCierre();
             };
 
             function recalcularCierre() {
@@ -1439,12 +1198,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 dt.setSeconds(0);
 
                 if (dt <= new Date(Date.now() + 60000)) {
-                    alert("La función debe ser en el futuro.");
+                    showModal("La función debe ser en el futuro.", 'warning');
                     return;
                 }
 
                 if (funcs.some(f => f.date.getTime() === dt.getTime())) {
-                    alert("Ya existe esta función.");
+                    showModal("Ya existe esta función.", 'warning');
                     return;
                 }
 
@@ -1515,7 +1274,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.del = i => {
                 // Verificar si tiene boletos antes de eliminar
                 if (funcs[i].boletos > 0) {
-                    alert(`No se puede eliminar esta función porque tiene ${funcs[i].boletos} boletos vendidos.`);
+                    showModal(`No se puede eliminar esta función porque tiene ${funcs[i].boletos} boletos vendidos.`, 'error');
                     return;
                 }
                 funcs.splice(i, 1);
@@ -1583,88 +1342,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     return '';
                 }
             });
-<<<<<<< HEAD
 
             document.getElementById('fEdit').addEventListener('submit', e => {
                 // Verificación final: no permitir enviar con funciones pasadas
                 const futuras = funcs.filter(f => !f.past);
                 if (!futuras.length) {
                     e.preventDefault();
-                    alert("No puedes guardar sin funciones futuras. Elimina las vencidas y agrega nuevas.");
+                    showModal("No puedes guardar sin funciones futuras. Elimina las vencidas y agrega nuevas.", 'error');
                     return;
                 }
                 if (!val()) {
                     e.preventDefault();
-                    alert("Faltan campos o hay errores.");
+                    showModal('Por favor, completa todos los campos requeridos y corrige los errores.', 'error');
                 } else {
                     // Desactivar advertencia de beforeunload al enviar correctamente
                     formModificado = false;
                 }
             });
-=======
-            
-            // Limitar inicio venta: eliminado para dar flexibilidad (se valida en val())
-            // if (futuras.length) {
-            //    fpI.set('maxDate', new Date(futuras[0].date.getTime() - 60000));
-            // }
-            
-            recalcularCierre();
-        }
-        val();
-    }
-    
-    window.del = i => { 
-        // Verificar si tiene boletos antes de eliminar
-        if (funcs[i].boletos > 0) {
-            showModal(`No se puede eliminar esta función porque tiene ${funcs[i].boletos} boletos vendidos.`, 'error');
-            return;
-        }
-        funcs.splice(i, 1); 
-        formModificado = true;
-        upd(); 
-    };
-
-    function val() {
-        let ok = true; 
-        [els.ttF, els.ttI, els.ttDesc, els.ttTipo].forEach(e => { if(e) e.style.display = 'none'; });
-        document.querySelectorAll('.input-error').forEach(e => e.classList.remove('input-error'));
-        
-        if (!document.getElementById('tit').value.trim()) ok = false;
-        
-        const futuras = funcs.filter(f => !f.past);
-        if (!futuras.length) { 
-            err(els.ttF, null, 'Añade al menos una función futura.'); 
-            ok = false; 
-        }
-        
-        if (!fpI.selectedDates.length) { 
-            if (futuras.length) { err(els.ttI, els.ini, 'Requerido.'); ok = false; }
-        } else {
-            // Validar que inicio sea >= ahora + 1 minuto
-            if (fpI.selectedDates[0] <= new Date(Date.now() + 60000)) {
-                err(els.ttI, els.ini, 'Debe ser al menos 1 minuto posterior a ahora.'); 
-                ok = false;
-            }
-            // Validar que inicio sea al menos 1 minuto antes de primera función futura
-            // Nota: Se elimina restricción visual maxDate para evitar bloqueos
-            if (futuras.length && new Date(fpI.selectedDates[0].getTime() + 60000) > futuras[0].date) { 
-                err(els.ttI, els.ini, 'Debe ser al menos 1 minuto antes de la primera función.'); 
-                ok = false; 
-            }
-        }
-        
-        // Validar que cierre sea mayor que la última función (margen 1 min)
-        if (fpE.selectedDates.length && futuras.length && cierreBloqueado) {
-            const ultimaFuncion = futuras[futuras.length - 1]; // Usar futuras
-            if (new Date(ultimaFuncion.date.getTime() + 60000) > fpE.selectedDates[0]) {
-                showModal('El cierre de venta debe ser al menos 1 minuto después de la última función.', 'warning');
-                ok = false;
-            }
-        }
->>>>>>> 9ad8a0c7aac8bcdad612d9182d5320658bd19a15
 
             upd();
         });
+
+        // Variable global para destino de navegación
+        let urlDestino = null;
 
         function abrirModalCancelar() {
             // Si hay cambios, mostrar modal
@@ -1675,41 +1375,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 goBack();
             }
         }
-<<<<<<< HEAD
 
         function cerrarModal() {
             document.getElementById('modalCancelar').classList.remove('active');
-=======
-    });
-    
-    // Interceptar TODOS los clics en enlaces para mostrar modal premium
-    document.addEventListener('click', function(e) {
-        const link = e.target.closest('a[href]');
-        if (link && formModificado) {
-            e.preventDefault();
-            urlDestino = link.href;
-            document.getElementById('modalCancelar').classList.add('active');
-        }
-    });
-    
-    // Interceptar navegación con botón atrás del navegador (history)
-    window.addEventListener('popstate', function(e) {
-        if (formModificado) {
-            history.pushState(null, '', location.href);
-            document.getElementById('modalCancelar').classList.add('active');
-        }
-    });
-    // Agregar estado inicial para poder detectar popstate
-    history.pushState(null, '', location.href);
-    
-    document.getElementById('fEdit').addEventListener('submit', e => { 
-        // Verificación final: no permitir enviar con funciones pasadas
-        const futuras = funcs.filter(f => !f.past);
-        if (!futuras.length) {
-            e.preventDefault();
-            alert("No puedes guardar sin funciones futuras. Elimina las vencidas y agrega nuevas.");
-            return;
->>>>>>> 9ad8a0c7aac8bcdad612d9182d5320658bd19a15
+            urlDestino = null;
         }
 
         function confirmarSalida() {
@@ -1717,92 +1386,56 @@ document.addEventListener('DOMContentLoaded', () => {
             goBack();
         }
 
-<<<<<<< HEAD
         function goBack() {
             // Desactivar beforeunload
             window.onbeforeunload = null;
+            formModificado = false;
 
             document.body.classList.remove('loaded');
             document.body.classList.add('exiting');
-=======
-// Variable global para destino de navegación
-let urlDestino = null;
 
-function abrirModalCancelar() {
-    // Si hay cambios, mostrar modal
-    if (typeof formModificado !== 'undefined' && formModificado) {
-        document.getElementById('modalCancelar').classList.add('active');
-    } else {
-        // No hay cambios, salir directamente
-        goBack();
-    }
-}
+            // Si hay URL de destino específica, usarla
+            if (urlDestino) {
+                setTimeout(() => window.location.href = urlDestino, 350);
+            } else {
+                const esReactivacion = <?= $modo_reactivacion ? 'true' : 'false' ?>;
+                const tab = esReactivacion ? 'historial' : 'activos';
+                setTimeout(() => window.parent.location.href = 'index.php?tab=' + tab, 350);
+            }
+        }
 
-function cerrarModal() {
-    document.getElementById('modalCancelar').classList.remove('active');
-    urlDestino = null; // Limpiar destino al cerrar
-}
->>>>>>> 9ad8a0c7aac8bcdad612d9182d5320658bd19a15
+        // === MODAL DE ALERTAS PREMIUM ===
+        function showModal(mensaje, tipo = 'warning') {
+            const modal = document.getElementById('modalAlerta');
+            const iconContainer = document.getElementById('modalAlertaIconContainer');
+            const icon = document.getElementById('modalAlertaIcon');
+            const titulo = document.getElementById('modalAlertaTitulo');
+            const mensajeEl = document.getElementById('modalAlertaMensaje');
 
-            const esReactivacion = <?= $modo_reactivacion ? 'true' : 'false' ?>;
-            const tab = esReactivacion ? 'historial' : 'activos';
+            mensajeEl.textContent = mensaje;
 
-<<<<<<< HEAD
-            setTimeout(() => window.parent.location.href = 'index.php?tab=' + tab, 350);
+            // Configurar según tipo
+            if (tipo === 'error') {
+                iconContainer.style.background = 'linear-gradient(135deg, #ff453a 0%, #d70015 100%)';
+                icon.className = 'bi bi-x-circle-fill modal-icon';
+                titulo.textContent = 'Error';
+            } else if (tipo === 'success') {
+                iconContainer.style.background = 'linear-gradient(135deg, #30d158 0%, #00b341 100%)';
+                icon.className = 'bi bi-check-circle-fill modal-icon';
+                titulo.textContent = '¡Éxito!';
+            } else {
+                iconContainer.style.background = 'linear-gradient(135deg, #ff9f0a 0%, #ff6b35 50%, #ff453a 100%)';
+                icon.className = 'bi bi-exclamation-triangle-fill modal-icon';
+                titulo.textContent = 'Atención';
+            }
+
+            modal.classList.add('active');
+        }
+
+        function cerrarModalAlerta() {
+            document.getElementById('modalAlerta').classList.remove('active');
         }
     </script>
-=======
-function goBack() {
-    // Desactivar beforeunload
-    window.onbeforeunload = null;
-    formModificado = false;
-    
-    document.body.classList.remove('loaded');
-    document.body.classList.add('exiting');
-    
-    // Si hay URL de destino específica, usarla
-    if (urlDestino) {
-        setTimeout(() => window.location.href = urlDestino, 350);
-    } else {
-        const esReactivacion = <?= $modo_reactivacion ? 'true' : 'false' ?>;
-        const tab = esReactivacion ? 'historial' : 'activos';
-        setTimeout(() => window.parent.location.href = 'index.php?tab=' + tab, 350);
-    }
-}
-
-// === MODAL DE ALERTAS PREMIUM ===
-function showModal(mensaje, tipo = 'warning') {
-    const modal = document.getElementById('modalAlerta');
-    const iconContainer = document.getElementById('modalAlertaIconContainer');
-    const icon = document.getElementById('modalAlertaIcon');
-    const titulo = document.getElementById('modalAlertaTitulo');
-    const mensajeEl = document.getElementById('modalAlertaMensaje');
-    
-    mensajeEl.textContent = mensaje;
-    
-    // Configurar según tipo
-    if (tipo === 'error') {
-        iconContainer.style.background = 'linear-gradient(135deg, #ff453a 0%, #d70015 100%)';
-        icon.className = 'bi bi-x-circle-fill modal-icon';
-        titulo.textContent = 'Error';
-    } else if (tipo === 'success') {
-        iconContainer.style.background = 'linear-gradient(135deg, #30d158 0%, #00b341 100%)';
-        icon.className = 'bi bi-check-circle-fill modal-icon';
-        titulo.textContent = '¡Éxito!';
-    } else {
-        iconContainer.style.background = 'linear-gradient(135deg, #ff9f0a 0%, #ff6b35 50%, #ff453a 100%)';
-        icon.className = 'bi bi-exclamation-triangle-fill modal-icon';
-        titulo.textContent = 'Atención';
-    }
-    
-    modal.classList.add('active');
-}
-
-function cerrarModalAlerta() {
-    document.getElementById('modalAlerta').classList.remove('active');
-}
-</script>
->>>>>>> 9ad8a0c7aac8bcdad612d9182d5320658bd19a15
 </body>
 
 </html>
