@@ -2,10 +2,12 @@
 /**
  * AUTO-ARCHIVO DE EVENTOS
  * Este script archiva automáticamente los eventos cuya última función
- * terminó hace más de 4 horas.
+ * terminó y ya pasó la medianoche.
  * 
  * Se ejecuta automáticamente al cargar la página de eventos activos.
  */
+
+date_default_timezone_set('America/Mexico_City'); // Zona horaria local
 
 // Evitar ejecución directa
 if (!isset($conn)) {
@@ -18,10 +20,11 @@ define('HORAS_PARA_ARCHIVAR', 4); // Horas después de la última función para 
 /**
  * Función para archivar evento (copiada de act_evento.php para independencia)
  */
-function archivar_evento_auto($id, $conn) {
+function archivar_evento_auto($id, $conn)
+{
     $db_historico = 'trt_historico_evento';
     $db_principal = 'trt_25';
-    
+
     // 1. COPIAR TODO A HISTÓRICO
     $conn->query("INSERT IGNORE INTO {$db_historico}.evento SELECT * FROM {$db_principal}.evento WHERE id_evento = $id");
     $conn->query("INSERT IGNORE INTO {$db_historico}.funciones SELECT * FROM {$db_principal}.funciones WHERE id_evento = $id");
@@ -35,7 +38,7 @@ function archivar_evento_auto($id, $conn) {
     $conn->query("DELETE FROM {$db_principal}.categorias WHERE id_evento = $id");
     $conn->query("DELETE FROM {$db_principal}.funciones WHERE id_evento = $id");
     $conn->query("DELETE FROM {$db_principal}.evento WHERE id_evento = $id");
-    
+
     return true;
 }
 
@@ -43,9 +46,10 @@ function archivar_evento_auto($id, $conn) {
  * Ejecutar auto-archivado de eventos caducados
  * Los eventos se archivan a medianoche del día siguiente a la última función
  */
-function ejecutar_auto_archivado($conn) {
+function ejecutar_auto_archivado($conn)
+{
     $eventos_archivados = [];
-    
+
     // Buscar eventos activos cuya ÚLTIMA función fue AYER o antes
     // Es decir, ya pasó la medianoche después de la última función
     $sql = "
@@ -58,43 +62,45 @@ function ejecutar_auto_archivado($conn) {
         GROUP BY e.id_evento, e.titulo
         HAVING DATE(ultima_funcion) < CURDATE()
     ";
-    
+
     $result = $conn->query($sql);
     if (!$result) {
         error_log("Error en consulta de auto-archivado: " . $conn->error);
         return [];
     }
-    
+
     while ($evento = $result->fetch_assoc()) {
         $id_evento = $evento['id_evento'];
         $titulo = $evento['titulo'];
-        
+
         $conn->begin_transaction();
         try {
             archivar_evento_auto($id_evento, $conn);
             $conn->commit();
-            
+
             $eventos_archivados[] = [
                 'id' => $id_evento,
                 'titulo' => $titulo,
                 'ultima_funcion' => $evento['ultima_funcion'],
                 'fecha_ultima' => $evento['fecha_ultima_funcion']
             ];
-            
+
             // Registrar en transacciones si está disponible
             if (function_exists('registrar_transaccion')) {
-                registrar_transaccion('evento_auto_archivar', 
-                    "Auto-archivado a medianoche: \"$titulo\" (última función: {$evento['ultima_funcion']})");
+                registrar_transaccion(
+                    'evento_auto_archivar',
+                    "Auto-archivado a medianoche: \"$titulo\" (última función: {$evento['ultima_funcion']})"
+                );
             }
-            
+
             error_log("Auto-archivado evento ID $id_evento: $titulo (última función: {$evento['ultima_funcion']})");
-            
+
         } catch (Exception $e) {
             $conn->rollback();
             error_log("Error auto-archivando evento $id_evento: " . $e->getMessage());
         }
     }
-    
+
     return $eventos_archivados;
 }
 
