@@ -90,6 +90,7 @@ $EVENTOS_JSON = json_encode([
 <meta charset="UTF-8" />
 <title>Admin — Reportes</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" href="../../crt_interfaz/imagenes_teatro/nat.png" type="image/png">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 
 <style>

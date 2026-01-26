@@ -18,6 +18,7 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Teatro - Panel de Control</title>
+    <link rel="icon" href="crt_interfaz/imagenes_teatro/nat.png" type="image/png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="assets/css/teatro-style.css">
     <style>
@@ -62,13 +63,9 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
         .sidebar-brand-icon {
             width: 42px;
             height: 42px;
-            background: var(--gradient-primary);
-            border-radius: var(--radius-md);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.3rem;
-            color: white;
             flex-shrink: 0;
         }
 
@@ -423,7 +420,7 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand">
             <div class="sidebar-brand-icon">
-                <i class="bi bi-ticket-perforated-fill"></i>
+                <img src="crt_interfaz/imagenes_teatro/nat.png" alt="Teatro" style="width: 70%; height: 70%; object-fit: contain; display: block;">
             </div>
             <div class="sidebar-brand-text">
                 Teatro<span>Sistema de Gestión</span>

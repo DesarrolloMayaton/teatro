@@ -162,9 +162,17 @@ if ($resultado && $resultado->num_rows > 0) {
             font-weight: 600;
             transition: color .2s ease, transform .2s ease;
         }
-        .nav a:hover {
+        .nav a:not(.cta) {
+            padding: 8px 10px;
+            border-radius: 10px;
+            transition: color .2s ease, transform .2s ease, background-color .2s ease, box-shadow .2s ease;
+        }
+        .nav a:not(.cta):hover,
+        .nav a:not(.cta).active {
             color: #ffffff;
             transform: translateY(-1px);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
         }
         .cta {
             margin-left: 6px;
