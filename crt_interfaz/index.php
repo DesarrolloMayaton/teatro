@@ -135,7 +135,18 @@ if ($resultado && $resultado->num_rows > 0) {
             color: #e8e8e8; text-decoration: none; font-weight: 600;
             transition: color .2s ease, transform .2s ease;
         }
-        .nav a:hover { color: #ffffff; transform: translateY(-1px); }
+        .nav a:not(.cta) {
+            padding: 8px 10px;
+            border-radius: 10px;
+            transition: color .2s ease, transform .2s ease, background-color .2s ease, box-shadow .2s ease;
+        }
+        .nav a:not(.cta):hover,
+        .nav a:not(.cta).active {
+            color: #ffffff;
+            transform: translateY(-1px);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
+        }
         
         .cta {
             margin-left: 6px; padding: 10px 14px; border-radius: 8px;
@@ -313,7 +324,7 @@ if ($resultado && $resultado->num_rows > 0) {
                 <div class="brand-name">Teatro Constitución · Apatzingan</div>
             </a>
             <nav class="nav" id="mainNav">
-                <a href="#inicio">Inicio</a>
+                <a href="#inicio" class="active">Inicio</a>
                 <a href="acerca.php">Acerca del teatro</a>
                 <a href="contacto.php">Contacto / Reservaciones</a>
                 <a href="cartelera_cliente.php" class="cta">Ver cartelera completa <i class="bi bi-arrow-right"></i></a>
