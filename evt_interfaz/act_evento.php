@@ -1,11 +1,15 @@
 <?php
 // Activar reporte de errores
 error_reporting(E_ALL);
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-date_default_timezone_set('America/Mexico_City'); // Sincronizar zona horaria
+<<<<<<< HEAD
+ini_set('display_errors', 1);
+date_default_timezone_set('America/Mexico_City'); // Zona horaria local
 
+session_start();
+=======
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
+date_default_timezone_set('America/Mexico_City'); // Sincronizar zona horaria
+>>>>>>> 9ad8a0c7aac8bcdad612d9182d5320658bd19a15
 include "../conexion.php";
 
 if (file_exists("../transacciones_helper.php")) {
@@ -35,19 +39,53 @@ include_once __DIR__ . '/auto_archivar.php';
 // ==================================================================
 // FUNCIÓN PARA ARCHIVAR (MOVER A HISTÓRICO)
 // ==================================================================
+<<<<<<< HEAD
+function archivar_evento_completo($id, $conn)
+{
+    $db_historico = 'trt_historico_evento';
+    $db_principal = 'trt_25';
+
+    // 1. COPIAR TODO A HISTÓRICO
+    $result = $conn->query("INSERT IGNORE INTO {$db_historico}.evento SELECT * FROM {$db_principal}.evento WHERE id_evento = $id");
+    if (!$result)
+        throw new Exception("Error copiando evento: " . $conn->error);
+
+    $result = $conn->query("INSERT IGNORE INTO {$db_historico}.funciones SELECT * FROM {$db_principal}.funciones WHERE id_evento = $id");
+    if (!$result)
+        throw new Exception("Error copiando funciones: " . $conn->error);
+
+    $result = $conn->query("INSERT IGNORE INTO {$db_historico}.categorias SELECT * FROM {$db_principal}.categorias WHERE id_evento = $id");
+    if (!$result)
+        throw new Exception("Error copiando categorías: " . $conn->error);
+
+    $result = $conn->query("INSERT IGNORE INTO {$db_historico}.promociones SELECT * FROM {$db_principal}.promociones WHERE id_evento = $id");
+    if (!$result)
+        throw new Exception("Error copiando promociones: " . $conn->error);
+
+    $result = $conn->query("INSERT IGNORE INTO {$db_historico}.boletos SELECT * FROM {$db_principal}.boletos WHERE id_evento = $id");
+    if (!$result)
+        throw new Exception("Error copiando boletos: " . $conn->error);
+
+    // 2. BORRAR DE PRODUCCIÓN
+    $conn->query("DELETE FROM {$db_principal}.boletos WHERE id_evento = $id");
+    $conn->query("DELETE FROM {$db_principal}.promociones WHERE id_evento = $id");
+    $conn->query("DELETE FROM {$db_principal}.categorias WHERE id_evento = $id");
+    $conn->query("DELETE FROM {$db_principal}.funciones WHERE id_evento = $id");
+    $conn->query("DELETE FROM {$db_principal}.evento WHERE id_evento = $id");
+
+=======
 
 /**
  * Archiva un evento moviéndolo a la base de datos histórica.
  * Asume que la estructura de tablas es idéntica (gestionado por setup_historico.php)
  */
-function archivar_evento_completo($id, $conn)
-{
+function archivar_evento_completo($id, $conn) {
     $db_historico = 'trt_historico_evento';
     $db_principal = 'trt_25';
-    $id = (int) $id;
-
+    $id = (int)$id;
+    
     $tablas = ['evento', 'funciones', 'categorias', 'promociones', 'boletos'];
-
+    
     // 1. COPIAR A HISTÓRICO (INSERT IGNORE ... SELECT)
     // Usamos INSERT IGNORE para evitar errores, aunque idealmente no debería haber duplicados de ID si se borraron antes.
     foreach ($tablas as $tabla) {
@@ -66,7 +104,8 @@ function archivar_evento_completo($id, $conn)
     $conn->query("DELETE FROM `$db_principal`.categorias WHERE id_evento = $id");
     $conn->query("DELETE FROM `$db_principal`.funciones WHERE id_evento = $id");
     $conn->query("DELETE FROM `$db_principal`.evento WHERE id_evento = $id");
-
+    
+>>>>>>> 9ad8a0c7aac8bcdad612d9182d5320658bd19a15
     return true;
 }
 
@@ -164,175 +203,119 @@ $activos = $conn->query("
             padding: 24px;
         }
 
-        /* Empty State - Premium Design */
-        .empty-state {
-            text-align: center;
-            padding: 80px 40px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 400px;
-            background: linear-gradient(135deg, rgba(21, 97, 240, 0.03) 0%, rgba(139, 92, 246, 0.05) 50%, rgba(21, 97, 240, 0.03) 100%);
-            border-radius: var(--radius-lg);
-            border: 2px dashed var(--border-color);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .empty-state::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle at center, rgba(21, 97, 240, 0.05) 0%, transparent 50%);
-            animation: floatBg 15s ease-in-out infinite;
-        }
-
-        @keyframes floatBg {
-
-            0%,
-            100% {
-                transform: translate(0, 0) rotate(0deg);
-            }
-
-            33% {
-                transform: translate(10px, -10px) rotate(5deg);
-            }
-
-            66% {
-                transform: translate(-10px, 10px) rotate(-5deg);
-            }
-        }
-
-        .empty-state-content {
-            position: relative;
-            z-index: 1;
-        }
-
-        .empty-state-icon {
-            width: 140px;
-            height: 140px;
-            background: linear-gradient(135deg, var(--accent-blue) 0%, #8b5cf6 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 30px;
-            box-shadow: 0 20px 60px rgba(21, 97, 240, 0.3), 0 0 0 15px rgba(21, 97, 240, 0.1);
-            animation: iconFloat 3s ease-in-out infinite;
-        }
-
-        @keyframes iconFloat {
-
-            0%,
-            100% {
-                transform: translateY(0);
-            }
-
-            50% {
-                transform: translateY(-10px);
-            }
-        }
-
-        .empty-state-icon i {
-            font-size: 4rem;
-            color: white;
-        }
-
-        .empty-state h3 {
-            color: #ffffff !important;
-            font-size: 1.8rem;
-            font-weight: 700;
-            margin: 0 0 12px;
-        }
-
-        .empty-state p {
-            color: #cbd5e1 !important;
-            font-size: 1rem;
-            margin: 0 0 30px;
-            max-width: 400px;
-            line-height: 1.6;
-        }
-
-        .empty-state .btn-create {
-            background: linear-gradient(135deg, var(--accent-blue) 0%, #8b5cf6 100%);
-            color: white;
-            padding: 16px 40px;
-            border: none;
-            border-radius: 50px;
-            font-size: 1.1rem;
-            font-weight: 700;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 12px;
-            transition: all 0.3s ease;
-            box-shadow: 0 8px 30px rgba(21, 97, 240, 0.4);
-            text-decoration: none;
-        }
-
-        .empty-state .btn-create:hover {
-            transform: translateY(-3px) scale(1.02);
-            box-shadow: 0 12px 40px rgba(21, 97, 240, 0.5);
-        }
-
-        .empty-state .sparkle {
-            position: absolute;
-            width: 8px;
-            height: 8px;
-            background: var(--accent-blue);
-            border-radius: 50%;
-            opacity: 0.6;
-            animation: sparkle 2s ease-in-out infinite;
-        }
-
-        .empty-state .sparkle:nth-child(1) {
-            top: 20%;
-            left: 15%;
-            animation-delay: 0s;
-        }
-
-        .empty-state .sparkle:nth-child(2) {
-            top: 30%;
-            right: 20%;
-            animation-delay: 0.5s;
-        }
-
-        .empty-state .sparkle:nth-child(3) {
-            bottom: 25%;
-            left: 25%;
-            animation-delay: 1s;
-        }
-
-        .empty-state .sparkle:nth-child(4) {
-            bottom: 35%;
-            right: 15%;
-            animation-delay: 1.5s;
-        }
-
-        @keyframes sparkle {
-
-            0%,
-            100% {
-                transform: scale(1);
-                opacity: 0.6;
-            }
-
-            50% {
-                transform: scale(1.5);
-                opacity: 1;
-            }
-        }
-
+<<<<<<< HEAD
         .page-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 24px;
         }
+=======
+    /* Empty State - Premium Design */
+    .empty-state {
+        text-align: center;
+        padding: 80px 40px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 400px;
+        background: linear-gradient(135deg, rgba(21, 97, 240, 0.03) 0%, rgba(139, 92, 246, 0.05) 50%, rgba(21, 97, 240, 0.03) 100%);
+        border-radius: var(--radius-lg);
+        border: 2px dashed var(--border-color);
+        position: relative;
+        overflow: hidden;
+    }
+    .empty-state::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle at center, rgba(21, 97, 240, 0.05) 0%, transparent 50%);
+        animation: floatBg 15s ease-in-out infinite;
+    }
+    @keyframes floatBg {
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        33% { transform: translate(10px, -10px) rotate(5deg); }
+        66% { transform: translate(-10px, 10px) rotate(-5deg); }
+    }
+    .empty-state-content {
+        position: relative;
+        z-index: 1;
+    }
+    .empty-state-icon {
+        width: 140px;
+        height: 140px;
+        background: linear-gradient(135deg, var(--accent-blue) 0%, #8b5cf6 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 30px;
+        box-shadow: 0 20px 60px rgba(21, 97, 240, 0.3), 0 0 0 15px rgba(21, 97, 240, 0.1);
+        animation: iconFloat 3s ease-in-out infinite;
+    }
+    @keyframes iconFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+    .empty-state-icon i {
+        font-size: 4rem;
+        color: white;
+    }
+    .empty-state h3 {
+        color: #ffffff !important;
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin: 0 0 12px;
+    }
+    .empty-state p {
+        color: #cbd5e1 !important;
+        font-size: 1rem;
+        margin: 0 0 30px;
+        max-width: 400px;
+        line-height: 1.6;
+    }
+    .empty-state .btn-create {
+        background: linear-gradient(135deg, var(--accent-blue) 0%, #8b5cf6 100%);
+        color: white;
+        padding: 16px 40px;
+        border: none;
+        border-radius: 50px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        transition: all 0.3s ease;
+        box-shadow: 0 8px 30px rgba(21, 97, 240, 0.4);
+        text-decoration: none;
+    }
+    .empty-state .btn-create:hover {
+        transform: translateY(-3px) scale(1.02);
+        box-shadow: 0 12px 40px rgba(21, 97, 240, 0.5);
+    }
+    .empty-state .sparkle {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        background: var(--accent-blue);
+        border-radius: 50%;
+        opacity: 0.6;
+        animation: sparkle 2s ease-in-out infinite;
+    }
+    .empty-state .sparkle:nth-child(1) { top: 20%; left: 15%; animation-delay: 0s; }
+    .empty-state .sparkle:nth-child(2) { top: 30%; right: 20%; animation-delay: 0.5s; }
+    .empty-state .sparkle:nth-child(3) { bottom: 25%; left: 25%; animation-delay: 1s; }
+    .empty-state .sparkle:nth-child(4) { bottom: 35%; right: 15%; animation-delay: 1.5s; }
+    @keyframes sparkle {
+        0%, 100% { transform: scale(1); opacity: 0.6; }
+        50% { transform: scale(1.5); opacity: 1; }
+    }
+>>>>>>> 9ad8a0c7aac8bcdad612d9182d5320658bd19a15
 
         .page-header h4 {
             margin: 0;
@@ -343,6 +326,7 @@ $activos = $conn->query("
             gap: 10px;
         }
 
+<<<<<<< HEAD
         .badge-count {
             background: var(--bg-tertiary);
             color: var(--text-muted);
@@ -542,15 +526,22 @@ $activos = $conn->query("
             border-color: var(--danger);
         }
 
-        /* Badge de boletos en tarjetas */
-        .boletos-badge {
-            background: var(--danger);
-            color: white;
-            font-size: 0.65rem;
-            padding: 2px 6px;
-            border-radius: 10px;
-            margin-left: 4px;
-            font-weight: 700;
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state p {
+            margin: 0;
+            font-size: 1rem;
         }
 
         /* Alert de auto-archivado */
@@ -603,30 +594,14 @@ $activos = $conn->query("
             display: flex;
         }
 
-        /* Modal Ultra Premium */
         .modal-box {
-            background: linear-gradient(160deg, #1e1e22 0%, #141416 50%, #1a1a1e 100%);
-            border-radius: 24px;
-            width: 92%;
-            max-width: 440px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow:
-                0 0 0 1px rgba(255, 255, 255, 0.05),
-                0 25px 80px rgba(0, 0, 0, 0.7),
-                0 0 100px rgba(255, 69, 58, 0.15);
-            animation: modalIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-            overflow: hidden;
-            position: relative;
-        }
-
-        .modal-box::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            width: 90%;
+            max-width: 420px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-xl);
+            animation: modalIn 0.3s ease;
         }
 
         @keyframes modalIn {
@@ -641,229 +616,406 @@ $activos = $conn->query("
             }
         }
 
-        .modal-header-premium {
-            background: linear-gradient(135deg, #ff453a 0%, #d70015 100%);
-            padding: 40px 30px;
-            position: relative;
-            text-align: center;
-            overflow: hidden;
-        }
-
-        .modal-header-premium::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.2) 0%, transparent 50%);
-        }
-
-        .modal-header-premium::after {
-            content: '';
-            position: absolute;
-            bottom: -25px;
-            left: 50%;
-            transform: translateX(-50%);
-            border-left: 30px solid transparent;
-            border-right: 30px solid transparent;
-            border-top: 25px solid #d70015;
-        }
-
-        .modal-header-premium h5 {
-            margin: 0;
-            font-weight: 800;
-            font-size: 1.5rem;
+        .modal-header {
+            background: var(--danger);
             color: white;
-            position: relative;
-            z-index: 1;
-            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            padding: 20px 24px;
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
-        .modal-header-premium .btn-close {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.2);
+        .modal-header h5 {
+            margin: 0;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modal-header .btn-close {
+            background: rgba(255, 255, 255, 0.2);
             border: none;
             color: white;
-            width: 36px;
-            height: 36px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
             font-size: 1.2rem;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 2;
-            transition: all 0.2s;
         }
 
-        .modal-header-premium .btn-close:hover {
-            background: rgba(0, 0, 0, 0.4);
-            transform: rotate(90deg);
+        .modal-header .btn-close:hover {
+            background: rgba(255, 255, 255, 0.3);
         }
 
         .modal-body {
-            padding: 50px 35px 30px;
+            padding: 30px;
             text-align: center;
-            position: relative;
-        }
-
-        .modal-body::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 10%;
-            right: 10%;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255, 69, 58, 0.3), transparent);
         }
 
         .modal-body .modal-icon {
             font-size: 4rem;
             color: var(--danger);
             margin-bottom: 20px;
-            filter: drop-shadow(0 0 20px rgba(255, 69, 58, 0.3));
-            animation: iconPulse 2s ease-in-out infinite;
-        }
-
-        @keyframes iconPulse {
-
-            0%,
-            100% {
-                transform: scale(1);
-            }
-
-            50% {
-                transform: scale(1.05);
-            }
         }
 
         .modal-body p {
-            color: rgba(255, 255, 255, 0.7);
+            color: var(--text-secondary);
             margin-bottom: 8px;
-            font-size: 1rem;
-            line-height: 1.6;
         }
 
         .modal-body .event-name {
-            color: white;
-            font-weight: 800;
-            font-size: 1.3rem;
-            margin: 10px 0 20px;
-            text-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+            color: var(--warning);
+            font-weight: 700;
+            font-size: 1.1rem;
         }
 
         .modal-body input[type="password"] {
             width: 100%;
-            padding: 16px;
-            margin-top: 25px;
+            padding: 14px;
+            margin-top: 20px;
             font-size: 1.2rem;
             text-align: center;
             letter-spacing: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            background: rgba(0, 0, 0, 0.3);
-            color: white;
-            transition: all 0.3s;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
         }
 
         .modal-body input[type="password"]:focus {
             outline: none;
-            border-color: var(--danger);
-            box-shadow: 0 0 0 3px rgba(255, 69, 58, 0.2);
-            background: rgba(0, 0, 0, 0.5);
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(21, 97, 240, 0.2);
         }
 
         .modal-error {
-            color: #ff453a;
-            font-size: 0.9rem;
-            margin-top: 15px;
+            color: var(--danger);
+            font-size: 0.85rem;
+            margin-top: 10px;
             display: none;
-            padding: 10px;
-            background: rgba(255, 69, 58, 0.1);
-            border-radius: 8px;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
         }
 
-        .boletos-warning {
-            background: rgba(255, 159, 10, 0.1);
+        .modal-warning {
+            background: var(--warning-bg);
             border: 1px solid rgba(255, 159, 10, 0.3);
             color: var(--warning);
-            padding: 16px;
-            border-radius: 12px;
+            padding: 12px;
+            border-radius: var(--radius-sm);
             margin-top: 20px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Advertencia de boletos vendidos */
+        .boletos-warning {
+            background: var(--danger-bg);
+            border: 1px solid rgba(255, 69, 58, 0.4);
+            color: var(--danger);
+            padding: 16px;
+            border-radius: var(--radius-sm);
+            margin-top: 16px;
             display: flex;
             align-items: flex-start;
             gap: 12px;
             text-align: left;
         }
 
-        .boletos-warning strong {
-            color: #ff9f0a;
+        .boletos-warning i {
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .boletos-warning small {
+            opacity: 0.8;
+        }
+
+        /* Badge de boletos en tarjetas */
+        .boletos-badge {
+            background: var(--danger);
+            color: white;
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: 4px;
+            font-weight: 700;
         }
 
         .modal-footer {
-            padding: 20px 35px 35px;
+            padding: 20px 30px;
+            border-top: 1px solid var(--border-color);
             display: flex;
             justify-content: center;
-            border: none;
         }
 
         .modal-footer button {
-            padding: 16px 30px;
-            width: 100%;
+            padding: 12px 30px;
             border: none;
-            border-radius: 14px;
+            border-radius: var(--radius-sm);
             font-weight: 700;
-            font-size: 1rem;
             cursor: pointer;
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 10px;
-            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            position: relative;
-            overflow: hidden;
+            gap: 8px;
+            transition: var(--transition-fast);
         }
 
         .modal-footer .btn-confirm {
-            background: linear-gradient(135deg, #ff453a 0%, #d70015 100%);
+            background: var(--danger);
             color: white;
-            box-shadow: 0 8px 25px rgba(255, 69, 58, 0.3);
         }
 
         .modal-footer .btn-confirm:hover:not(:disabled) {
-            transform: translateY(-3px);
-            box-shadow: 0 12px 35px rgba(255, 69, 58, 0.4);
-        }
-
-        .modal-footer .btn-confirm:active {
-            transform: translateY(0);
-        }
-
-        .modal-footer .btn-confirm::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 50%;
-            background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent);
-            pointer-events: none;
+            filter: brightness(1.1);
         }
 
         .modal-footer .btn-confirm:disabled {
-            background: #3a3a3c;
-            color: #86868b;
-            box-shadow: none;
+            opacity: 0.6;
             cursor: not-allowed;
-            transform: none;
         }
     </style>
+=======
+    /* Modal */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.85);
+        backdrop-filter: blur(8px);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+    .modal-overlay.active { display: flex; }
+    
+    /* Modal Ultra Premium */
+    .modal-box {
+        background: linear-gradient(160deg, #1e1e22 0%, #141416 50%, #1a1a1e 100%);
+        border-radius: 24px;
+        width: 92%;
+        max-width: 440px;
+        border: 1px solid rgba(255,255,255,0.08);
+        box-shadow: 
+            0 0 0 1px rgba(255,255,255,0.05),
+            0 25px 80px rgba(0,0,0,0.7),
+            0 0 100px rgba(255,69,58,0.15);
+        animation: modalIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        overflow: hidden;
+        position: relative;
+    }
+    .modal-box::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    }
+    
+    .modal-header-premium {
+        background: linear-gradient(135deg, #ff453a 0%, #d70015 100%);
+        padding: 40px 30px;
+        position: relative;
+        text-align: center;
+        overflow: hidden;
+    }
+    .modal-header-premium::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.2) 0%, transparent 50%);
+    }
+    .modal-header-premium::after {
+        content: '';
+        position: absolute;
+        bottom: -25px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-left: 30px solid transparent;
+        border-right: 30px solid transparent;
+        border-top: 25px solid #d70015;
+    }
+    
+    .modal-header-premium h5 {
+        margin: 0;
+        font-weight: 800;
+        font-size: 1.5rem;
+        color: white;
+        position: relative;
+        z-index: 1;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    
+    .modal-header-premium .btn-close {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(0,0,0,0.2);
+        border: none;
+        color: white;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        font-size: 1.2rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2;
+        transition: all 0.2s;
+    }
+    .modal-header-premium .btn-close:hover {
+        background: rgba(0,0,0,0.4);
+        transform: rotate(90deg);
+    }
+    
+    .modal-body {
+        padding: 50px 35px 30px;
+        text-align: center;
+        position: relative;
+    }
+    .modal-body::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 10%;
+        right: 10%;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(255,69,58,0.3), transparent);
+    }
+    
+    .modal-body .modal-icon {
+        font-size: 4rem;
+        color: var(--danger);
+        margin-bottom: 20px;
+        filter: drop-shadow(0 0 20px rgba(255,69,58,0.3));
+        animation: iconPulse 2s ease-in-out infinite;
+    }
+    
+    .modal-body p {
+        color: rgba(255,255,255,0.7);
+        margin-bottom: 8px;
+        font-size: 1rem;
+        line-height: 1.6;
+    }
+    .modal-body .event-name {
+        color: white;
+        font-weight: 800;
+        font-size: 1.3rem;
+        margin: 10px 0 20px;
+        text-shadow: 0 0 20px rgba(255,255,255,0.1);
+    }
+    
+    .modal-body input[type="password"] {
+        width: 100%;
+        padding: 16px;
+        margin-top: 25px;
+        font-size: 1.2rem;
+        text-align: center;
+        letter-spacing: 6px;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 12px;
+        background: rgba(0,0,0,0.3);
+        color: white;
+        transition: all 0.3s;
+    }
+    .modal-body input[type="password"]:focus {
+        outline: none;
+        border-color: var(--danger);
+        box-shadow: 0 0 0 3px rgba(255,69,58,0.2);
+        background: rgba(0,0,0,0.5);
+    }
+    
+    .modal-error {
+        color: #ff453a;
+        font-size: 0.9rem;
+        margin-top: 15px;
+        display: none;
+        padding: 10px;
+        background: rgba(255,69,58,0.1);
+        border-radius: 8px;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+    
+    .boletos-warning {
+        background: rgba(255,159,10,0.1);
+        border: 1px solid rgba(255,159,10,0.3);
+        color: var(--warning);
+        padding: 16px;
+        border-radius: 12px;
+        margin-top: 20px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        text-align: left;
+    }
+    .boletos-warning strong { color: #ff9f0a; }
+    
+    .modal-footer {
+        padding: 20px 35px 35px;
+        display: flex;
+        justify-content: center;
+        border: none;
+    }
+    .modal-footer button {
+        padding: 16px 30px;
+        width: 100%;
+        border: none;
+        border-radius: 14px;
+        font-weight: 700;
+        font-size: 1rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        position: relative;
+        overflow: hidden;
+    }
+    .modal-footer .btn-confirm {
+        background: linear-gradient(135deg, #ff453a 0%, #d70015 100%);
+        color: white;
+        box-shadow: 0 8px 25px rgba(255,69,58,0.3);
+    }
+    .modal-footer .btn-confirm:hover:not(:disabled) {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 35px rgba(255,69,58,0.4);
+    }
+    .modal-footer .btn-confirm:active {
+        transform: translateY(0);
+    }
+    .modal-footer .btn-confirm::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 50%;
+        background: linear-gradient(180deg, rgba(255,255,255,0.1), transparent);
+        pointer-events: none;
+    }
+    .modal-footer .btn-confirm:disabled {
+        background: #3a3a3c;
+        color: #86868b;
+        box-shadow: none;
+        cursor: not-allowed;
+        transform: none;
+    }
+</style>
+>>>>>>> 9ad8a0c7aac8bcdad612d9182d5320658bd19a15
 </head>
 
 <body>
@@ -872,6 +1024,7 @@ $activos = $conn->query("
         <?php
         if (!empty($eventos_auto_archivados)):
             ?>
+<<<<<<< HEAD
             <div class="auto-archive-alert">
                 <i class="bi bi-archive-fill"></i>
                 <div>
@@ -890,9 +1043,7 @@ $activos = $conn->query("
 
         <div class="page-header">
             <h4><i class="bi bi-calendar-event"></i> Eventos Activos</h4>
-            <span class="badge-count">
-                <?= $activos->num_rows ?> eventos
-            </span>
+            <span class="badge-count"><?= $activos->num_rows ?> eventos</span>
         </div>
 
         <?php if ($activos && $activos->num_rows > 0): ?>
@@ -987,9 +1138,7 @@ $activos = $conn->query("
                                 title="Mover al Historial">
                                 <i class="bi bi-archive"></i>
                                 <?php if ($e['boletos_vendidos'] > 0): ?>
-                                    <span class="boletos-badge">
-                                        <?= $e['boletos_vendidos'] ?>
-                                    </span>
+                                    <span class="boletos-badge"><?= $e['boletos_vendidos'] ?></span>
                                 <?php endif; ?>
                             </button>
                         </div>
@@ -998,55 +1147,42 @@ $activos = $conn->query("
             </div>
         <?php else: ?>
             <div class="empty-state">
-                <div class="sparkle"></div>
-                <div class="sparkle"></div>
-                <div class="sparkle"></div>
-                <div class="sparkle"></div>
-
-                <div class="empty-state-content">
-                    <div class="empty-state-icon">
-                        <i class="bi bi-calendar-plus"></i>
-                    </div>
-                    <h3 style="color: #ffffff !important;">No hay eventos activos</h3>
-                    <p style="color: #cbd5e1 !important;">Comienza creando tu primer evento. Agrega funciones, configura
-                        precios y empieza a vender boletos.</p>
-                    <a href="crear_evento.php" class="btn-create">
-                        <i class="bi bi-plus-lg"></i>
-                        Crear Primer Evento
-                    </a>
-                </div>
+                <i class="bi bi-inbox"></i>
+                <p>No hay eventos activos.</p>
             </div>
         <?php endif; ?>
     </div>
 
     <div class="modal-overlay" id="modalArchivar">
         <div class="modal-box">
-            <div class="modal-header-premium">
-                <h5>Acceso Restringido</h5>
+            <div class="modal-header">
+                <h5><i class="bi bi-shield-lock-fill"></i> Acceso Restringido</h5>
                 <button class="btn-close" onclick="cerrarModal()">×</button>
             </div>
             <div class="modal-body">
-                <i class="bi bi-shield-lock-fill modal-icon"></i>
-                <p>Estás a punto de archivar el evento:</p>
+                <i class="bi bi-person-badge-fill modal-icon"></i>
+                <p>¿Archivar el evento:</p>
                 <div class="event-name" id="nombreEventoArchivar"></div>
-
-                <p style="font-size: 0.9rem; margin-top: 15px;">El evento dejará de ser visible y pasará al historial.
-                </p>
 
                 <!-- Advertencia de boletos vendidos -->
                 <div class="boletos-warning" id="boletosWarning" style="display: none;">
-                    <i class="bi bi-exclamation-triangle-fill"></i>
-                    <div style="font-size: 0.9rem;">
-                        <strong>Atención:</strong> Este evento tiene <span id="cantidadBoletos"
-                            style="font-weight: 700; color: white;">0</span> boletos vendidos que también serán
-                        archivados.
+                    <i class="bi bi-ticket-perforated-fill"></i>
+                    <div>
+                        <strong>¡Atención!</strong> Este evento tiene <span id="cantidadBoletos">0</span> boletos
+                        vendidos.
+                        <br><small>Los boletos se moverán al histórico junto con el evento.</small>
                     </div>
                 </div>
 
+                <p style="margin-top: 16px; font-size: 0.9rem;">Ingresa tu contraseña de administrador para continuar.
+                </p>
                 <input type="password" id="auth_pass" placeholder="••••••" maxlength="20">
                 <div class="modal-error" id="errorArchivar">
-                    <i class="bi bi-exclamation-circle-fill"></i> <span id="errorArchivarText">Contraseña
-                        incorrecta</span>
+                    <i class="bi bi-exclamation-triangle"></i> <span id="errorArchivarText">Contraseña incorrecta</span>
+                </div>
+                <div class="modal-warning">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <span>El evento dejará de ser visible y se moverá al histórico.</span>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1054,6 +1190,161 @@ $activos = $conn->query("
                     <i class="bi bi-archive-fill"></i> Confirmar Archivo
                 </button>
             </div>
+=======
+        </div>
+        <button class="btn-close" onclick="this.parentElement.remove()">×</button>
+    </div>
+    <?php 
+        unset($_SESSION['eventos_auto_archivados']);
+    endif; 
+    ?>
+    
+    <div class="page-header">
+        <h4><i class="bi bi-calendar-event"></i> Eventos Activos</h4>
+        <span class="badge-count"><?= $activos->num_rows ?> eventos</span>
+    </div>
+
+    <?php if($activos && $activos->num_rows > 0): ?>
+    <div class="events-grid">
+        <?php 
+        $delay = 0;
+        while($e = $activos->fetch_assoc()): 
+            $delay += 40;
+            $img = '';
+            if (!empty($e['imagen'])) {
+                $rutas = ["../evt_interfaz/" . $e['imagen'], $e['imagen']];
+                foreach($rutas as $r) { if(file_exists($r)) { $img = $r; break; } }
+            }
+
+            $id_evt = $e['id_evento'];
+            $sql_func = "SELECT fecha_hora, estado FROM funciones WHERE id_evento = $id_evt ORDER BY fecha_hora ASC";
+            $res_func = $conn->query($sql_func);
+            $funciones = [];
+            if($res_func){
+                while($f = $res_func->fetch_assoc()){ $funciones[] = $f; }
+            }
+        ?>
+        <div class="event-card" style="animation-delay: <?= $delay ?>ms">
+            <div class="card-img-container">
+                <?php if($img): ?>
+                    <img src="<?= htmlspecialchars($img) ?>" class="card-img" loading="lazy" alt="<?= htmlspecialchars($e['titulo']) ?>">
+                <?php else: ?>
+                    <i class="bi bi-image" style="font-size: 2rem; color: var(--text-muted); opacity: 0.4;"></i>
+                <?php endif; ?>
+            </div>
+            
+            <div class="card-body">
+                <h6 class="card-title" title="<?= htmlspecialchars($e['titulo']) ?>">
+                    <?= htmlspecialchars($e['titulo']) ?>
+                </h6>
+                
+                <?php 
+                // Verificar si TODAS las funciones están vencidas
+                $todasVencidas = true;
+                $funcionesActivas = 0;
+                foreach($funciones as $f) {
+                    if ($f['estado'] != 1 && strtotime($f['fecha_hora']) > time()) {
+                        $todasVencidas = false;
+                        $funcionesActivas++;
+                    }
+                }
+                ?>
+                
+                <?php if($todasVencidas && count($funciones) > 0): ?>
+                <div class="evento-terminado-msg">
+                    <i class="bi bi-clock-history"></i>
+                    <span>Evento terminado. Se archivará a medianoche.</span>
+                </div>
+                <?php endif; ?>
+                
+                <div class="funcs-container">
+                    <?php if(count($funciones) > 0): ?>
+                        <?php foreach($funciones as $f): 
+                            $esVencida = ($f['estado'] == 1) || (strtotime($f['fecha_hora']) < time());
+                            $clase = $esVencida ? 'expired' : 'active';
+                            $icono = $esVencida ? 'bi-hourglass-bottom' : 'bi-clock';
+                        ?>
+                            <span class="func-badge <?= $clase ?>">
+                                <i class="bi <?= $icono ?>"></i>
+                                <?= date('d/m H:i', strtotime($f['fecha_hora'])) ?>
+                            </span>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <span class="func-badge" style="background: var(--danger-bg); color: var(--danger); border: 1px solid rgba(255,69,58,0.3);">Sin funciones</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+            
+            <div class="card-footer">
+                <button onclick="window.location.href='editar_evento.php?id=<?= $e['id_evento'] ?>'" class="btn-card primary">
+                    <i class="bi bi-pencil"></i> Editar
+                </button>
+                
+                <button class="btn-card danger" 
+                        onclick="prepararArchivado(<?= $e['id_evento'] ?>, '<?= addslashes($e['titulo']) ?>', <?= (int)$e['boletos_vendidos'] ?>)" 
+                        title="Mover al Historial">
+                    <i class="bi bi-archive"></i>
+                    <?php if($e['boletos_vendidos'] > 0): ?>
+                    <span class="boletos-badge"><?= $e['boletos_vendidos'] ?></span>
+                    <?php endif; ?>
+                </button>
+            </div>
+        </div>
+        <?php endwhile; ?>
+    </div>
+    <?php else: ?>
+    <div class="empty-state">
+        <div class="sparkle"></div>
+        <div class="sparkle"></div>
+        <div class="sparkle"></div>
+        <div class="sparkle"></div>
+        
+        <div class="empty-state-content">
+            <div class="empty-state-icon">
+                <i class="bi bi-calendar-plus"></i>
+            </div>
+            <h3 style="color: #ffffff !important;">No hay eventos activos</h3>
+            <p style="color: #cbd5e1 !important;">Comienza creando tu primer evento. Agrega funciones, configura precios y empieza a vender boletos.</p>
+            <a href="crear_evento.php" class="btn-create">
+                <i class="bi bi-plus-lg"></i>
+                Crear Primer Evento
+            </a>
+        </div>
+    </div>
+    <?php endif; ?>
+</div>
+
+<div class="modal-overlay" id="modalArchivar">
+    <div class="modal-box">
+        <div class="modal-header-premium">
+            <h5>Acceso Restringido</h5>
+            <button class="btn-close" onclick="cerrarModal()">×</button>
+        </div>
+        <div class="modal-body">
+            <i class="bi bi-shield-lock-fill modal-icon"></i>
+            <p>Estás a punto de archivar el evento:</p>
+            <div class="event-name" id="nombreEventoArchivar"></div>
+            
+            <p style="font-size: 0.9rem; margin-top: 15px;">El evento dejará de ser visible y pasará al historial.</p>
+            
+            <!-- Advertencia de boletos vendidos -->
+            <div class="boletos-warning" id="boletosWarning" style="display: none;">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <div style="font-size: 0.9rem;">
+                    <strong>Atención:</strong> Este evento tiene <span id="cantidadBoletos" style="font-weight: 700; color: white;">0</span> boletos vendidos que también serán archivados.
+                </div>
+            </div>
+            
+            <input type="password" id="auth_pass" placeholder="••••••" maxlength="20">
+            <div class="modal-error" id="errorArchivar">
+                <i class="bi bi-exclamation-circle-fill"></i> <span id="errorArchivarText">Contraseña incorrecta</span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="btnConfirmarFinal" class="btn-confirm" onclick="ejecutarArchivado()">
+                <i class="bi bi-archive-fill"></i> Confirmar Archivo
+            </button>
+>>>>>>> 9ad8a0c7aac8bcdad612d9182d5320658bd19a15
         </div>
     </div>
 
