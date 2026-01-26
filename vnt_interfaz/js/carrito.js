@@ -1021,7 +1021,7 @@ function obtenerPrecioPorTipo(tipoBoleto, precioBase) {
             case 'cortesia':
                 return 0; // Siempre gratis
             case 'adulto':
-                return precios.adulto || precioBase;
+                return precioBase; // Usar siempre el precio de la categoría para adultos
             case 'nino':
                 return precios.nino || precioBase;
             case 'adulto_mayor':
