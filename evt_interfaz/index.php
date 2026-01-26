@@ -2,6 +2,9 @@
 session_start();
 include "../conexion.php"; 
 
+// Ejecutar auto-archivado de eventos al entrar
+include_once __DIR__ . "/auto_archivar.php";
+
 if (!isset($_SESSION['usuario_id'])) {
     die('<html><head><link rel="stylesheet" href="../assets/css/teatro-style.css"></head>
     <body style="display:flex;justify-content:center;align-items:center;height:100vh;">
