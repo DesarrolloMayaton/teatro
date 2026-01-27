@@ -174,21 +174,19 @@ $activos = $conn->query("
             z-index: 1;
         }
 
-        .empty-state-icon {
-            width: 140px;
-            height: 140px;
-            background: linear-gradient(135deg, var(--accent-blue) 0%, #8b5cf6 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 30px;
-            box-shadow: 0 20px 60px rgba(21, 97, 240, 0.3);
+        .empty-state-panda {
+            width: 280px;
+            height: auto;
+            margin: 0 auto 10px;
+            display: block;
+            filter: drop-shadow(0 20px 40px rgba(0,0,0,0.6));
+            animation: floatPanda 6s ease-in-out infinite;
         }
 
-        .empty-state-icon i {
-            font-size: 4rem;
-            color: white;
+        @keyframes floatPanda {
+            0% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-12px) rotate(1deg); }
+            100% { transform: translateY(0px) rotate(0deg); }
         }
 
         .empty-state h3 {
@@ -773,10 +771,10 @@ $activos = $conn->query("
         <?php else: ?>
             <div class="empty-state">
                 <div class="empty-state-content">
-                    <div class="empty-state-icon"><i class="bi bi-calendar-plus"></i></div>
-                    <h3 style="color: #ffffff !important;">No hay eventos activos</h3>
-                    <p style="color: #cbd5e1 !important;">Comienza creando tu primer evento.</p>
-                    <a href="crear_evento.php" class="btn-create"><i class="bi bi-plus-lg"></i> Crear Primer Evento</a>
+
+                    <h3 style="color: #ffffff !important; font-weight: 800;">¡El escenario está vacío!</h3>
+                    <p style="color: #cbd5e1 !important;">No hay eventos activos en este momento.<br>¿Por qué no creas uno nuevo para comenzar el show?</p>
+                    <a href="crear_evento.php" class="btn-create"><i class="bi bi-sparkles"></i> Crear Evento Mágico</a>
                 </div>
             </div>
         <?php endif; ?>

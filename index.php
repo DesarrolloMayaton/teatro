@@ -476,12 +476,23 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
                 <i class="bi bi-chevron-left"></i>
                 <span>Minimizar</span>
             </button>
+            <button class="btn-logout" onclick="abrirVisorCliente()" style="background: var(--bg-tertiary); color: var(--text-primary); margin-top: 8px;">
+                <i class="bi bi-display"></i>
+                <span>Pantalla Cliente</span>
+            </button>
             <button class="btn-logout" onclick="location.href='logout.php'">
                 <i class="bi bi-box-arrow-right"></i>
                 <span>Cerrar Sesión</span>
             </button>
         </div>
     </aside>
+
+    <script>
+    function abrirVisorCliente() {
+        window.open('vnt_interfaz/visor_cliente.php', 'VisorCliente', 'width=1200,height=800,menubar=no,toolbar=no');
+    }
+    </script>
+
 
     <main class="content-area" id="contentArea">
         <iframe id="frame-venta" src="vnt_interfaz/index.php" class="content-frame active"></iframe>

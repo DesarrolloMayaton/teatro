@@ -1415,6 +1415,13 @@ function mostrarBoletosGenerados(boletos) {
                 margin: 0 auto 8px;
                 border-radius: 8px;
             }
+            #modalBoletosNuevo .config-print-section {
+                background: #f1f5f9;
+                padding: 15px;
+                border-radius: 12px;
+                margin-top: 15px;
+                border: 1px solid #e2e8f0;
+            }
             #modalBoletosNuevo .boleto-precio {
                 font-weight: 600;
                 color: #10b981;
@@ -1464,7 +1471,7 @@ function mostrarBoletosGenerados(boletos) {
     let html = estilosModal;
     html += `
     <div class="modal fade" id="modalBoletosNuevo" tabindex="-1" data-bs-backdrop="static">
-        <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
                 <!-- Header con éxito -->
                 <div class="modal-header text-white">
@@ -1496,6 +1503,68 @@ function mostrarBoletosGenerados(boletos) {
     });
 
     html += `
+                </div>
+
+                <!-- Configuración de Impresión (Cliente y Impresora) -->
+                <div class="px-4">
+                    <div class="config-print-section">
+                        <!-- Checkbox para nombres individuales (solo si hay > 1 boleto) -->
+                        ${boletos.length > 1 ? `
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="checkNombresIndividuales">
+                            <label class="form-check-label fw-bold text-dark" style="color: #000;" for="checkNombresIndividuales">Asignar nombre diferente a cada boleto</label>
+                        </div>
+                        ` : ''}
+
+                        <!-- Input Nombre Global -->
+                        <div class="row g-3 align-items-center mb-3" id="containerNombreGlobal">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-muted mb-1">
+                                    <i class="bi bi-person-badge"></i> Nombre del Cliente (General)
+                                </label>
+                                <input type="text" id="nombreClienteTicket" class="form-control" placeholder="Ej: Juan Pérez" autocomplete="off">
+                            </div>
+                        </div>
+
+                        <!-- Inputs Nombres Individuales (Oculto por defecto) -->
+                        <div id="containerNombresIndividuales" class="mb-3" style="display: none;">
+                            <label class="form-label fw-bold small text-muted mb-2">
+                                <i class="bi bi-people"></i> Nombres por asiento
+                            </label>
+                            <div class="row g-2">
+                                ${boletos.map((b, i) => `
+                                <div class="col-md-6">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light fw-bold" style="width: 50px; justify-content: center;">${b.asiento}</span>
+                                        <input type="text" class="form-control input-nombre-individual" 
+                                            data-index="${i}" 
+                                            data-codigo="${b.codigo_unico}"
+                                            placeholder="Nombre para ${b.asiento}">
+                                    </div>
+                                </div>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <!-- Selector de Impresora -->
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-muted mb-1">
+                                    <i class="bi bi-printer"></i> Seleccionar Impresora
+                                </label>
+                                <div class="input-group">
+                                    <select class="form-select" id="selectImpresoraTicket">
+                                        <option value="default">Predeterminada del Sistema</option>
+                                    </select>
+                                    <div class="input-group-text bg-white">
+                                        <div class="form-check form-switch mb-0" title="Imprimir automáticamente al confirmar">
+                                            <input class="form-check-input" type="checkbox" id="checkAutoPrint" checked>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Acciones Rápidas -->
@@ -1544,6 +1613,98 @@ function mostrarBoletosGenerados(boletos) {
     const modal = new bootstrap.Modal(document.getElementById('modalBoletosNuevo'));
     modal.show();
 
+    // Lógica para toggle nombres individuales
+    const checkIndividuales = document.getElementById('checkNombresIndividuales');
+    const containerGlobal = document.getElementById('containerNombreGlobal');
+    const containerIndividuales = document.getElementById('containerNombresIndividuales');
+
+    if (checkIndividuales) {
+        checkIndividuales.addEventListener('change', function () {
+            if (this.checked) {
+                containerGlobal.style.display = 'none';
+                containerIndividuales.style.display = 'block';
+                // Enfocar el primer input individual
+                const firstInput = containerIndividuales.querySelector('input');
+                if (firstInput) firstInput.focus();
+            } else {
+                containerGlobal.style.display = 'flex'; // row usa flex
+                containerIndividuales.style.display = 'none';
+                document.getElementById('nombreClienteTicket').focus();
+            }
+        });
+    }
+
+
+    // Event listeners para la nueva sección
+    const inputNombre = document.getElementById('nombreClienteTicket');
+    const checkAuto = document.getElementById('checkAutoPrint');
+
+    // Enfocar el input de nombre automáticamente
+    setTimeout(() => {
+        if (inputNombre && (!checkIndividuales || !checkIndividuales.checked)) inputNombre.focus();
+    }, 500);
+
+    // Enter en el input de nombre -> Imprimir
+    if (inputNombre) {
+        inputNombre.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                imprimirTodosBoletos();
+            }
+        });
+    }
+
+    // Also enter on individual inputs to print
+    const inputsIndividuales = document.querySelectorAll('.input-nombre-individual');
+    inputsIndividuales.forEach(input => {
+        input.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                imprimirTodosBoletos();
+            }
+        });
+    });
+
+    // Auto-imprimir si está habilitado (lógica opcional, por ahora solo focus y enter para "confirmar")
+    // El usuario pidió "mandar automaticamente", pero con el nombre pendiente, mejor esperar confirmación (Enter o Botón)
+
+    // Cargar lista de impresoras
+    const selectImpresora = document.getElementById('selectImpresoraTicket');
+    if (selectImpresora) {
+        // Cargar desde QZ Tray
+        if (window.getPrinters) {
+            window.getPrinters().then(printers => {
+                if (printers && printers.length > 0) {
+                    selectImpresora.innerHTML = '<option value="">-- Seleccionar Impresora --</option>';
+                    printers.forEach(p => {
+                        const option = document.createElement('option');
+                        option.value = p;
+                        option.textContent = p;
+                        selectImpresora.appendChild(option);
+                    });
+
+
+                    // Restaurar preferencia guardada
+                    const savedPrinter = localStorage.getItem('teatro_printer_pref');
+                    if (savedPrinter && printers.includes(savedPrinter)) {
+                        selectImpresora.value = savedPrinter;
+                    } else if (printers.length > 0) {
+                        // Seleccionar la primera por defecto si no hay guardada
+                        selectImpresora.selectedIndex = 1;
+                    }
+                } else {
+                    selectImpresora.innerHTML = '<option value="default">No se detectaron impresoras (QZ Tray)</option>';
+                }
+            }).catch(err => {
+                console.error("Error cargando impresoras:", err);
+                selectImpresora.innerHTML = '<option value="default" disabled>Error cargando impresoras</option>';
+            });
+        }
+
+        selectImpresora.addEventListener('change', function () {
+            localStorage.setItem('teatro_printer_pref', this.value);
+            // notify.info('Preferencia de impresora guardada'); // Un poco molesto
+        });
+    }
+
     // Guardar boletos en variable global para acciones
     window.boletosActuales = boletos;
     console.log('[Boletos] Boletos guardados para acciones:', window.boletosActuales);
@@ -1564,9 +1725,9 @@ async function continuarVendiendoDesdeModal() {
     if (modalBoletos) {
         modalBoletos.hide();
     }
-    // Enviar al cliente de regreso a la cartelera
-    if (typeof enviarRegresarCartelera === 'function') {
-        enviarRegresarCartelera();
+    // Enviar al cliente a la vista de horarios (mismo evento)
+    if (typeof enviarMostrarHorarios === 'function') {
+        enviarMostrarHorarios();
     }
 
     // Limpiar el horario seleccionado para que el usuario deba seleccionar uno nuevo
@@ -1632,6 +1793,12 @@ async function continuarVendiendoDesdeModal() {
 
     // Liberar el bloqueo de actualizaciones
     window.TEATRO_VENTA_MODAL_ABIERTO = false;
+
+    // <--- SINCRONIZACIÓN: NUEVA VENTA AL VISOR CLIENTE --->
+    // Esto limpiará la pantalla de "Gracias por su compra"
+    if (typeof enviarNuevaVenta === 'function') {
+        enviarNuevaVenta();
+    }
 
     notify.success('Seleccione un horario para continuar vendiendo');
 }
@@ -1895,20 +2062,108 @@ async function descargarTodosBoletos() {
 }
 
 // Imprimir todos los boletos (abre cada uno en una nueva ventana)
-function imprimirTodosBoletos() {
+// Imprimir todos los boletos (Envío directo a impresora Termica via QZ Tray)
+// Imprimir todos los boletos (Envío directo a impresora Termica via QZ Tray)
+async function imprimirTodosBoletos() {
     if (!window.boletosActuales || window.boletosActuales.length === 0) {
         notify.warning('No hay boletos para imprimir');
         return;
     }
 
-    // Abrir cada boleto en una nueva ventana con un pequeño delay para evitar bloqueos del navegador
-    window.boletosActuales.forEach((boleto, index) => {
-        setTimeout(() => {
-            window.open(`imprimir_boleto.php?codigo=${boleto.codigo_unico}`, '_blank');
-        }, index * 300); // Delay de 300ms entre cada ventana
-    });
+    const btnImprimir = document.querySelector('.accion-btn.btn-warning');
+    const originalText = btnImprimir ? btnImprimir.innerHTML : '';
+    if (btnImprimir) {
+        btnImprimir.disabled = true;
+        btnImprimir.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Conectando...';
+    }
 
-    notify.info(`Se abrirán ${window.boletosActuales.length} ventana(s) para imprimir los boletos.`);
+    // Obtener datos
+    const selectImpresora = document.getElementById('selectImpresoraTicket');
+    const nombreImpresora = selectImpresora ? selectImpresora.value : 'default';
+
+    // Lógica de nombres: Individual o Global
+    const checkIndividuales = document.getElementById('checkNombresIndividuales');
+    const usarIndividuales = checkIndividuales && checkIndividuales.checked;
+
+    let nombreGlobal = '';
+    const nombresMap = {}; // codigo -> nombre
+
+    if (usarIndividuales) {
+        const inputs = document.querySelectorAll('.input-nombre-individual');
+        inputs.forEach(inp => {
+            const codigo = inp.getAttribute('data-codigo');
+            const val = inp.value.trim();
+            if (codigo && val) {
+                nombresMap[codigo] = val;
+            }
+        });
+    } else {
+        const inputNombre = document.getElementById('nombreClienteTicket');
+        nombreGlobal = inputNombre ? inputNombre.value.trim() : '';
+    }
+
+    const codigos = window.boletosActuales.map(b => b.codigo_unico);
+
+    try {
+        // 1. Obtener detalles completos de los boletos desde el backend
+        const response = await fetch('imprimir_directo.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                codigos: codigos,
+                mode: 'data' // Solicitar datos JSOn
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.boletos) {
+
+            if (btnImprimir) btnImprimir.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Imprimiendo...';
+
+            // ASIGNAR NOMBRES A LOS BOLETOS OBTENIDOS
+            data.boletos.forEach(boleto => {
+                if (usarIndividuales) {
+                    // Si hay nombre individual para este código, usarlo
+                    if (nombresMap[boleto.codigo_unico]) {
+                        boleto.nombre_cliente = nombresMap[boleto.codigo_unico];
+                    }
+                } else {
+                    // Usar nombre global
+                    boleto.nombre_cliente = nombreGlobal;
+                }
+            });
+
+            // 2. Enviar a QZ Tray
+            // Pasamos null como 2do argumento porque los nombres ya van dentro de cada objeto boleto
+            const result = await window.printTicketsQZ(data.boletos, null, nombreImpresora);
+
+            if (result.success) {
+                notify.success('Enviado a impresora con éxito');
+            } else {
+                console.error('Error QZ:', result.message);
+                notify.error('Error QZ Tray: ' + result.message);
+
+                // Fallback PDF
+                if (confirm('No se pudo imprimir vía QZ Tray. ¿Descargar PDF?')) {
+                    descargarTodosBoletos();
+                }
+            }
+        } else {
+            notify.error('Error al obtener datos del ticket: ' + data.message);
+        }
+
+    } catch (error) {
+        console.error('Error:', error);
+        notify.error('Error de comunicación');
+    } finally {
+        if (btnImprimir) {
+            btnImprimir.disabled = false;
+            btnImprimir.innerHTML = originalText;
+        }
+    }
 }
 
 // Función para abrir WhatsApp con un boleto
@@ -2272,6 +2527,11 @@ function limpiarSeleccion() {
 
     actualizarCarrito();
     notify.success(`${cantidad} asiento(s) deseleccionado(s)`);
+
+    // <--- SINCRONIZACIÓN: NUEVA VENTA AL VISOR CLIENTE --->
+    if (typeof enviarNuevaVenta === 'function') {
+        enviarNuevaVenta();
+    }
 }
 
 // Función para seleccionar rango de asientos (Ctrl + Click)

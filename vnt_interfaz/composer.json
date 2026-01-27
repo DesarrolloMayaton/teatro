@@ -4,6 +4,7 @@
     "type": "project",
     "require": {
         "endroid/qr-code": "4.4.9",
-        "setasign/fpdf": "^1.8"
+        "setasign/fpdf": "^1.8",
+        "mike42/escpos-php": "^4.0"
     }
 }

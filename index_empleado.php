@@ -335,6 +335,9 @@ $conn->close();
             </div>
         </div>
         <div class="header-right">
+            <button class="btn-logout" onclick="abrirVisorCliente()" style="background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--border-color); margin-right: 10px;">
+                <i class="bi bi-display"></i> Pantalla Cliente
+            </button>
             <div class="user-badge">
                 <div class="user-badge-avatar"><i class="bi bi-person-fill"></i></div>
                 <div class="user-badge-name"><?php echo htmlspecialchars($nombre_completo); ?></div>
@@ -344,6 +347,13 @@ $conn->close();
             </button>
         </div>
     </header>
+
+    <script>
+    function abrirVisorCliente() {
+        window.open('vnt_interfaz/visor_cliente.php', 'VisorCliente', 'width=1200,height=800,menubar=no,toolbar=no');
+    }
+    </script>
+
 
     <main class="main-content">
         <div class="section-header">

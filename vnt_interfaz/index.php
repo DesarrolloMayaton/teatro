@@ -191,6 +191,8 @@ $conn->close();
 <link rel="stylesheet" href="css/menu-mejoras.css?v=2">
 <link rel="stylesheet" href="css/seleccion-multiple.css">
 <link rel="stylesheet" href="../assets/css/seat-map.css?v=1">
+<script src="js/qz-tray.js"></script>
+<script src="js/qz_interface.js"></script>
 <style>
 :root {
   --primary-color: #1561f0;
@@ -1483,6 +1485,11 @@ hr {
     <div class="cartelera-header">
         <h1><i class="bi bi-film"></i> Cartelera</h1>
         <p>Selecciona un evento para comenzar a vender</p>
+        <div style="margin-top: 20px;">
+            <button class="btn btn-outline-light" onclick="abrirVisorCliente()">
+                <i class="bi bi-display"></i> Abrir Pantalla Cliente
+            </button>
+        </div>
     </div>
     
     <?php if (empty($eventos_lista)): ?>
@@ -1523,6 +1530,13 @@ hr {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="js/sync-sender.js?v=2"></script>
 <script>
+// Función para abrir el visor cliente
+function abrirVisorCliente() {
+    // Abrir ventana emergente sin barras de navegación
+    // En el inicio no hay evento seleccionado, así que enviamos id_evento=0 o vacío
+    window.open(`visor_cliente.php`, 'VisorCliente', 'width=1200,height=800,menubar=no,toolbar=no');
+}
+
 // Función para seleccionar evento desde cartelera fullscreen
 function seleccionarEvento(idEvento) {
     if (!idEvento) return;
@@ -1843,9 +1857,7 @@ if ($evento_info):
                 <i class="bi bi-arrow-counterclockwise"></i> Limpiar Selección
             </button>
             
-            <button class="btn btn-dark btn-sm w-100" onclick="abrirVisorCliente()" style="font-size: 0.8rem; padding: 8px;">
-                <i class="bi bi-display"></i> Pantalla Cliente
-            </button>
+
         </div>
 
         <?php endif; ?>

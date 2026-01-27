@@ -31,15 +31,7 @@ if ($tab === 'historial') {
     $src_inicial = 'htr_eventos.php';
     $class_historial = 'active';
 } else {
-    if ($hay_eventos) {
-        $src_inicial = "act_evento.php";
-    } else {
-        $src_inicial = "data:text/html;base64," . base64_encode('<html><head><link rel="stylesheet" href="../assets/css/teatro-style.css"></head>
-        <body style="display:flex;justify-content:center;align-items:center;height:100vh;">
-        <div style="text-align:center;"><i class="bi bi-calendar-x" style="font-size:3rem;color:var(--text-muted);"></i>
-        <h3 style="color:var(--text-primary);margin-top:16px;">No hay eventos activos</h3>
-        <p style="color:var(--text-muted);">Crea un nuevo evento para comenzar</p></div></body></html>');
-    }
+    $src_inicial = "act_evento.php";
     if ($tab !== 'historial') $class_activos = 'active';
 }
 ?>

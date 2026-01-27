@@ -144,6 +144,16 @@ function enviarSeleccionEvento(idEvento, titulo) {
     console.log('📤 Enviando selección de evento al visor:', { id_evento: idEvento, titulo });
 }
 
+// 8. Nueva función: Enviar señal de NUEVA VENTA (limpiar pantalla gracias)
+function enviarNuevaVenta() {
+    canalSender.postMessage({
+        accion: 'NUEVA_VENTA',
+        timestamp: Date.now()
+    });
+    console.log('📤 Enviando señal de NUEVA VENTA al visor');
+}
+
+
 // Inicializadores
 document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -170,6 +180,38 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // LISTENER PARA SOLICITUDES DE SINCRONIZACIÓN (HANDSHAKE)
+    canalSender.onmessage = (event) => {
+        const data = event.data;
+        if (data && data.accion === 'REQUEST_SYNC') {
+            console.log('🔄 Solicitud de sincronización recibida del visor');
+
+            // 1. Enviar Evento
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('id_evento')) {
+                enviarEventoInicial();
+            } else {
+                enviarRegresarCartelera();
+                return; // Si no hay evento, no tiene caso enviar lo demás
+            }
+
+            // 2. Enviar Función
+            setTimeout(enviarFuncion, 100);
+
+            // 3. Enviar Carrito
+            if (typeof carrito !== 'undefined' && Array.isArray(carrito)) {
+                setTimeout(() => enviarCarrito(carrito), 200);
+            }
+
+            // 4. Enviar Vendidos
+            if (typeof asientosVendidos !== 'undefined') {
+                setTimeout(() => enviarVendidos(Array.from(asientosVendidos)), 300);
+            }
+
+            console.log('✅ Estado completo enviado al visor');
+        }
+    };
+
     console.log('🔄 Sync-sender inicializado');
 });
 
@@ -182,3 +224,4 @@ window.enviarCompraExitosa = enviarCompraExitosa;
 window.enviarRegresarCartelera = enviarRegresarCartelera;
 window.enviarMostrarHorarios = enviarMostrarHorarios;
 window.enviarSeleccionEvento = enviarSeleccionEvento;
+window.enviarNuevaVenta = enviarNuevaVenta;

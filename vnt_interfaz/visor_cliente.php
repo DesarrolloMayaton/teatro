@@ -937,12 +937,18 @@ foreach ($categorias_evento as $cat) {
 
         /* Total con descuento */
         .total-descuento-info {
-            font-size: 0.9rem;
-            color: #f59e0b;
-            font-weight: 600;
-            margin-top: 4px;
-            animation: fadeInUp 0.3s ease;
+            font-size: 1.5rem;
+            color: #ffffff;
+            background: #f59e0b;
+            padding: 5px 15px;
+            border-radius: 10px;
+            font-weight: 700;
+            margin-top: 8px;
+            display: inline-block;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            animation: rubberBand 1s;
         }
+
 
         @keyframes fadeInUp {
             from { opacity: 0; transform: translateY(10px); }
@@ -1057,6 +1063,20 @@ foreach ($categorias_evento as $cat) {
             .transicion-hora {
                 font-size: 2.5rem;
             }
+        }
+
+        .visor-notificacion.show i {
+            animation: rubberBand 1s;
+        }
+
+        @keyframes rubberBand {
+          from { transform: scale3d(1, 1, 1); }
+          30% { transform: scale3d(1.25, 0.75, 1); }
+          40% { transform: scale3d(0.75, 1.25, 1); }
+          50% { transform: scale3d(1.15, 0.85, 1); }
+          65% { transform: scale3d(0.95, 1.05, 1); }
+          75% { transform: scale3d(1.05, 0.95, 1); }
+          to { transform: scale3d(1, 1, 1); }
         }
     </style>
 </head>
@@ -1328,6 +1348,12 @@ let funcionSeleccionada = false;
 
 console.log('🎬 Visor Cliente iniciado - Evento actual:', idEventoActual);
 
+// SOLICITAR ESTADO COMPLETO AL POS (Handshake)
+setTimeout(() => {
+    console.log('🔄 Solicitando sincronización al POS...');
+    canal.postMessage({ accion: 'REQUEST_SYNC' });
+}, 500);
+
 // ===== FUNCIONES DE ANIMACIÓN =====
 
 // Mostrar overlay de transición para evento
@@ -1407,10 +1433,13 @@ function mostrarGracias(total) {
     overlay.classList.add('active');
     crearConfetti();
     
-    // Transición automática después de 5 segundos (sincronizado con la barra de progreso)
-    setTimeout(() => {
-        cerrarGraciasYContinuar();
-    }, 5000);
+    overlay.classList.add('active');
+    crearConfetti();
+    
+    // Transición automática ELIMINADA - Esperar a NUEVA_VENTA
+    // setTimeout(() => {
+    //    cerrarGraciasYContinuar();
+    // }, 5000);
 }
 
 // Cerrar overlay de gracias y mostrar vista de horarios
@@ -1497,13 +1526,41 @@ canal.onmessage = (event) => {
     // Compra exitosa
     if (data.accion === 'COMPRA_EXITOSA') {
         console.log('✅ Compra exitosa! Total:', data.total);
+        // Mostrar gracias (NO OCULTAR AUTOMÁTICAMENTE, esperar a NUEVA_VENTA)
         mostrarGracias(data.total);
     }
     
-    // Regresar a cartelera
+    // Nueva Venta: Limpiar pantalla de gracias y resetear vista
+    if (data.accion === 'NUEVA_VENTA') {
+        console.log('✨ Nueva venta iniciada: Limpiando pantalla de gracias');
+        
+        // Ocultar overlay de gracias
+        const overlayGracias = document.getElementById('overlayGracias');
+        if (overlayGracias) overlayGracias.classList.remove('active');
+        
+        // Resetear vista
+        resetearVista();
+        
+        // Asegurar que se ve el mapa o los horarios según corresponda
+        const viewHorarios = document.getElementById('viewHorarios');
+        const viewMapa = document.getElementById('viewMapa');
+        
+        // Si estábamos en horarios, mantener horarios. Si no, mapa.
+        // Por defecto, nueva venta suele implicar selección nueva, mantenemos donde esté
+    }
+    
+    // Regresar a cartelera (Cambio de evento)
     if (data.accion === 'REGRESAR_CARTELERA') {
         console.log('🏠 Regresando a cartelera');
         window.location.href = 'visor_cliente.php';
+    }
+
+    // Selección de evento desde cartelera (Forzar recarga si es diferente)
+    if (data.accion === 'SELECCION_EVENTO') {
+        console.log('📅 Selección de evento:', data);
+        if (data.id_evento) {
+            window.location.href = 'visor_cliente.php?id_evento=' + data.id_evento;
+        }
     }
     
     // Mostrar horarios (después de una venta, sin cambiar de evento)
@@ -1524,8 +1581,6 @@ canal.onmessage = (event) => {
         
         // Resetear la vista del mapa
         resetearVista();
-        
-        console.log('🕐 Vista de horarios mostrada');
     }
 };
 
@@ -1601,7 +1656,14 @@ function actualizarInterfaz(carrito, total, descuentoInfo = null) {
         if (esCortesia) {
             badgeHTML = '<span class="descuento-badge cortesia"><i class="bi bi-gift-fill"></i> Cortesía</span>';
         } else if (tieneDescuento) {
-            badgeHTML = `<span class="descuento-badge descuento"><i class="bi bi-percent"></i> -$${descuento.toFixed(2)}</span>`;
+            // Mostrar claramente el valor del descuento
+            let descText = '';
+            if (descuento > 0) {
+                descText = `-$${descuento.toFixed(2)}`;
+            } else {
+                descText = '%';
+            }
+            badgeHTML = `<span class="descuento-badge descuento"><i class="bi bi-tag-fill"></i> ${descText}</span>`;
         }
 
         // Generar HTML del precio
@@ -1616,8 +1678,11 @@ function actualizarInterfaz(carrito, total, descuentoInfo = null) {
         } else if (tieneDescuento) {
             precioHTML = `
                 <div class="precio-wrapper">
-                    <span class="item-precio tachado precio-strike">$${precioBase.toFixed(2)}</span>
-                    <span class="item-precio-final">$${precioFinal.toFixed(2)}</span>
+                    <div class="descuento-detalle" style="font-size: 0.8rem; color: #d97706; font-weight: 600;">
+                        Ahorras: $${descuento.toFixed(2)}
+                    </div>
+                    <span class="item-precio tachado precio-strike" style="font-size: 0.9rem;">$${precioBase.toFixed(2)}</span>
+                    <span class="item-precio-final" style="font-size: 1.4rem;">$${precioFinal.toFixed(2)}</span>
                 </div>
             `;
         } else {
@@ -1626,7 +1691,10 @@ function actualizarInterfaz(carrito, total, descuentoInfo = null) {
 
         itemDiv.innerHTML = `
             <div>
-                <div class="item-asiento">${item.id} ${badgeHTML}</div>
+                <div class="item-asiento">${item.id}</div>
+                <div style="display:flex; gap:5px; align-items:center;">
+                    ${badgeHTML}
+                </div>
                 <div class="item-categoria">${item.categoria}</div>
             </div>
             ${precioHTML}
@@ -1676,11 +1744,11 @@ function mostrarNotificacionVisor(mensaje, tipo = '') {
     // Animar entrada
     setTimeout(() => notif.classList.add('show'), 50);
     
-    // Ocultar después de 3 segundos
+    // Ocultar después de 5 segundos (aumentado para mejor visibilidad)
     setTimeout(() => {
         notif.classList.remove('show');
         setTimeout(() => notif.remove(), 500);
-    }, 3000);
+    }, 5000);
 }
 
 // Mostrar info de descuento total
