@@ -148,7 +148,7 @@ x<?php
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            width: 180px; height: 180px;
+            width: 250px; height: 250px;
             pointer-events: none;
         }
         
@@ -257,21 +257,20 @@ x<?php
             color: white;
         }
         
-        /* Resultado */
-        .result-card {
-            margin-top: 15px;
-            border-radius: 16px;
+        /* Modal personalizado */
+        .modal-content {
+            background: var(--card-bg);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
             overflow: hidden;
-            animation: slideIn 0.3s ease;
         }
         
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(15px); }
-            to { opacity: 1; transform: translateY(0); }
+        .modal-backdrop.show {
+            opacity: 0.8;
         }
         
         .result-header {
-            padding: 15px;
+            padding: 30px 20px;
             text-align: center;
         }
         
@@ -279,48 +278,48 @@ x<?php
         .result-header.used { background: rgba(71, 85, 105, 0.9); }
         .result-header.invalid { background: var(--danger-gradient); }
         
-        .result-header i { font-size: 2rem; }
-        .result-header h4 { margin: 8px 0 0; font-weight: 700; font-size: 1.1rem; }
+        .result-header i { font-size: 3.5rem; }
+        .result-header h4 { margin: 12px 0 0; font-weight: 700; font-size: 1.5rem; }
         
         .result-body {
             background: var(--card-bg);
-            padding: 15px;
+            padding: 20px;
         }
         
         .ticket-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
+            gap: 12px;
         }
         
         .ticket-item {
             background: rgba(51, 65, 85, 0.5);
-            padding: 10px 12px;
-            border-radius: 8px;
+            padding: 12px 15px;
+            border-radius: 10px;
         }
         
         .ticket-item.full { grid-column: span 2; }
         
         .ticket-item label {
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             color: #94a3b8;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             display: block;
-            margin-bottom: 3px;
+            margin-bottom: 5px;
         }
         
         .ticket-item span {
-            font-size: 0.95rem;
+            font-size: 1rem;
             font-weight: 600;
             color: #e2e8f0;
         }
         
         .result-actions {
-            padding: 15px;
+            padding: 20px;
             background: rgba(51, 65, 85, 0.3);
             display: flex;
-            gap: 10px;
+            gap: 12px;
             justify-content: center;
         }
         
@@ -328,11 +327,12 @@ x<?php
             background: var(--success-gradient);
             border: none;
             border-radius: 12px;
-            padding: 12px 30px;
+            padding: 14px 35px;
             font-weight: 700;
+            font-size: 1.05rem;
             color: white;
             flex: 1;
-            max-width: 250px;
+            max-width: 280px;
         }
         
         .btn-confirm:hover {
@@ -349,8 +349,9 @@ x<?php
         .btn-secondary-custom {
             background: rgba(51, 65, 85, 0.8);
             border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 10px;
-            padding: 12px 20px;
+            border-radius: 12px;
+            padding: 14px 25px;
+            font-size: 1.05rem;
             color: #e2e8f0;
         }
         
@@ -453,13 +454,6 @@ x<?php
                         <p class="mt-2 mb-0">Iniciando cámara...</p>
                     </div>
                     <video id="videoPreview" autoplay playsinline muted style="display: none;"></video>
-                    <div class="scan-overlay" id="scanOverlay" style="display: none;">
-                        <div class="scan-corner top-left"></div>
-                        <div class="scan-corner top-right"></div>
-                        <div class="scan-corner bottom-left"></div>
-                        <div class="scan-corner bottom-right"></div>
-                        <div class="scan-line"></div>
-                    </div>
                 </div>
                 
                 <div class="divider"><span>o ingresa el código</span></div>
@@ -480,16 +474,21 @@ x<?php
             </div>
         </div>
         
-        <!-- Resultado -->
-        <div class="result-card hidden" id="resultCard">
-            <div class="result-header" id="resultHeader">
-                <i class="bi bi-check-circle-fill"></i>
-                <h4>Boleto Válido</h4>
+    </div>
+    
+    <!-- Modal de Resultado -->
+    <div class="modal fade" id="resultModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="result-header" id="resultHeader">
+                    <i class="bi bi-check-circle-fill"></i>
+                    <h4>Boleto Válido</h4>
+                </div>
+                <div class="result-body">
+                    <div class="ticket-grid" id="ticketInfo"></div>
+                </div>
+                <div class="result-actions" id="resultActions"></div>
             </div>
-            <div class="result-body">
-                <div class="ticket-grid" id="ticketInfo"></div>
-            </div>
-            <div class="result-actions" id="resultActions"></div>
         </div>
     </div>
     
@@ -501,8 +500,12 @@ x<?php
         let currentCameraId = null;
         let mirrorEnabled = true;
         let isProcessing = false;
+        let resultModal = null;
+        let lastScannedCode = null;
+        let lastScanTime = 0;
         
         document.addEventListener('DOMContentLoaded', async () => {
+            resultModal = new bootstrap.Modal(document.getElementById('resultModal'));
             await initializeCameras();
             setupManualInput();
             setupKeyboardShortcuts();
@@ -512,11 +515,10 @@ x<?php
         function setupKeyboardShortcuts() {
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
-                    const resultCard = document.getElementById('resultCard');
                     const btnConfirm = document.querySelector('.btn-confirm:not(:disabled)');
                     
                     // Si hay un resultado visible y el focus no está en el input
-                    if (!resultCard.classList.contains('hidden') && document.activeElement.id !== 'manualCode') {
+                    if (document.getElementById('resultModal').classList.contains('show') && document.activeElement.id !== 'manualCode') {
                         if (btnConfirm) {
                             btnConfirm.click();
                         }
@@ -525,8 +527,7 @@ x<?php
                 
                 // Escape para cerrar resultado
                 if (e.key === 'Escape') {
-                    const resultCard = document.getElementById('resultCard');
-                    if (!resultCard.classList.contains('hidden')) {
+                    if (document.getElementById('resultModal').classList.contains('show')) {
                         hideResult();
                     }
                 }
@@ -566,10 +567,8 @@ x<?php
         
         async function startCamera(deviceId) {
             const cameraLoading = document.getElementById('cameraLoading');
-            const scanOverlay = document.getElementById('scanOverlay');
             
             cameraLoading.style.display = 'block';
-            scanOverlay.style.display = 'none';
             
             if (html5QrCode) {
                 try {
@@ -583,7 +582,7 @@ x<?php
                 
                 await html5QrCode.start(
                     deviceId,
-                    { fps: 10, qrbox: { width: 180, height: 180 }, aspectRatio: 1.0 },
+                    { fps: 10, aspectRatio: 1.0 },
                     onQRCodeScanned,
                     () => {}
                 );
@@ -606,8 +605,6 @@ x<?php
                             transform: ${mirrorEnabled ? 'scaleX(-1)' : 'scaleX(1)'};
                         `;
                     }
-                    
-                    scanOverlay.style.display = 'block';
                     
                     const dashboard = document.querySelector('#cameraContainer__dashboard');
                     if (dashboard) dashboard.style.display = 'none';
@@ -643,8 +640,26 @@ x<?php
         
         async function onQRCodeScanned(decodedText) {
             if (isProcessing) return;
+            
+            const now = Date.now();
+            const code = decodedText.trim().toUpperCase();
+            
+            // Evitar escaneos duplicados del mismo código en menos de 3 segundos
+            if (code === lastScannedCode && (now - lastScanTime) < 3000) {
+                return;
+            }
+            
+            lastScannedCode = code;
+            lastScanTime = now;
+            
             if ('vibrate' in navigator) navigator.vibrate(100);
-            await verifyTicket(decodedText.trim().toUpperCase());
+            
+            // Pausar el escáner mientras se procesa
+            if (html5QrCode && html5QrCode.isScanning) {
+                await html5QrCode.pause(true);
+            }
+            
+            await verifyTicket(code);
         }
         
         function setupManualInput() {
@@ -692,7 +707,6 @@ x<?php
         }
         
         function showTicketResult(ticket) {
-            const resultCard = document.getElementById('resultCard');
             const resultHeader = document.getElementById('resultHeader');
             const ticketInfo = document.getElementById('ticketInfo');
             const resultActions = document.getElementById('resultActions');
@@ -725,25 +739,25 @@ x<?php
             
             if (isValid) {
                 resultActions.innerHTML = `
-                    <button class="btn-secondary-custom" onclick="hideResult()">Cancelar</button>
+                    <button class="btn-secondary-custom" onclick="hideResult()">
+                        <i class="bi bi-x-lg"></i> Cancelar
+                    </button>
                     <button class="btn-confirm" onclick="confirmEntry('${ticket.codigo_unico}')">
                         <i class="bi bi-check2-circle"></i> Confirmar Entrada
                     </button>
                 `;
             } else {
                 resultActions.innerHTML = `
-                    <button class="btn-secondary-custom" onclick="hideResult()">
-                        <i class="bi bi-arrow-left"></i> Continuar
+                    <button class="btn-confirm" style="background: var(--primary-gradient); max-width: 100%;" onclick="hideResult()">
+                        <i class="bi bi-qr-code-scan"></i> Escanear Siguiente
                     </button>
                 `;
             }
             
-            resultCard.classList.remove('hidden');
-            resultCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            resultModal.show();
         }
         
         function showInvalidTicket(code, message) {
-            const resultCard = document.getElementById('resultCard');
             const resultHeader = document.getElementById('resultHeader');
             const ticketInfo = document.getElementById('ticketInfo');
             const resultActions = document.getElementById('resultActions');
@@ -763,18 +777,25 @@ x<?php
             `;
             
             resultActions.innerHTML = `
-                <button class="btn-secondary-custom" onclick="hideResult()">
-                    <i class="bi bi-arrow-left"></i> Continuar
+                <button class="btn-confirm" style="background: var(--danger-gradient); max-width: 100%;" onclick="hideResult()">
+                    <i class="bi bi-qr-code-scan"></i> Escanear Siguiente
                 </button>
             `;
             
-            resultCard.classList.remove('hidden');
+            resultModal.show();
             showToast('Boleto no encontrado', 'error');
         }
         
         function hideResult() {
-            document.getElementById('resultCard').classList.add('hidden');
-            document.getElementById('manualCode').focus();
+            resultModal.hide();
+            
+            // Reanudar el escáner cuando se cierra el modal
+            setTimeout(async () => {
+                if (html5QrCode && html5QrCode.getState() === Html5QrcodeScannerState.PAUSED) {
+                    await html5QrCode.resume();
+                }
+                document.getElementById('manualCode').focus();
+            }, 300);
         }
         
         async function confirmEntry(codigoUnico) {
@@ -800,10 +821,13 @@ x<?php
                     resultHeader.innerHTML = '<i class="bi bi-check-circle-fill"></i><h4>¡Entrada OK!</h4>';
                     
                     document.getElementById('resultActions').innerHTML = `
-                        <button class="btn-confirm" onclick="hideResult()">
-                            <i class="bi bi-qr-code-scan"></i> Siguiente
+                        <button class="btn-confirm" style="max-width: 100%;" onclick="hideResult()">
+                            <i class="bi bi-qr-code-scan"></i> Escanear Siguiente
                         </button>
                     `;
+                    
+                    // Resetear el último código escaneado para permitir re-escaneo
+                    lastScannedCode = null;
                 } else {
                     showToast(data.message || 'Error', 'error');
                     btn.disabled = false;
