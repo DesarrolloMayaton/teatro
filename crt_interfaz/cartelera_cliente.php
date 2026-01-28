@@ -171,17 +171,17 @@ if ($resultado && $resultado->num_rows > 0) {
         .nav a:not(.cta).active {
             color: #ffffff;
             transform: translateY(-1px);
-            background: rgba(255, 255, 255, 0.08);
-            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
+            background: rgba(148, 163, 184, 0.25);
+            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.6);
         }
         .cta {
             margin-left: 6px;
             padding: 10px 14px;
             border-radius: 8px;
-            background: linear-gradient(135deg, #e53935, #b71c1c);
+            background: linear-gradient(135deg, #6b7280, #4b5563);
             color: #fff !important;
             font-weight: 700;
-            box-shadow: 0 8px 18px rgba(229,57,53,.25);
+            box-shadow: 0 8px 18px rgba(15,23,42,.55);
             transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
             border: 0;
             display: inline-flex;
@@ -190,9 +190,32 @@ if ($resultado && $resultado->num_rows > 0) {
         }
         .cta:hover {
             transform: translateY(-2px);
-            box-shadow: 0 12px 26px rgba(229,57,53,.35);
-            filter: brightness(1.07);
+            box-shadow: 0 12px 26px rgba(15,23,42,.75);
+            filter: brightness(1.03);
         }
+
+        /* Botón de cambio de tema (oscuro/claro) */
+        .theme-toggle-btn {
+            margin-left: 8px;
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.7);
+            background: transparent;
+            color: #e5e7eb;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color .2s ease, box-shadow .2s ease, transform .2s ease, color .2s ease, border-color .2s ease;
+        }
+        .theme-toggle-btn:hover {
+            background: rgba(148, 163, 184, 0.2);
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.7);
+            border-color: rgba(209, 213, 219, 0.9);
+            transform: translateY(-1px);
+        }
+        .theme-toggle-btn .theme-icon { font-size: 1.1rem; }
         .hamburger {
             display: none;
             background: transparent;
@@ -351,13 +374,13 @@ if ($resultado && $resultado->num_rows > 0) {
             background: rgba(0, 0, 0, 0.3);
             padding: 15px 20px;
             border-radius: 10px;
-            border-left: 4px solid #e53935;
+            border-left: 4px solid #9ca3af;
             transition: all 0.3s ease;
         }
 
         .funcion-item:hover {
             background: rgba(0, 0, 0, 0.4);
-            border-left-color: #ff5252;
+            border-left-color: #6b7280;
             transform: translateX(5px);
         }
 
@@ -376,7 +399,7 @@ if ($resultado && $resultado->num_rows > 0) {
         }
 
         .funcion-fecha i {
-            color: #e53935;
+            color: #e5e7eb;
             font-size: 1.2rem;
         }
 
@@ -400,20 +423,20 @@ if ($resultado && $resultado->num_rows > 0) {
             border-radius: 999px;
             font-size: 0.8rem;
             font-weight: 700;
-            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            background: linear-gradient(135deg, #6b7280, #374151);
             color: #fff;
-            border: 1px solid rgba(248, 113, 113, 0.8);
+            border: 1px solid rgba(156, 163, 175, 0.8);
             box-shadow: 0 4px 10px rgba(0,0,0,0.4);
         }
 
         .no-eventos {
             text-align: center;
             padding: 80px 20px;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.8));
             backdrop-filter: blur(25px) saturate(180%);
             border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            box-shadow: 0 12px 40px rgba(15, 23, 42, 0.7);
         }
 
         .no-eventos i {
@@ -497,6 +520,16 @@ if ($resultado && $resultado->num_rows > 0) {
         .footer-bottom { border-top: 1px solid rgba(255,255,255,0.06); padding: 14px 20px; color: #aeb4ba; font-size: 0.9rem; }
         .footer-bottom-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
         .muted { color: #aeb4ba; }
+
+        /* (Tema único) Se mantienen colores neutros/grises, sin cambio de fondo */
+        body.theme-light .site-footer {
+            background: #0b1120;
+            border-top-color: #111827;
+        }
+        body.theme-light .footer-col h4,
+        body.theme-light .footer-links a,
+        body.theme-light .social a { color: #e5e7eb; }
+        body.theme-light .footer-links a:hover { color: #ffffff; }
         @media (max-width: 900px){
             .footer-inner { grid-template-columns: 1fr 1fr; }
         }
@@ -660,21 +693,22 @@ if ($resultado && $resultado->num_rows > 0) {
         <div class="footer-bottom">
             <div class="footer-bottom-inner">
                 <div>© <?php echo date('Y'); ?> Teatro Constitución · Apatzingan. Todos los derechos reservados.</div>
-                <div class="muted"><a href="terminos.php" style="color: inherit; text-decoration: none;">Términos</a> · Privacidad</div>
+                <div class="muted"><a href="terminos.php" style="color: inherit; text-decoration: none;">Términos · Privacidad</a></div>
             </div>
         </div>
     </footer>
 
     <script>
-        // Menú hamburguesa
         const hamburgerBtn = document.getElementById('hamburgerBtn');
         const mainNav = document.getElementById('mainNav');
-        
-        if (hamburgerBtn && mainNav) {
-            hamburgerBtn.addEventListener('click', () => {
-                mainNav.classList.toggle('open');
-            });
-        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (hamburgerBtn && mainNav) {
+                hamburgerBtn.addEventListener('click', () => {
+                    mainNav.classList.toggle('open');
+                });
+            }
+        });
     </script>
 
 </body>

@@ -144,23 +144,47 @@ if ($resultado && $resultado->num_rows > 0) {
         .nav a:not(.cta).active {
             color: #ffffff;
             transform: translateY(-1px);
-            background: rgba(255, 255, 255, 0.08);
-            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
+            background: rgba(148, 163, 184, 0.25);
+            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.6);
         }
-        
+
         .cta {
             margin-left: 6px; padding: 10px 14px; border-radius: 8px;
-            background: linear-gradient(135deg, #e53935, #b71c1c);
+            background: linear-gradient(135deg, #6b7280, #4b5563);
             color: #fff !important; font-weight: 700; border: 0;
-            box-shadow: 0 8px 18px rgba(229,57,53,.25);
+            box-shadow: 0 8px 18px rgba(15,23,42,.55);
             display: inline-flex; align-items: center; gap: 8px;
             transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
         }
         .cta:hover {
             transform: translateY(-2px);
-            box-shadow: 0 12px 26px rgba(229,57,53,.35);
-            filter: brightness(1.07);
+            box-shadow: 0 12px 26px rgba(15,23,42,.75);
+            filter: brightness(1.03);
         }
+
+        /* Botón de cambio de tema (oscuro/claro) */
+        .theme-toggle-btn {
+            margin-left: 8px;
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.7);
+            background: transparent;
+            color: #e5e7eb;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color .2s ease, box-shadow .2s ease, transform .2s ease, color .2s ease, border-color .2s ease;
+        }
+        .theme-toggle-btn:hover {
+            background: rgba(148, 163, 184, 0.2);
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.7);
+            border-color: rgba(209, 213, 219, 0.9);
+            transform: translateY(-1px);
+        }
+        .theme-toggle-btn .theme-icon { font-size: 1.1rem; }
+
         .hamburger {
             display: none; background: transparent; color: #e8e8e8;
             border: 1px solid rgba(255,255,255,0.15); width: 42px; height: 42px;
@@ -208,20 +232,20 @@ if ($resultado && $resultado->num_rows > 0) {
         .hero-contenido { display: flex; flex-direction: column; justify-content: center; padding-right: 40px; }
         .hero-titulo { font-size: 3rem; font-weight: 800; color: #ffffff; margin-bottom: 20px; text-shadow: 0 4px 20px rgba(0, 0, 0, 0.4); line-height: 1.1; }
         .hero-descripcion { font-size: 1.15rem; color: rgba(255, 255, 255, 0.9); line-height: 1.7; margin-bottom: 25px; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3); }
-        .hero-fecha { font-size: 1.2rem; color: #e53935; font-weight: 700; margin-bottom: 30px; display: flex; align-items: center; gap: 10px; }
+        .hero-fecha { font-size: 1.2rem; color: #e5e7eb; font-weight: 700; margin-bottom: 30px; display: flex; align-items: center; gap: 10px; }
         
         .hero-btn {
-            background: linear-gradient(135deg, #e53935, #b71c1c);
+            background: linear-gradient(135deg, #6b7280, #4b5563);
             color: #ffffff; padding: 16px 40px; border-radius: 12px;
             font-size: 1.1rem; font-weight: 700; text-decoration: none;
             display: inline-block; width: fit-content; transition: all 0.3s ease;
-            box-shadow: 0 8px 24px rgba(229, 57, 53, 0.4);
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.6);
             cursor: pointer;
         }
         .hero-btn:hover {
             transform: translateY(-3px); color: #fff;
-            box-shadow: 0 12px 32px rgba(229, 57, 53, 0.6);
-            background: linear-gradient(135deg, #f44336, #c62828);
+            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.8);
+            background: linear-gradient(135deg, #9ca3af, #4b5563);
         }
 
         .hero-btn-agotado {
@@ -242,12 +266,12 @@ if ($resultado && $resultado->num_rows > 0) {
             display: flex; align-items: center; justify-content: center;
             cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(10px);
         }
-        .btn-hero-nav:hover { background: rgba(229, 57, 53, 0.9); border-color: rgba(229, 57, 53, 1); transform: translateY(-50%) scale(1.1); }
+        .btn-hero-nav:hover { background: rgba(75, 85, 99, 0.95); border-color: rgba(148, 163, 184, 1); transform: translateY(-50%) scale(1.1); }
         .btn-hero-nav.prev { left: 20px; } .btn-hero-nav.next { right: 20px; }
         
         .hero-indicadores { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 15; }
         .indicador { width: 40px; height: 4px; background: rgba(255, 255, 255, 0.3); border-radius: 2px; cursor: pointer; transition: all 0.3s ease; }
-        .indicador.active { background: #e53935; width: 60px; }
+        .indicador.active { background: #9ca3af; width: 60px; }
 
         /* PROXIMOS EVENTOS */
         .carrusel-horizontal { position: relative; padding: 0 60px; }
@@ -277,25 +301,25 @@ if ($resultado && $resultado->num_rows > 0) {
         .evento-card:hover .evento-card-imagen img { transform: scale(1.08); }
         .evento-card-info { padding: 20px; background: linear-gradient(to bottom, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.6)); }
         .evento-card-titulo { font-size: 1.2rem; font-weight: 700; color: #ffffff; margin-bottom: 10px; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .evento-card-fecha { font-size: 0.9rem; color: #e53935; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        .evento-card-fecha { font-size: 0.9rem; color: #e5e7eb; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 
         .btn-nav-carrusel {
             position: absolute; top: 50%; transform: translateY(-50%); z-index: 10;
-            background: rgba(229, 57, 53, 0.9); color: white; border: none;
+            background: rgba(75, 85, 99, 0.95); color: white; border: none;
             border-radius: 50%; width: 50px; height: 50px; font-size: 1.5rem;
             display: flex; align-items: center; justify-content: center;
-            cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+            cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
         }
-        .btn-nav-carrusel:hover { background: rgba(229, 57, 53, 1); transform: translateY(-50%) scale(1.1); box-shadow: 0 6px 20px rgba(229, 57, 53, 0.5); }
+        .btn-nav-carrusel:hover { background: rgba(55, 65, 81, 1); transform: translateY(-50%) scale(1.1); box-shadow: 0 6px 20px rgba(15, 23, 42, 0.8); }
         .btn-nav-carrusel.prev { left: 5px; } .btn-nav-carrusel.next { right: 5px; }
 
         .eventos-proximos-section { margin-bottom: 60px; }
         .no-eventos-msg {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.8));
             backdrop-filter: blur(25px) saturate(180%);
-            border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.25);
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
-            color: rgba(255, 255, 255, 0.9); padding: 40px; text-align: center;
+            border-radius: 16px; border: 1px solid rgba(148, 163, 184, 0.4);
+            box-shadow: 0 12px 40px rgba(15, 23, 42, 0.7);
+            color: rgba(249, 250, 251, 0.95); padding: 40px; text-align: center;
         }
 
         /* Footer */
@@ -314,6 +338,7 @@ if ($resultado && $resultado->num_rows > 0) {
         .muted { color: #aeb4ba; }
         @media (max-width: 900px){ .footer-inner { grid-template-columns: 1fr 1fr; } }
         @media (max-width: 600px){ .footer-inner { grid-template-columns: 1fr; } .footer-bottom-inner { flex-direction: column; align-items: flex-start; } }
+
     </style>
 </head>
 <body>
@@ -392,9 +417,9 @@ if ($resultado && $resultado->num_rows > 0) {
         </div>
         <div class="footer-bottom">
             <div class="footer-bottom-inner">
-                <div>© <?php echo date('Y'); ?> Teatro Constitución · Apatzingan. Todos los derechos reservados.</div>
+                <div> Teatro Constitución · Apatzingan. Todos los derechos reservados.</div>
                 <div class="muted">
-                    <a href="terminos.php" style="color: inherit; text-decoration: none;">Términos</a> · Privacidad
+                    <a href="terminos.php" style="color: inherit; text-decoration: none;">Términos · Privacidad</a>
                 </div>
             </div>
         </div>

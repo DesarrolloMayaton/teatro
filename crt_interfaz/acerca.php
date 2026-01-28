@@ -87,17 +87,17 @@
         .nav a:not(.cta).active {
             color: #ffffff;
             transform: translateY(-1px);
-            background: rgba(255, 255, 255, 0.08);
-            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
+            background: rgba(148, 163, 184, 0.25);
+            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.6);
         }
         .cta {
             margin-left: 6px;
             padding: 10px 14px;
             border-radius: 8px;
-            background: linear-gradient(135deg, #e53935, #b71c1c);
+            background: linear-gradient(135deg, #6b7280, #4b5563);
             color: #fff !important;
             font-weight: 700;
-            box-shadow: 0 8px 18px rgba(229,57,53,.25);
+            box-shadow: 0 8px 18px rgba(15,23,42,.55);
             transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
             border: 0;
             display: inline-flex;
@@ -106,9 +106,32 @@
         }
         .cta:hover {
             transform: translateY(-2px);
-            box-shadow: 0 12px 26px rgba(229,57,53,.35);
-            filter: brightness(1.07);
+            box-shadow: 0 12px 26px rgba(15,23,42,.75);
+            filter: brightness(1.03);
         }
+
+        /* Botón de cambio de tema (oscuro/claro) */
+        .theme-toggle-btn {
+            margin-left: 8px;
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.7);
+            background: transparent;
+            color: #e5e7eb;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color .2s ease, box-shadow .2s ease, transform .2s ease, color .2s ease, border-color .2s ease;
+        }
+        .theme-toggle-btn:hover {
+            background: rgba(148, 163, 184, 0.2);
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.7);
+            border-color: rgba(209, 213, 219, 0.9);
+            transform: translateY(-1px);
+        }
+        .theme-toggle-btn .theme-icon { font-size: 1.1rem; }
         .hamburger {
             display: none;
             background: transparent;
@@ -252,6 +275,11 @@
             overflow: hidden;
         }
 
+        /* El contenedor principal del hero no debe esperar la animación de scroll */
+        .hero-section .featured-section {
+            animation: none;
+        }
+
         .featured-section::before {
             content: '';
             position: absolute;
@@ -299,7 +327,7 @@
             content: "✓";
             position: absolute;
             left: 0;
-            color: #e53935;
+            color: #9ca3af;
             font-weight: bold;
         }
 
@@ -320,7 +348,7 @@
 
         .featured-image i {
             font-size: 8rem;
-            color: #e53935;
+            color: #9ca3af;
             opacity: 0.7;
         }
 
@@ -341,7 +369,7 @@
             min-width: 80px;
             font-weight: 700;
             font-size: 1.2rem;
-            color: #e53935;
+            color: #e5e7eb;
         }
 
         .timeline-content {
@@ -349,7 +377,7 @@
             padding: 20px;
             border-radius: 8px;
             flex: 1;
-            border-left: 3px solid #e53935;
+            border-left: 3px solid #9ca3af;
         }
 
         .timeline-content h4 {
@@ -531,6 +559,8 @@
         .footer-bottom { border-top: 1px solid rgba(255,255,255,0.06); padding: 14px 20px; color: #aeb4ba; font-size: 0.9rem; }
         .footer-bottom-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
         .muted { color: #aeb4ba; }
+
+        /* (Tema único) Se mantienen colores neutros/grises, sin cambio de fondo */
         @media (max-width: 900px){
             .footer-inner { grid-template-columns: 1fr 1fr; }
         }
@@ -563,9 +593,11 @@
     <main class="main-content">
         <!-- Hero Section -->
         <section class="hero-section">
-            <h1>Acerca del Teatro Constitución</h1>
-            <p>El Teatro Constitución de Apatzingán, inaugurado el 15 de noviembre de 2021, es un espacio cultural emblemático que nació con la misión de fortalecer la vida artística y comunitaria de la región. Desde su apertura, el Teatro se ha consolidado como un recinto dinámico y versátil, donde se han presentado y producido diversas puestas en escena, conciertos, obras teatrales, espectáculos de danza, exposiciones y actividades culturales que han enriquecido la oferta artística del municipio.</p>
-            <p>Además de albergar producciones locales, nacionales e internacionales, el Teatro Constitución ha sido sede de importantes festivales y encuentros culturales, convirtiéndose en un punto de referencia para la promoción del talento emergente y para la presentación de propuestas de gran calidad. Su programación diversa ha permitido acercar el arte a públicos de todas las edades, posicionándolo como uno de los espacios culturales más relevantes de la región de Apatzingán y sus alrededores.</p>
+            <div class="featured-section">
+                <h1>Acerca del Teatro Constitución</h1>
+                <p>El Teatro Constitución de Apatzingán, inaugurado el 15 de noviembre de 2021, es un espacio cultural emblemático que nació con la misión de fortalecer la vida artística y comunitaria de la región. Desde su apertura, el Teatro se ha consolidado como un recinto dinámico y versátil, donde se han presentado y producido diversas puestas en escena, conciertos, obras teatrales, espectáculos de danza, exposiciones y actividades culturales que han enriquecido la oferta artística del municipio.</p>
+                <p>Además de albergar producciones locales, nacionales e internacionales, el Teatro Constitución ha sido sede de importantes festivales y encuentros culturales, convirtiéndose en un punto de referencia para la promoción del talento emergente y para la presentación de propuestas de gran calidad. Su programación diversa ha permitido acercar el arte a públicos de todas las edades, posicionándolo como uno de los espacios culturales más relevantes de la región de Apatzingán y sus alrededores.</p>
+            </div>
         </section>
 
         <!-- Tarjetas informativas -->
@@ -706,40 +738,41 @@
         <div class="footer-bottom">
             <div class="footer-bottom-inner">
                 <div>© <?php echo date('Y'); ?> Teatro Constitución · Apatzingan. Todos los derechos reservados.</div>
-                <div class="muted"><a href="terminos.php" style="color: inherit; text-decoration: none;">Términos</a> · Privacidad</div>
+                <div class="muted"><a href="terminos.php" style="color: inherit; text-decoration: none;">Términos · Privacidad</a></div>
             </div>
         </div>
     </footer>
 
     <script>
-        // Menú hamburguesa
         const hamburgerBtn = document.getElementById('hamburgerBtn');
         const mainNav = document.getElementById('mainNav');
 
-        if (hamburgerBtn && mainNav) {
-            hamburgerBtn.addEventListener('click', () => {
-                mainNav.classList.toggle('open');
+        document.addEventListener('DOMContentLoaded', () => {
+            // Menú hamburguesa
+            if (hamburgerBtn && mainNav) {
+                hamburgerBtn.addEventListener('click', () => {
+                    mainNav.classList.toggle('open');
+                });
+            }
+
+            // Animación de aparición al hacer scroll
+            const observerOptions = {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.style.opacity = '1';
+                        entry.target.style.transform = 'translateY(0)';
+                    }
+                });
+            }, observerOptions);
+
+            document.querySelectorAll('.info-card, .featured-section').forEach(el => {
+                observer.observe(el);
             });
-        }
-
-        // Animación de aparición al hacer scroll
-        const observerOptions = {
-            threshold: 0.1,
-            rootMargin: '0px 0px -50px 0px'
-        };
-
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.style.opacity = '1';
-                    entry.target.style.transform = 'translateY(0)';
-                }
-            });
-        }, observerOptions);
-
-        // Observar elementos con animación
-        document.querySelectorAll('.info-card, .featured-section').forEach(el => {
-            observer.observe(el);
         });
     </script>
 </body>
