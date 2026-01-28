@@ -10,9 +10,6 @@ $all_categorias = [];
 // Categorías base para descuentos globales
 $categorias_base = [
     ['id_categoria' => 'general', 'nombre_categoria' => 'General', 'precio' => 80],
-    ['id_categoria' => 'preferente', 'nombre_categoria' => 'Preferente', 'precio' => 120],
-    ['id_categoria' => 'vip', 'nombre_categoria' => 'VIP', 'precio' => 180],
-    ['id_categoria' => 'platino', 'nombre_categoria' => 'Platino', 'precio' => 250],
 ];
 
 // 2. Cargar todos los eventos para el dropdown (con fechas)
