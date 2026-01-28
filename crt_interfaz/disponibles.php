@@ -183,11 +183,12 @@ function renderSeat($codigo, $mapa, $vendidos, $colores, $infos, $id_def, $col_d
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
-    /* ESTILOS RECICLADOS Y LIMPIADOS CON FONDO Y GLASS EFFECT */
+    /* ESTILOS DISPONIBILIDAD CON FONDO Y GLASS EFFECT */
     :root {
         --bg-color: #0b1120;
         --text-color: #e5e7eb;
     }
+
     body {
         margin: 0;
         min-height: 100vh;
@@ -201,7 +202,7 @@ function renderSeat($codigo, $mapa, $vendidos, $colores, $infos, $id_def, $col_d
         background-attachment: fixed;
         background-repeat: no-repeat;
     }
-    
+
     /* Header Simple */
     .header-simple {
         position: sticky;
@@ -269,29 +270,28 @@ function renderSeat($codigo, $mapa, $vendidos, $colores, $infos, $id_def, $col_d
 
     .seat {
         width: 40px; height: 40px; border-radius: 8px; display: flex;
-        align-items: center; justify-content: center; font-size: 12px;
+        align-items: center; justify-content: center;
         font-weight: 600; color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.18);
         cursor: default; user-select: none;
     }
 
     .seat.vendido {
-        /* Rojo estriado con alto contraste para asientos ocupados */
+        /* Estilo neutro con alto contraste para asientos ocupados */
         background: repeating-linear-gradient(
             45deg,
-            #ef4444,
-            #ef4444 10px,
-            #dc2626 10px,
-            #dc2626 20px
+            #6b7280,
+            #6b7280 10px,
+            #4b5563 10px,
+            #4b5563 20px
         ) !important;
         color: #ffffff !important;
-        box-shadow: 0 0 0 2px rgba(127, 29, 29, 0.8), 0 4px 8px rgba(0,0,0,0.4);
+        box-shadow: 0 0 0 2px rgba(31, 41, 55, 0.9), 0 4px 8px rgba(0,0,0,0.4);
     }
 
     .screen {
         background: #334155; color: white; padding: 10px; text-align: center;
         border-radius: 8px; margin-bottom: 40px; font-weight: bold; letter-spacing: 2px;
         width: 80%; margin-left: auto; margin-right: auto;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
 
     .pasarela {
@@ -322,10 +322,47 @@ function renderSeat($codigo, $mapa, $vendidos, $colores, $infos, $id_def, $col_d
     }
     .leyenda-item { display: flex; align-items: center; gap: 8px; }
     .dot { width: 12px; height: 12px; border-radius: 50%; }
+
+    /* Tema claro para disponibilidad */
+    body.theme-light {
+        color: #0f172a;
+    }
+    body.theme-light .header-simple {
+        background: rgba(255, 255, 255, 0.9);
+        border-bottom-color: #e5e7eb;
+    }
+    body.theme-light .header-simple h4,
+    body.theme-light .header-simple .text-muted { color: #111827 !important; }
+    body.theme-light .map-viewport {
+        background: radial-gradient(circle at top, rgba(226, 232, 240, 0.95), rgba(209, 213, 219, 0.95));
+    }
+    body.theme-light .glass-card {
+        background: linear-gradient(135deg, #ffffff, #e5e7eb);
+        border-color: #e5e7eb;
+    }
+    body.theme-light .screen {
+        background: #e5e7eb;
+        color: #111827;
+    }
+    body.theme-light .seat.vendido {
+        background: repeating-linear-gradient(
+            45deg,
+            #4b5563,
+            #4b5563 10px,
+            #374151 10px,
+            #374151 20px
+        ) !important;
+        box-shadow: 0 0 0 2px rgba(31, 41, 55, 0.9), 0 4px 8px rgba(0,0,0,0.4);
+    }
+    body.theme-light .leyenda {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(229, 231, 235, 0.95));
+        border-color: #e5e7eb;
+        color: #111827;
+        box-shadow: 0 12px 35px rgba(148, 163, 184, 0.6);
+    }
 </style>
 </head>
 <body>
-
 <div class="header-simple">
     <div>
         <h4><?= htmlspecialchars($evento['titulo'] ?? 'Evento no encontrado') ?></h4>
@@ -427,7 +464,7 @@ function renderSeat($codigo, $mapa, $vendidos, $colores, $infos, $id_def, $col_d
 </div>
 
 <div class="leyenda">
-    <div class="leyenda-item"><div class="dot" style="background: #ef4444; border: 1px solid #b91c1c;"></div> Ocupado</div>
+    <div class="leyenda-item"><div class="dot" style="background: #6b7280; border: 1px solid #4b5563;"></div> Ocupado</div>
     <div class="leyenda-item"><div class="dot" style="background: #e2e8f0; border: 1px solid #cbd5e1;"></div> Disponible</div>
 </div>
 
@@ -459,6 +496,7 @@ function renderSeat($codigo, $mapa, $vendidos, $colores, $infos, $id_def, $col_d
             window.location.href = 'cartelera_cliente.php';
         }
     }
+
     window.addEventListener('load', ajustarMapa);
     window.addEventListener('resize', ajustarMapa);
 </script>
