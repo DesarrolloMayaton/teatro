@@ -285,6 +285,7 @@ $CATEGORIAS_BASE_JSON = json_encode($categorias_base, JSON_UNESCAPED_UNICODE);
             transition: all 0.2s;
             border: 2px solid var(--border);
             background: var(--bg-input);
+            color: var(--text-primary);
         }
 
         .discount-type-btn:hover {

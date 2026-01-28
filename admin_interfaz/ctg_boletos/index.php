@@ -323,6 +323,7 @@ $conn->close();
         }
 
         .table th {
+            background: var(--bg-input);
             border-color: var(--border);
             color: var(--text-secondary);
             font-size: 0.75rem;
@@ -443,17 +444,7 @@ $conn->close();
                             </div>
                         </div>
                     </div>
-                    <div class="col-6 col-md-3">
-                        <div class="tipo-boleto-card" style="opacity: 0.6;">
-                            <div class="icon">🎁</div>
-                            <div class="nombre">Cortesía</div>
-                            <div class="input-group">
-                                <span class="input-group-text bg-dark border-0 text-white">$</span>
-                                <input type="number" class="form-control input-precio" value="0.00" disabled>
-                            </div>
-                            <small class="text-muted">Siempre gratis</small>
-                        </div>
-                    </div>
+
                 </div>
 
                 <div class="d-flex gap-2 flex-wrap">
@@ -530,7 +521,7 @@ $conn->close();
                         </div>
 
                         <div class="table-responsive">
-                            <table class="table">
+                            <table class="table table-dark table-hover mb-0">
                                 <thead>
                                     <tr>
                                         <th>Color</th>
