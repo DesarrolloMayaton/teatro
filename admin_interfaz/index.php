@@ -41,8 +41,34 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
             display: flex;
             flex-direction: column;
             border-right: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
             flex-shrink: 0;
+            transition: width 0.3s ease, padding 0.3s ease;
+            overflow: hidden;
         }
+
+        .admin-sidebar.collapsed {
+            width: 0;
+            padding: 0;
+            border-right: none;
+        }
+
+        .toggle-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            margin-right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .toggle-btn:hover {
+            background: var(--bg-tertiary);
 
         .admin-sidebar-header {
             padding: 20px;
@@ -215,11 +241,20 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
             <a class="admin-menu-item active" href="rpt_reportes/index.php" target="contentFrame">
                 <i class="bi bi-graph-up-arrow"></i> <span>Reportes</span>
             </a>
-            <a class="admin-menu-item" href="transacciones/index.php" target="contentFrame">
-                <i class="bi bi-clock-history"></i> <span>Transacciones</span>
+            <a class="admin-menu-item" href="../mp_interfaz/index.php" target="contentFrame" data-action="collapse">
+                <i class="bi bi-grid-3x3-gap-fill"></i> <span>Mapeo de Asientos</span>
             </a>
             <?php if ($_SESSION['usuario_rol'] === 'admin'): ?>
                 <div class="admin-menu-divider"></div>
+                <div class="admin-menu-section-title">Administración</div>
+                
+                <a class="admin-menu-item" href="transacciones/index.php" target="contentFrame">
+                    <i class="bi bi-arrow-left-right"></i> <span>Transacciones</span>
+                </a>
+
+                <a class="admin-menu-item" href="usuarios/index.php" target="contentFrame">
+                    <i class="bi bi-people-fill"></i> <span>Usuarios</span>
+                </a>
             <?php endif; ?>
         </nav>
     </aside>
@@ -227,6 +262,9 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
     <main class="admin-content">
         <header class="admin-header">
             <div class="admin-header-title">
+                <button class="toggle-btn" id="sidebarToggle" title="Alternar Menú">
+                    <i class="bi bi-list"></i>
+                </button>
                 <i class="bi bi-speedometer2"></i> <span>Panel de Administración</span>
             </div>
             <div class="db-selector">
@@ -248,13 +286,29 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
         document.addEventListener('DOMContentLoaded', () => {
             actualizarEstadoToggle();
 
+
             document.querySelectorAll('.admin-menu-item').forEach(link => {
                 link.addEventListener('click', function (e) {
                     e.preventDefault();
                     document.querySelectorAll('.admin-menu-item').forEach(item => item.classList.remove('active'));
                     this.classList.add('active');
+                    
+                    // Collapse sidebar if it's the mapping view
+                    const sidebar = document.querySelector('.admin-sidebar');
+                    if (this.dataset.action === 'collapse') {
+                         sidebar.classList.add('collapsed');
+                    } else {
+                        // Optional: auto-expand for other views if desired, but user might want to keep it customized.
+                        // For now we only enforce collapse on mapping entry as requested.
+                        // sidebar.classList.remove('collapsed'); 
+                    }
+
                     document.getElementById('contentFrame').src = agregarParamDB(this.getAttribute('href'));
                 });
+            });
+
+            document.getElementById('sidebarToggle').addEventListener('click', () => {
+                document.querySelector('.admin-sidebar').classList.toggle('collapsed');
             });
 
             document.getElementById('contentFrame').src = agregarParamDB('rpt_reportes/index.php');

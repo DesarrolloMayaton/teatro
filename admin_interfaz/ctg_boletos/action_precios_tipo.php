@@ -81,6 +81,52 @@ try {
                 $stmt->execute();
                 $stmt->close();
             }
+
+            // --- SYNC CATEGORIAS TABLE (CRITICAL FOR MAPA) ---
+            $mapa_nombres = [
+                'general' => 'General',
+                'nino' => 'Niño',
+                'adulto_mayor' => '3ra Edad',
+                'discapacitado' => 'Discapacitado',
+            ];
+            
+            foreach ($mapa_nombres as $key => $nombre_cat) {
+                if (!isset($precios[$key])) continue;
+                $p = $precios[$key];
+
+                if ($id_evento) {
+                    // Update specific event
+                    $stmt = $conn->prepare("UPDATE categorias SET precio = ? WHERE id_evento = ? AND nombre_categoria = ?");
+                    $stmt->bind_param("dis", $p, $id_evento, $nombre_cat);
+                    $stmt->execute();
+                    $stmt->close();
+
+                    // Also update 'Adulto Mayor' compatibility
+                    if ($key == 'adulto_mayor') {
+                         $other = 'Adulto Mayor';
+                         $stmt = $conn->prepare("UPDATE categorias SET precio = ? WHERE id_evento = ? AND nombre_categoria = ?");
+                         $stmt->bind_param("dis", $p, $id_evento, $other);
+                         $stmt->execute();
+                         $stmt->close();
+                    }
+                } else {
+                    // Update ALL active events? The user expects global change to reflect.
+                    // We'll update all categories matching this name.
+                    $stmt = $conn->prepare("UPDATE categorias SET precio = ? WHERE nombre_categoria = ?");
+                    $stmt->bind_param("ds", $p, $nombre_cat);
+                    $stmt->execute();
+                    $stmt->close();
+                    
+                     if ($key == 'adulto_mayor') {
+                         $other = 'Adulto Mayor';
+                         $stmt = $conn->prepare("UPDATE categorias SET precio = ? WHERE nombre_categoria = ?");
+                         $stmt->bind_param("ds", $p, $other);
+                         $stmt->execute();
+                         $stmt->close();
+                    }
+                }
+            }
+            // ------------------------------------------------
             
             $msg = $id_evento ? 'Precios guardados para este evento' : 'Precios globales actualizados';
             $redirect = $id_evento ? "index.php?id_evento=$id_evento&status=success&msg=" . urlencode($msg) 
@@ -88,19 +134,44 @@ try {
             break;
             
         case 'usar_global':
-            // Eliminar precios específicos del evento para que use los globales
+            // Eliminar precios específicos del evento
             if ($id_evento) {
                 $stmt = $conn->prepare("DELETE FROM precios_tipo_boleto WHERE id_evento = ?");
                 $stmt->bind_param("i", $id_evento);
                 $stmt->execute();
                 $stmt->close();
+
+                // Sync: Set this event's categories to global prices
+                // 1. Get global prices
+                $globales = [];
+                $res = $conn->query("SELECT tipo_boleto, precio FROM precios_tipo_boleto WHERE id_evento IS NULL");
+                while($row = $res->fetch_assoc()) {
+                    $globales[$row['tipo_boleto']] = $row['precio'];
+                }
+
+                $mapa_nombres = [
+                    'general' => 'General',
+                    'nino' => 'Niño',
+                    'adulto_mayor' => '3ra Edad',
+                    'discapacitado' => 'Discapacitado',
+                ];
+
+                foreach ($mapa_nombres as $key => $nombre_cat) {
+                    if (isset($globales[$key])) {
+                        $p = $globales[$key];
+                        $stmt = $conn->prepare("UPDATE categorias SET precio = ? WHERE id_evento = ? AND nombre_categoria = ?");
+                        $stmt->bind_param("dis", $p, $id_evento, $nombre_cat);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
+                }
             }
             
             $redirect = "index.php?id_evento=$id_evento&status=success&msg=" . urlencode('Ahora este evento usa precios globales');
             break;
             
         case 'aplicar_todos':
-            // Aplicar precios globales a todos los eventos (eliminar precios específicos)
+            // Aplicar precios globales a todos los eventos
             $conn->query("DELETE FROM precios_tipo_boleto WHERE id_evento IS NOT NULL");
             
             // Actualizar globales
@@ -125,6 +196,23 @@ try {
             $stmt->execute();
             $stmt->close();
             
+            // --- SYNC ALL CATEGORIAS ---
+            $mapa_nombres = [
+                'general' => 'General',
+                'nino' => 'Niño',
+                'adulto_mayor' => '3ra Edad',
+                'discapacitado' => 'Discapacitado',
+            ];
+             foreach ($mapa_nombres as $key => $nombre_cat) {
+                if (!isset($precios[$key])) continue;
+                $p = $precios[$key];
+                $stmt = $conn->prepare("UPDATE categorias SET precio = ? WHERE nombre_categoria = ?");
+                $stmt->bind_param("ds", $p, $nombre_cat);
+                $stmt->execute();
+                $stmt->close();
+            }
+            // ---------------------------
+
             $redirect = "index.php?status=success&msg=" . urlencode('Precios aplicados a todos los eventos');
             break;
             
