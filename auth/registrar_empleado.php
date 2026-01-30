@@ -784,31 +784,9 @@ if ($res_admin->num_rows > 0) {
 </head>
 
 <body>
-    <!-- MODAL DE ACCESO INICIAL -->
-    <div class="modal-overlay active" id="modalAccesoInicial">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3><i class="bi bi-shield-lock"></i> Acceso Restringido</h3>
-            </div>
-            <div class="modal-body">
-                <i class="bi bi-person-badge-fill security-icon"></i>
-                <p class="security-text">Esta sección requiere verificación de administrador.<br>Ingresa tu contraseña
-                    para continuar.</p>
-                <input type="password" id="passwordAccesoInicial" class="password-input-security" placeholder="••••••"
-                    maxlength="20" onkeypress="if(event.key==='Enter') verificarAccesoInicial()" autofocus>
-                <div id="errorAcceso" style="color: #ef4444; text-align: center; margin-top: 15px; display: none;">
-                    <i class="bi bi-exclamation-triangle"></i> Contraseña incorrecta
-                </div>
-            </div>
-            <div class="modal-footer" style="justify-content: center;">
-                <button class="btn-modal btn-guardar" onclick="verificarAccesoInicial()">
-                    <i class="bi bi-unlock-fill"></i> Acceder
-                </button>
-            </div>
-        </div>
-    </div>
 
-    <div class="container page-bloqueada" id="contenidoPrincipal">
+
+    <div class="container" id="contenidoPrincipal">
         <div class="page-header">
             <h1><i class="bi bi-people-fill"></i> Gestión de Usuarios</h1>
         </div>
@@ -1014,7 +992,7 @@ if ($res_admin->num_rows > 0) {
     </div>
 
     <script>
-        let idPendienteEditar = null;
+        let accionPendiente = null;
 
         // Mostrar error en modal de seguridad
         function mostrarErrorSeguridad(mensaje) {
@@ -1052,45 +1030,8 @@ if ($res_admin->num_rows > 0) {
             setTimeout(() => notif.remove(), 4000);
         }
 
-        // Verificar acceso inicial a la página
-        async function verificarAccesoInicial() {
-            const password = document.getElementById('passwordAccesoInicial').value;
-            const errorDiv = document.getElementById('errorAcceso');
-
-            if (!password) {
-                errorDiv.style.display = 'block';
-                errorDiv.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Ingresa tu contraseña';
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('ajax', 'verificar_password');
-            formData.append('password', password);
-
-            const response = await fetch('', { method: 'POST', body: formData });
-            const data = await response.json();
-
-            if (data.success) {
-                // Desbloquear la página
-                document.getElementById('modalAccesoInicial').classList.remove('active');
-                document.getElementById('contenidoPrincipal').classList.remove('page-bloqueada');
-                errorDiv.style.display = 'none';
-            } else {
-                errorDiv.style.display = 'block';
-                errorDiv.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Contraseña incorrecta';
-                document.getElementById('passwordAccesoInicial').value = '';
-                document.getElementById('passwordAccesoInicial').focus();
-            }
-        }
-
-        // Enfocar automáticamente el campo de contraseña al cargar
-        window.addEventListener('load', () => {
-            document.getElementById('passwordAccesoInicial').focus();
-        });
-
-        // Solicitar edición (primero pide contraseña)
-        function solicitarEditar(id) {
-            idPendienteEditar = id;
+        // Helper para mostrar modal de seguridad
+        function mostrarModalSeguridad() {
             document.getElementById('passwordSeguridad').value = '';
             ocultarErrorSeguridad();
             document.getElementById('modalSeguridad').classList.add('active');
@@ -1100,7 +1041,13 @@ if ($res_admin->num_rows > 0) {
         // Cerrar modal de seguridad
         function cerrarModalSeguridad() {
             document.getElementById('modalSeguridad').classList.remove('active');
-            idPendienteEditar = null;
+            accionPendiente = null;
+        }
+
+        // Solicitar edición (primero pide contraseña)
+        function solicitarEditar(id) {
+            accionPendiente = { tipo: 'editar', id: id };
+            mostrarModalSeguridad();
         }
 
         // Verificar contraseña de admin
@@ -1120,14 +1067,48 @@ if ($res_admin->num_rows > 0) {
             const data = await response.json();
 
             if (data.success) {
-                const idEditar = idPendienteEditar; // Guardar antes de limpiar
-                document.getElementById('modalSeguridad').classList.remove('active');
-                idPendienteEditar = null;
-                abrirModalEditar(idEditar);
+                const accion = accionPendiente;
+                cerrarModalSeguridad();
+                
+                if (accion) {
+                    if (accion.tipo === 'editar') {
+                        abrirModalEditar(accion.id);
+                    } else if (accion.tipo === 'toggle') {
+                        realizarToggle(accion.id, accion.element);
+                    } else if (accion.tipo === 'eliminar') {
+                        realizarEliminacion(accion.id);
+                    }
+                }
             } else {
                 mostrarErrorSeguridad('Contraseña incorrecta');
                 document.getElementById('passwordSeguridad').value = '';
                 document.getElementById('passwordSeguridad').focus();
+            }
+        }
+
+        async function realizarToggle(id, checkbox) {
+             const formData = new FormData();
+             formData.append('ajax', 'toggle_estado');
+             formData.append('id', id);
+             const response = await fetch('', { method: 'POST', body: formData });
+             const data = await response.json();
+             if (data.success) {
+                 location.reload();
+             } else {
+                 mostrarNotificacion('Error: ' + data.message, 'error');
+             }
+        }
+
+        async function realizarEliminacion(id) {
+            const formData = new FormData();
+            formData.append('ajax', 'eliminar_usuario');
+            formData.append('id', id);
+            const response = await fetch('', { method: 'POST', body: formData });
+            const data = await response.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                mostrarNotificacion('Error: ' + data.message, 'error');
             }
         }
 
@@ -1200,39 +1181,20 @@ if ($res_admin->num_rows > 0) {
             }
         }
 
-        // Toggle estado activo/inactivo
-        async function toggleEstado(id, checkbox) {
-            const formData = new FormData();
-            formData.append('ajax', 'toggle_estado');
-            formData.append('id', id);
-
-            const response = await fetch('', { method: 'POST', body: formData });
-            const data = await response.json();
-
-            if (!data.success) {
-                checkbox.checked = !checkbox.checked;
-                mostrarNotificacion('Error: ' + data.message, 'error');
-            }
+        // Toggle estado activo/inactivo (con seguridad)
+        function toggleEstado(id, checkbox) {
+            checkbox.checked = !checkbox.checked; // Revertir visualmente
+            accionPendiente = { tipo: 'toggle', id: id, element: checkbox };
+            mostrarModalSeguridad();
         }
 
-        // Eliminar usuario
-        async function eliminarUsuario(id, nombre) {
+        // Eliminar usuario (con seguridad)
+        function eliminarUsuario(id, nombre) {
             if (!confirm(`¿Estás seguro de ELIMINAR al usuario "${nombre}"?\n\nEsta acción no se puede deshacer.`)) {
                 return;
             }
-
-            const formData = new FormData();
-            formData.append('ajax', 'eliminar_usuario');
-            formData.append('id', id);
-
-            const response = await fetch('', { method: 'POST', body: formData });
-            const data = await response.json();
-
-            if (data.success) {
-                document.getElementById('fila-' + id).remove();
-            } else {
-                mostrarNotificacion('Error: ' + data.message, 'error');
-            }
+            accionPendiente = { tipo: 'eliminar', id: id };
+            mostrarModalSeguridad();
         }
 
         // Cerrar modales con ESC

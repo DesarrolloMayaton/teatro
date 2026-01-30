@@ -10,9 +10,6 @@ $all_categorias = [];
 // Categorías base para descuentos globales
 $categorias_base = [
     ['id_categoria' => 'general', 'nombre_categoria' => 'General', 'precio' => 80],
-    ['id_categoria' => 'preferente', 'nombre_categoria' => 'Preferente', 'precio' => 120],
-    ['id_categoria' => 'vip', 'nombre_categoria' => 'VIP', 'precio' => 180],
-    ['id_categoria' => 'platino', 'nombre_categoria' => 'Platino', 'precio' => 250],
 ];
 
 // 2. Cargar todos los eventos para el dropdown (con fechas)
@@ -288,6 +285,7 @@ $CATEGORIAS_BASE_JSON = json_encode($categorias_base, JSON_UNESCAPED_UNICODE);
             transition: all 0.2s;
             border: 2px solid var(--border);
             background: var(--bg-input);
+            color: var(--text-primary);
         }
 
         .discount-type-btn:hover {

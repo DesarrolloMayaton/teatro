@@ -19,27 +19,50 @@ $sql_base = "SELECT t.id_transaccion, t.accion, t.descripcion, t.fecha_hora, u.n
              FROM transacciones t
              JOIN usuarios u ON t.id_usuario = u.id_usuario";
 
-if ($fecha_desde && $fecha_hasta) {
-    $sql = $sql_base . " WHERE t.fecha_hora >= ? AND t.fecha_hora <= ? ORDER BY t.fecha_hora DESC LIMIT 500";
-    $stmt = $conn->prepare($sql);
-    $desde = $fecha_desde . ' 00:00:00';
-    $hasta = $fecha_hasta . ' 23:59:59';
-    $stmt->bind_param('ss', $desde, $hasta);
-} elseif ($fecha_desde) {
-    $sql = $sql_base . " WHERE t.fecha_hora >= ? ORDER BY t.fecha_hora DESC LIMIT 500";
-    $stmt = $conn->prepare($sql);
-    $desde = $fecha_desde . ' 00:00:00';
-    $stmt->bind_param('s', $desde);
-} elseif ($fecha_hasta) {
-    $sql = $sql_base . " WHERE t.fecha_hora <= ? ORDER BY t.fecha_hora DESC LIMIT 500";
-    $stmt = $conn->prepare($sql);
-    $hasta = $fecha_hasta . ' 23:59:59';
-    $stmt->bind_param('s', $hasta);
-} else {
-    $sql = $sql_base . " ORDER BY t.fecha_hora DESC LIMIT 200";
-    $stmt = $conn->prepare($sql);
+// Paginación
+$page = max(1, (int)($_GET['page'] ?? 1));
+$limit = 100;
+$offset = ($page - 1) * $limit;
+
+// Construcción de filtros
+$where = [];
+$params = [];
+$types = "";
+
+if ($fecha_desde) {
+    $where[] = "t.fecha_hora >= ?";
+    $params[] = $fecha_desde . ' 00:00:00';
+    $types .= "s";
+}
+if ($fecha_hasta) {
+    $where[] = "t.fecha_hora <= ?";
+    $params[] = $fecha_hasta . ' 23:59:59';
+    $types .= "s";
 }
 
+$where_sql = $where ? "WHERE " . implode(" AND ", $where) : "";
+
+// 1. Contar total de registros (para paginación) y obtener último ID
+$sql_count = "SELECT COUNT(*) as total, MAX(t.id_transaccion) as max_id FROM transacciones t $where_sql";
+$stmt_count = $conn->prepare($sql_count);
+if ($params) {
+    $stmt_count->bind_param($types, ...$params);
+}
+$stmt_count->execute();
+$row_count = $stmt_count->get_result()->fetch_assoc();
+$total_rows = $row_count['total'];
+$max_id_inicial = (int)($row_count['max_id'] ?? 0);
+$total_pages = ceil($total_rows / $limit);
+$stmt_count->close();
+
+// 2. Obtener registros paginados
+$sql = "$sql_base $where_sql ORDER BY t.fecha_hora DESC LIMIT ? OFFSET ?";
+$params[] = $limit;
+$params[] = $offset;
+$types .= "ii";
+
+$stmt = $conn->prepare($sql);
+$stmt->bind_param($types, ...$params);
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -55,8 +78,7 @@ $stmt->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transacciones del Sistema</title>
-    <link rel="icon" href="../../crt_interfaz/imagenes_teatro/nat.png" type="image/png">
+    <title>Transacciones</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
@@ -88,6 +110,10 @@ $stmt->close();
             min-height: 100vh;
         }
         
+        .fs-4 {
+            color: var(--text-primary) !important;
+        }
+        
         .container-fluid {
             max-width: 1200px;
             margin: 0 auto;
@@ -102,6 +128,13 @@ $stmt->close();
             transition: all 0.2s ease;
         }
         
+        .card.p-4.mb-4 {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-card);
+        }
+        
         .card:hover { box-shadow: var(--shadow-lg); }
         
         h2, h3 {
@@ -111,22 +144,36 @@ $stmt->close();
         }
         
         .table {
-            color: var(--text-primary);
+            color: var(--text-primary) !important;
             margin: 0;
+            background: transparent !important;
         }
         
-        .table thead { background: var(--bg-input); }
+        .table thead { 
+            background: var(--bg-input) !important; 
+        }
         
         .table th {
-            color: var(--text-secondary);
+            color: var(--text-secondary) !important;
             text-transform: uppercase;
             font-size: 0.75rem;
             letter-spacing: 0.5px;
             border-color: var(--border);
+            background: var(--bg-input) !important;
         }
         
         .table td {
             border-color: var(--border);
+            background: transparent !important;
+            color: var(--text-primary) !important;
+        }
+        
+        .table tbody tr {
+            background: transparent !important;
+        }
+        
+        .table tbody tr:hover {
+            background: rgba(99, 102, 241, 0.08) !important;
         }
         
         .badge-accion {
@@ -228,6 +275,11 @@ $stmt->close();
             border-radius: 8px;
         }
         
+        .form-control::placeholder {
+            color: var(--text-secondary);
+            opacity: 1;
+        }
+        
         .form-control:focus {
             background: var(--bg-input);
             border-color: var(--primary);
@@ -293,9 +345,26 @@ $stmt->close();
         .status-indicator .pulse {
             width: 8px;
             height: 8px;
-            border-radius: 50%;
+            border-radius: 50%%;
             background: currentColor;
             animation: pulse 2s infinite;
+        }
+        
+        /* Form controls */
+        .form-control {
+            color: var(--text-primary) !important;
+            background: var(--bg-input) !important;
+            border-color: var(--border) !important;
+        }
+        
+        .form-control::placeholder {
+            color: var(--text-secondary) !important;
+            opacity: 1 !important;
+        }
+        
+        .form-control:focus {
+            color: var(--text-primary) !important;
+            background: var(--bg-input) !important;
         }
         
         @keyframes pulse {
@@ -305,6 +374,27 @@ $stmt->close();
         
         .text-secondary { color: var(--text-secondary) !important; }
         .btn-close { filter: invert(1); }
+        /* Paginación */
+        .pagination { margin-bottom: 0; }
+        .page-link {
+            background: var(--bg-input);
+            border-color: var(--border);
+            color: var(--text-primary);
+        }
+        .page-link:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+        .page-item.active .page-link {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+        .page-item.disabled .page-link {
+            background: var(--bg-main);
+            border-color: var(--border);
+            color: var(--text-secondary);
+        }
     </style>
 </head>
 <body>
@@ -322,20 +412,24 @@ $stmt->close();
                         <span id="statusText">Actualizando en tiempo real</span>
                     </span>
                 </div>
-                <span class="text-secondary small">Registros mostrados:</span>
-                <div class="fs-4 fw-bold" id="countTransacciones"><?php echo count($transacciones); ?></div>
+                <span class="text-secondary small">Registros totales:</span>
+                <div class="fs-4 fw-bold" id="countTransacciones"><?php echo $total_rows; ?></div>
             </div>
         </div>
         <form method="GET" class="row g-3 align-items-end">
-            <div class="col-md-4">
+            <div class="col-md-3">
+                <label for="buscar_descripcion" class="filtros-label">Filtrar por palabra</label>
+                <input type="text" id="buscar_descripcion" class="form-control" placeholder="Escribe para filtrar...">
+            </div>
+            <div class="col-md-3">
                 <label for="fecha_desde" class="filtros-label">Desde</label>
                 <input type="date" id="fecha_desde" name="fecha_desde" class="form-control" value="<?php echo htmlspecialchars($fecha_desde); ?>">
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <label for="fecha_hasta" class="filtros-label">Hasta</label>
                 <input type="date" id="fecha_hasta" name="fecha_hasta" class="form-control" value="<?php echo htmlspecialchars($fecha_hasta); ?>">
             </div>
-            <div class="col-md-4 d-flex gap-2">
+            <div class="col-md-3 d-flex gap-2">
                 <button type="button" onclick="aplicarFiltros()" class="btn btn-primary flex-grow-1"><i class="bi bi-funnel"></i> Filtrar</button>
                 <a href="index.php" class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i></a>
                 <button type="button" onclick="toggleAutoUpdate()" class="btn btn-outline-primary" id="btnToggleUpdate" title="Pausar/Reanudar actualización automática">
@@ -374,6 +468,54 @@ $stmt->close();
                 </tbody>
             </table>
         </div>
+        
+        <!-- Paginación -->
+        <?php if ($total_pages > 1): ?>
+        <nav aria-label="Navegación de páginas" class="mt-4">
+            <ul class="pagination justify-content-center">
+                <!-- Anterior -->
+                <li class="page-item <?php echo ($page <= 1) ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page - 1; ?><?php echo $fecha_desde ? '&fecha_desde='.$fecha_desde : ''; ?><?php echo $fecha_hasta ? '&fecha_hasta='.$fecha_hasta : ''; ?>">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                
+                <?php
+                $rango = 2;
+                $inicio = max(1, $page - $rango);
+                $fin = min($total_pages, $page + $rango);
+                
+                if ($inicio > 1) {
+                    echo '<li class="page-item"><a class="page-link" href="?page=1'.($fecha_desde ? '&fecha_desde='.$fecha_desde : '').($fecha_hasta ? '&fecha_hasta='.$fecha_hasta : '').'">1</a></li>';
+                    if ($inicio > 2) {
+                        echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                    }
+                }
+                
+                for ($i = $inicio; $i <= $fin; $i++):
+                ?>
+                    <li class="page-item <?php echo ($i == $page) ? 'active' : ''; ?>">
+                        <a class="page-link" href="?page=<?php echo $i; ?><?php echo $fecha_desde ? '&fecha_desde='.$fecha_desde : ''; ?><?php echo $fecha_hasta ? '&fecha_hasta='.$fecha_hasta : ''; ?>"><?php echo $i; ?></a>
+                    </li>
+                <?php endfor; 
+                
+                if ($fin < $total_pages) {
+                    if ($fin < $total_pages - 1) {
+                        echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                    }
+                    echo '<li class="page-item"><a class="page-link" href="?page='.$total_pages.($fecha_desde ? '&fecha_desde='.$fecha_desde : '').($fecha_hasta ? '&fecha_hasta='.$fecha_hasta : '').'">'.$total_pages.'</a></li>';
+                }
+                ?>
+                
+                <!-- Siguiente -->
+                <li class="page-item <?php echo ($page >= $total_pages) ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page + 1; ?><?php echo $fecha_desde ? '&fecha_desde='.$fecha_desde : ''; ?><?php echo $fecha_hasta ? '&fecha_hasta='.$fecha_hasta : ''; ?>">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -408,17 +550,14 @@ $stmt->close();
 // Estado de la aplicación
 let autoUpdateEnabled = true;
 let updateInterval = null;
-let ultimaIdTransaccion = 0;
+let ultimaIdTransaccion = <?php echo $max_id_inicial; ?>; // Inicializar con el último ID real
 let filtroDesde = '<?php echo htmlspecialchars($fecha_desde); ?>';
 let filtroHasta = '<?php echo htmlspecialchars($fecha_hasta); ?>';
 
-// Inicializar última ID
+// Inicializar
 document.addEventListener('DOMContentLoaded', () => {
     const rows = document.querySelectorAll('#transaccionesBody tr[data-id]');
     if (rows.length > 0) {
-        const ids = Array.from(rows).map(row => parseInt(row.dataset.id));
-        ultimaIdTransaccion = Math.max(...ids);
-        
         // Agregar eventos de clic a las filas existentes
         rows.forEach(row => {
             row.addEventListener('click', () => {
@@ -512,8 +651,16 @@ async function cargarNuevasTransacciones() {
             });
             
             // Actualizar contador
-            const totalRows = tbody.querySelectorAll('tr[data-id]').length;
-            document.getElementById('countTransacciones').textContent = totalRows;
+            // Actualizar contador (sumar nuevos al total existente)
+            const countEl = document.getElementById('countTransacciones');
+            let currentCount = parseInt(countEl.textContent.replace(/\D/g, '')) || 0;
+            const newTotal = currentCount + data.transacciones.length;
+            countEl.textContent = newTotal;
+            
+            // Actualizar referencia global para filtros
+            if (typeof originalTotalCount !== 'undefined') {
+                originalTotalCount = parseInt(originalTotalCount) + data.transacciones.length;
+            }
             
             // Limitar a 500 filas
             const allRows = tbody.querySelectorAll('tr[data-id]');
@@ -841,6 +988,39 @@ async function abrirDetalleTransaccion(idTransaccion) {
         `;
     }
 }
+</script>
+
+<script>
+// Filtro de búsqueda en tiempo real
+const countTransaccionesEl = document.getElementById('countTransacciones');
+let originalTotalCount = countTransaccionesEl.textContent.trim();
+
+document.getElementById('buscar_descripcion').addEventListener('input', function() {
+    const searchTerm = this.value.toLowerCase();
+    const rows = document.querySelectorAll('#transaccionesBody tr[data-id]');
+    let visibleCount = 0;
+    
+    rows.forEach(row => {
+        const descripcion = row.querySelector('.descripcion').textContent.toLowerCase();
+        const usuario = row.cells[1].textContent.toLowerCase();
+        const accion = row.querySelector('.badge-accion').textContent.toLowerCase();
+        
+        // Buscar en descripción, usuario y acción
+        if (descripcion.includes(searchTerm) || usuario.includes(searchTerm) || accion.includes(searchTerm)) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    // Actualizar contador de registros mostrados
+    if (searchTerm === '') {
+        countTransaccionesEl.textContent = originalTotalCount;
+    } else {
+        countTransaccionesEl.textContent = visibleCount;
+    }
+});
 </script>
 </body>
 </html>

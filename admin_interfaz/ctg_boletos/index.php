@@ -754,7 +754,7 @@ $conn->close();
                         </div>
 
                         <div class="table-responsive">
-                            <table class="table">
+                            <table class="table table-dark table-hover mb-0">
                                 <thead>
                                     <tr>
                                         <th>Color</th>
