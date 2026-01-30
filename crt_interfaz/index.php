@@ -231,7 +231,17 @@ if ($resultado && $resultado->num_rows > 0) {
         
         .hero-contenido { display: flex; flex-direction: column; justify-content: center; padding-right: 40px; }
         .hero-titulo { font-size: 3rem; font-weight: 800; color: #ffffff; margin-bottom: 20px; text-shadow: 0 4px 20px rgba(0, 0, 0, 0.4); line-height: 1.1; }
-        .hero-descripcion { font-size: 1.15rem; color: rgba(255, 255, 255, 0.9); line-height: 1.7; margin-bottom: 25px; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3); }
+        .hero-descripcion {
+            font-size: 1.15rem;
+            color: rgba(255, 255, 255, 0.9);
+            line-height: 1.7;
+            margin-bottom: 25px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+        
         .hero-fecha { font-size: 1.2rem; color: #e5e7eb; font-weight: 700; margin-bottom: 30px; display: flex; align-items: center; gap: 10px; }
         
         .hero-btn {

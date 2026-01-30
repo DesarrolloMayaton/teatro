@@ -1860,6 +1860,27 @@ if ($evento_info):
 
         </div>
 
+        <!-- Resumen de Asientos Disponibles/Ocupados -->
+        <div id="resumenAsientos" class="mt-3" style="border-radius: 8px; padding: 10px 12px; background: rgba(15,23,42,0.95); border: 1px solid rgba(148,163,184,0.4);">
+            <div style="display:flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: #e5e7eb;">
+                <div>
+                    <div style="font-weight:600; text-transform: uppercase; letter-spacing: .05em; font-size: 0.7rem; color:#9ca3af;">Asientos</div>
+                    <div>
+                        <span style="color:#22c55e; font-weight:600;">Disponibles:</span>
+                        <span id="labelAsientosDisponibles">-</span>
+                    </div>
+                    <div>
+                        <span style="color:#f97316; font-weight:600;">Ocupados:</span>
+                        <span id="labelAsientosOcupados">-</span>
+                    </div>
+                </div>
+                <div style="text-align:right; font-size: 0.75rem;">
+                    <div style="color:#9ca3af;">Total vendibles</div>
+                    <div id="labelAsientosTotales" style="font-weight:600; color:#e5e7eb;">-</div>
+                </div>
+            </div>
+        </div>
+
         <?php endif; ?>
     </div>
     </div>
@@ -2661,8 +2682,52 @@ window.addEventListener('beforeunload', detenerActualizacionFunciones);
 window.PRECIOS_TIPO_BOLETO = <?= json_encode($precios_tipo_boleto) ?>;
 // URL para regresar (empleado vs admin)
 window.URL_REGRESAR = '<?= $url_regresar ?>';
+
+// Inactividad y atajo Alt+F5 dentro del Punto de Venta
+(function() {
+    const INACTIVITY_LIMIT = 5 * 60 * 1000; // 5 minutos
+    let inactivityTimer;
+
+    function resetInactividad() {
+        clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(function() {
+            window.location.href = '../logout.php?motivo=inactividad';
+        }, INACTIVITY_LIMIT);
+    }
+
+    // Atajo Alt+F5: si está embebido, pide al padre ir a Punto de Venta;
+    // si no está embebido, actúa como el botón "Cambiar evento" (usa URL_REGRESAR)
+    document.addEventListener('keydown', function(e) {
+        if (e.altKey && e.key === 'F5') {
+            e.preventDefault();
+            if (window.parent && window.parent !== window) {
+                try {
+                    window.parent.postMessage({ tipo: 'ir_punto_venta' }, '*');
+                } catch (err) {
+                    // Fallback: ir al panel principal
+                    window.parent.location.href = '../index.php';
+                }
+            } else {
+                // Cuando el punto de venta está abierto directo (empleado o admin)
+                // usamos la misma URL que el botón de "Cambiar evento"
+                if (typeof window.URL_REGRESAR !== 'undefined' && window.URL_REGRESAR) {
+                    window.location.href = window.URL_REGRESAR;
+                } else {
+                    window.location.href = 'index.php';
+                }
+            }
+        }
+    });
+
+    ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(function(evt) {
+        document.addEventListener(evt, resetInactividad, { passive: true });
+    });
+
+    resetInactividad();
+})();
 </script>
 <script src="js/carrito.js?v=25"></script>
+
 <script src="js/carrito-patch.js"></script>
 <script src="js/descuentos-modal.js"></script>
 <script src="js/escaner_qr.js?v=4"></script>

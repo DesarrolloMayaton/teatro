@@ -106,13 +106,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->bind_param("sssssii", $titulo, $ini, $fin, $desc, $img, $tipo, $id_evento);
                     $stmt->execute();
 
-                    $conn->query("DELETE FROM funciones WHERE id_evento = $id_evento");
-                    $stmt_f = $conn->prepare("INSERT INTO funciones (id_evento, fecha_hora, estado) VALUES (?, ?, 0)");
-                    foreach ($_POST['funciones'] as $fh) {
-                        $stmt_f->bind_param("is", $id_evento, $fh);
-                        $stmt_f->execute();
+                    // ==================================================================
+                    // Actualizar funciones SIN perder historial ni boletos vendidos
+                    // ==================================================================
+
+                    // 1) Cargar funciones existentes con conteo de boletos vendidos
+                    $funciones_existentes_db = [];
+                    $sql_funciones = "SELECT f.id_funcion, f.fecha_hora, f.estado,
+                                        (SELECT COUNT(*) FROM boletos b WHERE b.id_funcion = f.id_funcion AND b.estatus = 1) AS boletos_vendidos
+                                      FROM funciones f
+                                      WHERE f.id_evento = $id_evento";
+                    if ($res_f_post = $conn->query($sql_funciones)) {
+                        while ($row = $res_f_post->fetch_assoc()) {
+                            $row['boletos_vendidos'] = (int) $row['boletos_vendidos'];
+                            $funciones_existentes_db[] = $row;
+                        }
+                        $res_f_post->free();
                     }
-                    $stmt_f->close();
+
+                    // Indexar funciones existentes por fecha_hora para coincidencia rápida
+                    $funciones_por_fecha = [];
+                    foreach ($funciones_existentes_db as $f) {
+                        $funciones_por_fecha[$f['fecha_hora']] = $f;
+                    }
+
+                    // Normalizar fechas recibidas por POST (asegurar segundos ":00")
+                    $fechas_post = [];
+                    if (!empty($_POST['funciones']) && is_array($_POST['funciones'])) {
+                        foreach ($_POST['funciones'] as $fh) {
+                            $fh = trim($fh);
+                            if ($fh === '') continue;
+                            // Si viene como "Y-m-d H:i" agregar ":00"
+                            if (strlen($fh) === 16) {
+                                $fh .= ':00';
+                            }
+                            $fechas_post[] = $fh;
+                        }
+                    }
+
+                    // 2) Eliminar SOLO funciones futuras sin boletos que el usuario quitó
+                    foreach ($funciones_existentes_db as $f) {
+                        $fecha = $f['fecha_hora'];
+                        $estado = (int) $f['estado'];
+                        $boletosVendidos = (int) $f['boletos_vendidos'];
+
+                        $esPasada = ($estado === 1) || (strtotime($fecha) <= time());
+
+                        // No tocar funciones pasadas ni las que tienen boletos vendidos
+                        if ($esPasada || $boletosVendidos > 0) {
+                            continue;
+                        }
+
+                        // Si la fecha de esta función futura ya no está en el POST, el usuario la eliminó
+                        if (!in_array($fecha, $fechas_post, true)) {
+                            $id_func = (int) $f['id_funcion'];
+                            $conn->query("DELETE FROM funciones WHERE id_funcion = $id_func");
+                        }
+                    }
+
+                    // 3) Insertar funciones NUEVAS (fechas que no existían antes)
+                    if (!empty($fechas_post)) {
+                        $stmt_f = $conn->prepare("INSERT INTO funciones (id_evento, fecha_hora, estado) VALUES (?, ?, 0)");
+                        foreach ($fechas_post as $fh_norm) {
+                            // Si ya existe una función con esa fecha, no crear otra
+                            if (isset($funciones_por_fecha[$fh_norm])) {
+                                continue;
+                            }
+                            $stmt_f->bind_param("is", $id_evento, $fh_norm);
+                            $stmt_f->execute();
+                        }
+                        $stmt_f->close();
+                    }
                     $evt_id = $id_evento;
                 }
 

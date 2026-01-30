@@ -258,6 +258,11 @@ function marcarAsientosVendidos() {
             }
         }
     });
+
+    // Actualizar resumen de asientos después de marcar vendidos
+    if (typeof actualizarEstadisticas === 'function') {
+        actualizarEstadisticas();
+    }
 }
 
 // Marcar asientos con categoría "No Venta"
@@ -2488,6 +2493,7 @@ function actualizarEstadisticas() {
     const statAsientos = document.getElementById('statAsientos');
     const statTotal = document.getElementById('statTotal');
 
+    // Estadística de asientos seleccionados en el carrito
     if (statAsientos) {
         statAsientos.textContent = carrito.length;
     }
@@ -2498,6 +2504,66 @@ function actualizarEstadisticas() {
             statTotal.textContent = totalElement.textContent;
         }
     }
+
+    // Resumen de asientos disponibles/ocupados para la función actual
+    const labelDisp = document.getElementById('labelAsientosDisponibles');
+    const labelOcup = document.getElementById('labelAsientosOcupados');
+    const labelTotal = document.getElementById('labelAsientosTotales');
+
+    // Si el panel no existe (por ejemplo en alguna variante de interfaz), no hacer nada más
+    if (!labelDisp && !labelOcup && !labelTotal) {
+        return;
+    }
+
+    // Si aún no hay función seleccionada, no tiene sentido mostrar ocupados/disponibles
+    // (evitamos usar el agregado por evento y esperamos a que el usuario elija horario)
+    const idFuncionActual = typeof obtenerIdFuncion === 'function' ? obtenerIdFuncion() : null;
+    if (!idFuncionActual) {
+        if (labelDisp) labelDisp.textContent = '-';
+        if (labelOcup) labelOcup.textContent = '-';
+        if (labelTotal) labelTotal.textContent = '-';
+        return;
+    }
+
+    const seats = document.querySelectorAll('.seat');
+
+    // Si aún no hay mapa cargado (sin horario seleccionado), mostrar guiones
+    if (!seats || seats.length === 0) {
+        if (labelDisp) labelDisp.textContent = '-';
+        if (labelOcup) labelOcup.textContent = '-';
+        if (labelTotal) labelTotal.textContent = '-';
+        return;
+    }
+
+    let totalVendibles = 0;
+    let totalOcupados = 0;
+
+    seats.forEach(seat => {
+        const categoriaId = seat.dataset.categoriaId;
+
+        // Determinar si el asiento es "No Venta" usando la misma lógica que el mapa
+        let esNoVentaSeat = false;
+        if (typeof esNoVenta === 'function' && categoriaId) {
+            esNoVentaSeat = esNoVenta(categoriaId);
+        } else {
+            esNoVentaSeat = seat.classList.contains('no-venta');
+        }
+
+        if (esNoVentaSeat) {
+            return; // No se cuenta como asiento vendible
+        }
+
+        totalVendibles++;
+        if (seat.classList.contains('vendido')) {
+            totalOcupados++;
+        }
+    });
+
+    const totalDisponibles = Math.max(0, totalVendibles - totalOcupados);
+
+    if (labelDisp) labelDisp.textContent = totalDisponibles;
+    if (labelOcup) labelOcup.textContent = totalOcupados;
+    if (labelTotal) labelTotal.textContent = totalVendibles;
 }
 
 // Función para limpiar toda la selección

@@ -352,6 +352,33 @@ $conn->close();
     function abrirVisorCliente() {
         window.open('vnt_interfaz/visor_cliente.php', 'VisorCliente', 'width=1200,height=800,menubar=no,toolbar=no');
     }
+
+    (function() {
+        const INACTIVITY_LIMIT = 5 * 60 * 1000; // 5 minutos
+        let inactivityTimer;
+
+        function resetInactividad() {
+            clearTimeout(inactivityTimer);
+            inactivityTimer = setTimeout(function() {
+                window.location.href = 'logout.php?motivo=inactividad';
+            }, INACTIVITY_LIMIT);
+        }
+
+        // Atajo Alt+F5 para regresar rápido a Punto de Venta
+        document.addEventListener('keydown', function(e) {
+            if (e.altKey && e.key === 'F5') {
+                e.preventDefault();
+                window.location.href = 'index_empleado.php';
+            }
+        });
+
+        // Reiniciar temporizador en eventos de interacción
+        ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(function(evt) {
+            document.addEventListener(evt, resetInactividad, { passive: true });
+        });
+
+        resetInactividad();
+    })();
     </script>
 
 

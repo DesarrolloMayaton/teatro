@@ -350,6 +350,9 @@ if ($resultado && $resultado->num_rows > 0) {
             line-height: 1.6;
             font-size: 0.95rem;
             margin-bottom: 10px;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            word-break: break-word;
         }
 
         .funciones-titulo {

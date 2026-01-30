@@ -17,6 +17,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (empty($nombre) || empty($password)) {
         $error = 'Por favor, ingrese nombre y contraseña';
+    } elseif (!preg_match('/^[A-Za-z0-9]+$/', $password)) {
+        $error = 'La contraseña solo puede contener letras y números, sin espacios ni símbolos';
     } else {
         $stmt = $conn->prepare("SELECT id_usuario, nombre, apellido, password, rol, activo FROM usuarios WHERE nombre = ? AND activo = 1");
         $stmt->bind_param("s", $nombre);
@@ -230,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <p>Ingrese sus credenciales</p>
         </div>
         
-        <form method="POST" action="" class="login-body">
+        <form method="POST" action="" class="login-body" autocomplete="off">
             <?php if ($error): ?>
                 <div class="error-message">
                     <i class="bi bi-exclamation-triangle-fill"></i>
@@ -253,7 +255,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="input-wrapper">
                     <i class="bi bi-lock-fill"></i>
                     <input type="password" id="password" name="password" required
-                           placeholder="••••••••">
+                           placeholder="••••••••" pattern="[A-Za-z0-9]+" title="Solo letras y números, sin espacios ni símbolos" autocomplete="off">
                 </div>
             </div>
             
@@ -269,9 +271,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <script>
-        <?php if ($error === 'Contraseña incorrecta'): ?>
-            document.getElementById('password').focus();
-        <?php endif; ?>
+        (function() {
+            const form = document.querySelector('.login-body');
+            const passwordInput = document.getElementById('password');
+
+            <?php if ($error === 'Contraseña incorrecta'): ?>
+            if (passwordInput) {
+                passwordInput.focus();
+            }
+            <?php endif; ?>
+
+            if (form) {
+                form.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        form.submit();
+                    }
+                });
+            }
+        })();
     </script>
 </body>
 </html>

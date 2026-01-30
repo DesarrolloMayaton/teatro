@@ -111,6 +111,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
                 echo json_encode(['success' => false, 'message' => 'La contraseña debe tener al menos 6 caracteres']);
                 exit;
             }
+            if (!preg_match('/^[A-Za-z0-9]+$/', $password)) {
+                echo json_encode(['success' => false, 'message' => 'La contraseña solo puede contener letras y números, sin espacios ni símbolos']);
+                exit;
+            }
             $password_hash = password_hash($password, PASSWORD_DEFAULT);
             $stmt = $conn->prepare("UPDATE usuarios SET nombre = ?, apellido = ?, password = ?, rol = ? WHERE id_usuario = ?");
             $stmt->bind_param("ssssi", $nombre, $apellido, $password_hash, $rol, $id);
@@ -233,6 +237,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registrar_nuevo'])) {
         $tipo_mensaje = 'error';
     } elseif (strlen($password) < 6) {
         $mensaje = 'La contraseña debe tener al menos 6 caracteres';
+        $tipo_mensaje = 'error';
+    } elseif (!preg_match('/^[A-Za-z0-9]+$/', $password)) {
+        $mensaje = 'La contraseña solo puede contener letras y números, sin espacios ni símbolos';
         $tipo_mensaje = 'error';
     } else {
         $stmt = $conn->prepare("SELECT id_usuario FROM usuarios WHERE nombre = ?");
@@ -833,12 +840,14 @@ if ($res_admin->num_rows > 0) {
 
                     <div class="form-group">
                         <label>Contraseña (mín. 6 caracteres)</label>
-                        <input type="text" name="password" required placeholder="••••••">
+                        <input type="password" name="password" required placeholder="••••••" pattern="[A-Za-z0-9]{6,}"
+                            title="Solo letras y números, mínimo 6 caracteres" autocomplete="new-password">
                     </div>
 
                     <div class="form-group">
                         <label>Confirmar contraseña</label>
-                        <input type="text" name="password_confirm" required placeholder="••••••">
+                        <input type="password" name="password_confirm" required placeholder="••••••" pattern="[A-Za-z0-9]{6,}"
+                            title="Debe coincidir y solo letras y números" autocomplete="new-password">
                     </div>
 
                     <div class="form-group">
@@ -983,7 +992,8 @@ if ($res_admin->num_rows > 0) {
 
                 <div class="form-group">
                     <label>Nueva contraseña (dejar vacío para no cambiar)</label>
-                    <input type="text" id="editar_password" placeholder="Dejar vacío para mantener">
+                    <input type="password" id="editar_password" placeholder="Dejar vacío para mantener" pattern="[A-Za-z0-9]{6,}"
+                        title="Solo letras y números, mínimo 6 caracteres" autocomplete="new-password">
                 </div>
 
                 <div class="form-group" id="grupo_rol">
