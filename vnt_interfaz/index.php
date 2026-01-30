@@ -131,6 +131,7 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
 // Cargar precios por tipo de boleto
 $precios_tipo_boleto = [
     'adulto' => 80,
+    'general' => 80,  // Precio general (igual a adulto por defecto)
     'nino' => 50,
     'adulto_mayor' => 60,
     'discapacitado' => 40,

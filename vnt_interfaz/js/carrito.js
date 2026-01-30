@@ -403,11 +403,20 @@ function actualizarCarrito() {
     let subtotal = 0;
     let totalDescuento = 0;
 
-    carrito.forEach(item => {
-        const descuentoItem = calcularDescuentoItem(item);
-        const precioFinal = item.precio - descuentoItem;
+    // Obtener precio general (de PRECIOS_TIPO_BOLETO si existe)
+    const precios = typeof PRECIOS_TIPO_BOLETO !== 'undefined' ? PRECIOS_TIPO_BOLETO : null;
 
-        subtotal += item.precio;
+    carrito.forEach(item => {
+        // Usar precio general de PRECIOS_TIPO_BOLETO para mostrar en carrito
+        let precioMostrar = item.precio;
+        if (precios && (precios.general || precios.adulto)) {
+            precioMostrar = precios.general || precios.adulto;
+        }
+
+        const descuentoItem = calcularDescuentoItem(item);
+        const precioFinal = precioMostrar - descuentoItem;
+
+        subtotal += precioMostrar;
         totalDescuento += descuentoItem;
 
         html += `
@@ -415,7 +424,7 @@ function actualizarCarrito() {
                 <div class="asiento-info">
                     <strong>${item.asiento}</strong>
                     <small style="display: block;">${item.categoria}</small>
-                    <span class="text-success" style="font-size: 0.9rem;">$${item.precio.toFixed(2)}</span>
+                    <span class="text-success" style="font-size: 0.9rem;">$${precioMostrar.toFixed(2)}</span>
                     ${descuentoItem > 0 ? `<small class="text-danger" style="display: block;">-$${descuentoItem.toFixed(2)}</small>` : ''}
                     ${descuentoItem > 0 ? `<strong class="text-primary" style="font-size: 0.9rem;">$${precioFinal.toFixed(2)}</strong>` : ''}
                 </div>
@@ -701,6 +710,9 @@ function abrirModalTipoBoleto() {
                                 </button>
                                 <button type="button" class="btn btn-outline-warning btn-sm tipo-cliente-btn" data-tipo="adulto_mayor" onclick="aplicarTipoATodos('adulto_mayor')">
                                     <i class="bi bi-person-heart"></i> 3ra Edad
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm tipo-cliente-btn" data-tipo="discapacitado" onclick="aplicarTipoATodos('discapacitado')">
+                                    ♿ Discapacitado
                                 </button>
                                 <button type="button" class="btn btn-outline-danger btn-sm tipo-cliente-btn" data-tipo="cortesia" onclick="aplicarTipoATodos('cortesia')">
                                     <i class="bi bi-gift"></i> Cortesía
@@ -1026,7 +1038,8 @@ function obtenerPrecioPorTipo(tipoBoleto, precioBase) {
             case 'cortesia':
                 return 0; // Siempre gratis
             case 'adulto':
-                return precioBase; // Usar siempre el precio de la categoría para adultos
+                // Usar precio 'general' de PRECIOS_TIPO_BOLETO, o 'adulto' como fallback
+                return precios.general || precios.adulto || precioBase;
             case 'nino':
                 return precios.nino || precioBase;
             case 'adulto_mayor':
@@ -1034,7 +1047,7 @@ function obtenerPrecioPorTipo(tipoBoleto, precioBase) {
             case 'discapacitado':
                 return precios.discapacitado || precioBase;
             default:
-                return precioBase;
+                return precios.general || precios.adulto || precioBase;
         }
     }
 
