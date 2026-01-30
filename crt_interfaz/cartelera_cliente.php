@@ -71,12 +71,15 @@ if ($resultado && $resultado->num_rows > 0) {
         $total_asientos_evento = $eventos[$id_evento]['total_asientos'] ?? 0;
         $vendidos = $vendidos_por_funcion[$id_evento][$id_funcion] ?? 0;
         $agotado = ($total_asientos_evento > 0 && $vendidos >= $total_asientos_evento);
+        $disponibles = max(0, $total_asientos_evento - $vendidos);
 
         $eventos[$id_evento]['funciones'][] = [
             'id_funcion' => $id_funcion,
             'fecha_hora' => $row['fecha_hora'],
             'agotado' => $agotado,
-            'vendidos' => $vendidos
+            'vendidos' => $vendidos,
+            'disponibles' => $disponibles,
+            'total_asientos' => $total_asientos_evento
         ];
     }
 }
@@ -418,6 +421,27 @@ if ($resultado && $resultado->num_rows > 0) {
             border-width: 1px;
         }
 
+        .boletos-disponibles-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            background: rgba(52, 211, 153, 0.2);
+            color: #34d399;
+            border: 1px solid rgba(52, 211, 153, 0.5);
+            margin-right: 10px;
+        }
+        .boletos-disponibles-badge.pocos {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+            border-color: rgba(251, 191, 36, 0.5);
+        }
+        .boletos-disponibles-badge i {
+            font-size: 0.95rem;
+        }
         .badge-agotado {
             display: inline-flex;
             align-items: center;
@@ -642,6 +666,16 @@ if ($resultado && $resultado->num_rows > 0) {
                                                             <i class="bi bi-x-octagon-fill"></i> Agotado
                                                         </span>
                                                     <?php else: ?>
+                                                        <?php 
+                                                        $disponibles = $funcion['disponibles'] ?? 0;
+                                                        $clasePocos = ($disponibles <= 10 && $disponibles > 0) ? 'pocos' : '';
+                                                        ?>
+                                                        <?php if ($funcion['total_asientos'] > 0): ?>
+                                                        <span class="boletos-disponibles-badge <?php echo $clasePocos; ?>">
+                                                            <i class="bi bi-ticket-perforated"></i>
+                                                            <?php echo $disponibles; ?> disponible<?php echo $disponibles !== 1 ? 's' : ''; ?>
+                                                        </span>
+                                                        <?php endif; ?>
                                                         <a href="disponibles.php?id_evento=<?php echo $evento['id_evento']; ?>&id_funcion=<?php echo $funcion['id_funcion']; ?>" class="btn btn-outline-light btn-sm">
                                                             Ver disponibilidad
                                                         </a>
