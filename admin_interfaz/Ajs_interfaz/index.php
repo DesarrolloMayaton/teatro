@@ -397,6 +397,16 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
                         <small>Precios y zonas por evento</small>
                     </div>
                 </a>
+
+                <a class="settings-menu-item" href="../bsc_boletos/index.php" data-title="Buscador de Boletos" data-desc="Busca y gestiona todos los boletos" data-icon="purple">
+                    <div class="menu-icon purple">
+                        <i class="bi bi-search"></i>
+                    </div>
+                    <div class="menu-text">
+                        <span>Buscador de Boletos</span>
+                        <small>Buscar, ver, imprimir y cancelar</small>
+                    </div>
+                </a>
             </div>
 
             <div class="settings-menu-divider"></div>

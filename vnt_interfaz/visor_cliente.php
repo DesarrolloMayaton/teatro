@@ -1,7 +1,7 @@
 <?php
 include "../conexion.php";
 
-$id_evento = isset($_GET['id_evento']) ? (int)$_GET['id_evento'] : 0;
+$id_evento = isset($_GET['id_evento']) ? (int) $_GET['id_evento'] : 0;
 $evento_info = null;
 $mapa_guardado = [];
 $eventos_disponibles = [];
@@ -24,7 +24,7 @@ if ($id_evento > 0) {
         $funciones_evento[] = $f;
     }
     $stmt_fun->close();
-    
+
     $stmt_cat = $conn->prepare("SELECT id_categoria, nombre_categoria, color, precio FROM categorias WHERE id_evento = ? ORDER BY precio DESC");
     $stmt_cat->bind_param("i", $id_evento);
     $stmt_cat->execute();
@@ -38,33 +38,61 @@ if ($id_evento > 0) {
 if (!$evento_info) {
     // Se permite vender hasta 2 horas después de iniciada la función O si es del día de hoy
     $fecha_limite = date('Y-m-d H:i:s', strtotime('-2 hours'));
-    $sql = "SELECT e.id_evento, e.titulo, e.descripcion, e.imagen, e.tipo,
+    $sql = "SELECT e.id_evento, e.titulo, e.descripcion, e.imagen, e.tipo, e.mapa_json,
                    f.id_funcion, f.fecha_hora, f.estado
             FROM evento e
             LEFT JOIN funciones f ON e.id_evento = f.id_evento AND (f.fecha_hora > ? OR DATE(f.fecha_hora) = CURDATE())
             WHERE e.finalizado = 0
             ORDER BY e.titulo ASC, f.fecha_hora ASC";
-    
+
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("s", $fecha_limite);
     $stmt->execute();
     $result = $stmt->get_result();
-    
+
+    // Obtener boletos vendidos por evento/función
+    $vendidos_por_funcion = [];
+    $sqlVendidos = "SELECT id_evento, id_funcion, COUNT(*) AS vendidos FROM boletos WHERE estatus = 1 GROUP BY id_evento, id_funcion";
+    $resVendidos = $conn->query($sqlVendidos);
+    if ($resVendidos) {
+        while ($rowV = $resVendidos->fetch_assoc()) {
+            $idEv = (int) $rowV['id_evento'];
+            $idFun = (int) $rowV['id_funcion'];
+            $vendidos_por_funcion[$idEv][$idFun] = (int) $rowV['vendidos'];
+        }
+    }
+
     while ($row = $result->fetch_assoc()) {
         $id = $row['id_evento'];
         if (!isset($eventos_disponibles[$id])) {
+            // Calcular total de asientos del mapa
+            $total_asientos = 0;
+            if (!empty($row['mapa_json'])) {
+                $mapa = json_decode($row['mapa_json'], true);
+                if (is_array($mapa)) {
+                    $total_asientos = count($mapa);
+                }
+            }
             $eventos_disponibles[$id] = [
                 'titulo' => $row['titulo'],
                 'descripcion' => $row['descripcion'],
                 'imagen' => $row['imagen'],
                 'tipo' => $row['tipo'],
+                'total_asientos' => $total_asientos,
                 'funciones' => []
             ];
         }
         if ($row['id_funcion'] && $row['estado'] == 0) {
+            $id_fun = (int) $row['id_funcion'];
+            $vendidos = $vendidos_por_funcion[$id][$id_fun] ?? 0;
+            $total = $eventos_disponibles[$id]['total_asientos'];
+            $disponibles = max(0, $total - $vendidos);
+
             $eventos_disponibles[$id]['funciones'][] = [
                 'id_funcion' => $row['id_funcion'],
-                'fecha_hora' => $row['fecha_hora']
+                'fecha_hora' => $row['fecha_hora'],
+                'vendidos' => $vendidos,
+                'disponibles' => $disponibles
             ];
         }
     }
@@ -78,6 +106,7 @@ foreach ($categorias_evento as $cat) {
 ?>
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -98,9 +127,13 @@ foreach ($categorias_evento as $cat) {
             --border-color: #e2e8f0;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body { 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
@@ -147,7 +180,7 @@ foreach ($categorias_evento as $cat) {
 
         .gracias-mensaje {
             font-size: 1.5rem;
-            color: rgba(255,255,255,0.9);
+            color: rgba(255, 255, 255, 0.9);
             animation: fadeInUp 0.8s ease 0.5s both;
         }
 
@@ -157,22 +190,22 @@ foreach ($categorias_evento as $cat) {
             color: #fbbf24;
             margin-top: 30px;
             animation: fadeInUp 0.8s ease 0.7s both;
-            text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
 
         .gracias-disfrute {
             font-size: 2rem;
-            color: rgba(255,255,255,0.95);
+            color: rgba(255, 255, 255, 0.95);
             margin-top: 30px;
             animation: fadeInUp 0.8s ease 0.9s both;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
         }
 
         /* Barra de progreso para transición automática */
         .gracias-progress {
             width: 300px;
             height: 6px;
-            background: rgba(255,255,255,0.2);
+            background: rgba(255, 255, 255, 0.2);
             border-radius: 3px;
             margin-top: 50px;
             overflow: hidden;
@@ -189,13 +222,23 @@ foreach ($categorias_evento as $cat) {
         }
 
         @keyframes progressGrow {
-            0% { width: 0%; }
-            100% { width: 100%; }
+            0% {
+                width: 0%;
+            }
+
+            100% {
+                width: 100%;
+            }
         }
 
         @keyframes shimmer {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
+            0% {
+                background-position: 200% 0;
+            }
+
+            100% {
+                background-position: -200% 0;
+            }
         }
 
         .confetti {
@@ -207,19 +250,41 @@ foreach ($categorias_evento as $cat) {
         }
 
         @keyframes bounceIn {
-            0% { transform: scale(0); }
-            50% { transform: scale(1.2); }
-            100% { transform: scale(1); }
+            0% {
+                transform: scale(0);
+            }
+
+            50% {
+                transform: scale(1.2);
+            }
+
+            100% {
+                transform: scale(1);
+            }
         }
 
         @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         @keyframes confettiFall {
-            0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
-            100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+            0% {
+                transform: translateY(-100vh) rotate(0deg);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(100vh) rotate(720deg);
+                opacity: 0;
+            }
         }
 
         /* ===== CARTELERA ===== */
@@ -237,8 +302,15 @@ foreach ($categorias_evento as $cat) {
         }
 
         @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-30px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .header-cartelera h1 {
@@ -269,24 +341,42 @@ foreach ($categorias_evento as $cat) {
             background: var(--bg-secondary);
             border-radius: 20px;
             overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             animation: cardAppear 0.6s ease backwards;
         }
 
-        .evento-card:nth-child(1) { animation-delay: 0.1s; }
-        .evento-card:nth-child(2) { animation-delay: 0.2s; }
-        .evento-card:nth-child(3) { animation-delay: 0.3s; }
-        .evento-card:nth-child(4) { animation-delay: 0.4s; }
+        .evento-card:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .evento-card:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .evento-card:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        .evento-card:nth-child(4) {
+            animation-delay: 0.4s;
+        }
 
         @keyframes cardAppear {
-            from { opacity: 0; transform: translateY(40px) scale(0.9); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
+            from {
+                opacity: 0;
+                transform: translateY(40px) scale(0.9);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
         }
 
         .evento-card:hover {
             transform: translateY(-10px) scale(1.02);
-            box-shadow: 0 20px 40px rgba(37,99,235,0.2);
+            box-shadow: 0 20px 40px rgba(37, 99, 235, 0.2);
         }
 
         .evento-poster {
@@ -327,12 +417,39 @@ foreach ($categorias_evento as $cat) {
             color: var(--text-secondary);
         }
 
+        .evento-disponibles {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 10px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success-color);
+        }
+
+        .evento-disponibles.pocos {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning-color);
+        }
+
+        .evento-disponibles.agotado {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger-color);
+        }
+
+        .evento-disponibles i {
+            font-size: 1rem;
+        }
+
         .sync-badge {
             position: fixed;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
+            background: rgba(0, 0, 0, 0.8);
             color: white;
             padding: 12px 24px;
             border-radius: 30px;
@@ -344,8 +461,13 @@ foreach ($categorias_evento as $cat) {
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
 
         .sync-dot {
@@ -357,8 +479,17 @@ foreach ($categorias_evento as $cat) {
         }
 
         @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.3); opacity: 0.7; }
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.3);
+                opacity: 0.7;
+            }
         }
 
         /* ===== HORARIOS ===== */
@@ -378,8 +509,13 @@ foreach ($categorias_evento as $cat) {
         }
 
         @keyframes slideDown {
-            from { transform: translateY(-100%); }
-            to { transform: translateY(0); }
+            from {
+                transform: translateY(-100%);
+            }
+
+            to {
+                transform: translateY(0);
+            }
         }
 
         .horarios-header h1 {
@@ -424,9 +560,17 @@ foreach ($categorias_evento as $cat) {
             animation: cardAppear 0.5s ease backwards;
         }
 
-        .horario-card:nth-child(1) { animation-delay: 0.1s; }
-        .horario-card:nth-child(2) { animation-delay: 0.2s; }
-        .horario-card:nth-child(3) { animation-delay: 0.3s; }
+        .horario-card:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .horario-card:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .horario-card:nth-child(3) {
+            animation-delay: 0.3s;
+        }
 
         .horario-dia {
             font-size: 0.85rem;
@@ -462,8 +606,15 @@ foreach ($categorias_evento as $cat) {
         }
 
         @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
         }
 
         /* ===== MAPA ===== */
@@ -523,14 +674,14 @@ foreach ($categorias_evento as $cat) {
             font-size: 13px;
             font-weight: 800;
             color: #000;
-            text-shadow: 
+            text-shadow:
                 -1px -1px 0 #fff,
                 1px -1px 0 #fff,
                 -1px 1px 0 #fff,
                 1px 1px 0 #fff,
                 0 0 6px #fff;
             background: #cbd5e1;
-            border: 2px solid rgba(0,0,0,0.25);
+            border: 2px solid rgba(0, 0, 0, 0.25);
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
         }
@@ -551,21 +702,26 @@ foreach ($categorias_evento as $cat) {
             margin-bottom: 3px;
         }
 
-        .pasillo { width: 20px; }
+        .pasillo {
+            width: 20px;
+        }
 
         .seat.client-selected {
             transform: scale(1.3) !important;
             z-index: 100;
-            box-shadow: 0 0 0 4px white, 0 0 30px var(--success-color), 0 10px 30px rgba(0,0,0,0.3) !important;
+            box-shadow: 0 0 0 4px white, 0 0 30px var(--success-color), 0 10px 30px rgba(0, 0, 0, 0.3) !important;
             animation: selectedPulse 1.5s infinite;
         }
 
         @keyframes selectedPulse {
-            0%, 100% { 
-                box-shadow: 0 0 0 4px white, 0 0 30px var(--success-color), 0 10px 30px rgba(0,0,0,0.3);
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 4px white, 0 0 30px var(--success-color), 0 10px 30px rgba(0, 0, 0, 0.3);
             }
-            50% { 
-                box-shadow: 0 0 0 6px white, 0 0 50px var(--success-color), 0 15px 40px rgba(0,0,0,0.4);
+
+            50% {
+                box-shadow: 0 0 0 6px white, 0 0 50px var(--success-color), 0 15px 40px rgba(0, 0, 0, 0.4);
             }
         }
 
@@ -619,8 +775,13 @@ foreach ($categorias_evento as $cat) {
         }
 
         @keyframes slideLeft {
-            from { transform: translateX(100%); }
-            to { transform: translateX(0); }
+            from {
+                transform: translateX(100%);
+            }
+
+            to {
+                transform: translateX(0);
+            }
         }
 
         .evento-header-info {
@@ -653,9 +814,9 @@ foreach ($categorias_evento as $cat) {
             font-weight: 700;
             margin-bottom: 30px;
             border-radius: 50% 50% 10px 10px / 10px 10px 0 0;
-            box-shadow: 0 10px 20px -5px rgba(0,0,0,0.2);
+            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.2);
             letter-spacing: 4px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
             width: 80%;
             margin-left: auto;
             margin-right: auto;
@@ -699,16 +860,25 @@ foreach ($categorias_evento as $cat) {
         }
 
         @keyframes badgePop {
-            0% { transform: scale(0); }
-            50% { transform: scale(1.2); }
-            100% { transform: scale(1); }
+            0% {
+                transform: scale(0);
+            }
+
+            50% {
+                transform: scale(1.2);
+            }
+
+            100% {
+                transform: scale(1);
+            }
         }
 
         .carrito-items {
             display: flex;
             flex-direction: column;
             gap: 10px;
-            max-height: 320px; /* Altura para ~5 items */
+            max-height: 320px;
+            /* Altura para ~5 items */
             overflow-y: auto;
             padding-right: 8px;
             scroll-behavior: smooth;
@@ -742,16 +912,16 @@ foreach ($categorias_evento as $cat) {
             align-items: center;
             border-left: 4px solid var(--success-color);
             animation: itemSlideIn 0.3s ease-out forwards;
-            box-shadow: 0 2px 8px rgba(16,185,129,0.12);
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.12);
             flex-shrink: 0;
             opacity: 0;
             transform: translateX(20px);
         }
 
         @keyframes itemSlideIn {
-            to { 
-                opacity: 1; 
-                transform: translateX(0); 
+            to {
+                opacity: 1;
+                transform: translateX(0);
             }
         }
 
@@ -813,7 +983,9 @@ foreach ($categorias_evento as $cat) {
             opacity: 0.7;
         }
 
-        .hidden { display: none !important; }
+        .hidden {
+            display: none !important;
+        }
 
         /* ===== ANIMACIONES DE DESCUENTO Y CORTESÍA ===== */
         .descuento-badge {
@@ -840,9 +1012,19 @@ foreach ($categorias_evento as $cat) {
         }
 
         @keyframes descuentoPop {
-            0% { transform: scale(0); opacity: 0; }
-            50% { transform: scale(1.2); }
-            100% { transform: scale(1); opacity: 1; }
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+
+            50% {
+                transform: scale(1.2);
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
 
         /* Item con descuento */
@@ -891,7 +1073,7 @@ foreach ($categorias_evento as $cat) {
             align-items: center;
             gap: 12px;
             z-index: 10000;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
             opacity: 0;
             transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
@@ -915,8 +1097,13 @@ foreach ($categorias_evento as $cat) {
 
         /* Animación de precio tachado */
         @keyframes strikethrough {
-            0% { width: 0; }
-            100% { width: 100%; }
+            0% {
+                width: 0;
+            }
+
+            100% {
+                width: 100%;
+            }
         }
 
         .precio-strike {
@@ -945,14 +1132,21 @@ foreach ($categorias_evento as $cat) {
             font-weight: 700;
             margin-top: 8px;
             display: inline-block;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             animation: rubberBand 1s;
         }
 
 
         @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         /* ===== OVERLAY DE TRANSICIÓN (Evento/Horario) ===== */
@@ -995,7 +1189,7 @@ foreach ($categorias_evento as $cat) {
 
         .transicion-subtitulo {
             font-size: 1.3rem;
-            color: rgba(255,255,255,0.85);
+            color: rgba(255, 255, 255, 0.85);
             animation: fadeInUp 0.5s ease 0.4s both;
             text-align: center;
         }
@@ -1006,12 +1200,21 @@ foreach ($categorias_evento as $cat) {
             color: #fbbf24;
             margin-top: 20px;
             animation: bounceIn 0.6s ease 0.6s both;
-            text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
 
         @keyframes pulseIcon {
-            0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.1); opacity: 0.8; }
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.1);
+                opacity: 0.8;
+            }
         }
 
         /* Estilo para el badge de sincronización */
@@ -1020,7 +1223,7 @@ foreach ($categorias_evento as $cat) {
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0,0,0,0.85);
+            background: rgba(0, 0, 0, 0.85);
             color: white;
             padding: 14px 28px;
             border-radius: 40px;
@@ -1029,7 +1232,7 @@ foreach ($categorias_evento as $cat) {
             align-items: center;
             gap: 12px;
             animation: fadeIn 0.5s ease;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
             z-index: 100;
         }
 
@@ -1053,13 +1256,16 @@ foreach ($categorias_evento as $cat) {
             .view-mapa {
                 grid-template-columns: 1fr;
             }
+
             .info-panel {
                 border-left: none;
                 border-top: 1px solid var(--border-color);
             }
+
             .transicion-titulo {
                 font-size: 2rem;
             }
+
             .transicion-hora {
                 font-size: 2.5rem;
             }
@@ -1070,613 +1276,670 @@ foreach ($categorias_evento as $cat) {
         }
 
         @keyframes rubberBand {
-          from { transform: scale3d(1, 1, 1); }
-          30% { transform: scale3d(1.25, 0.75, 1); }
-          40% { transform: scale3d(0.75, 1.25, 1); }
-          50% { transform: scale3d(1.15, 0.85, 1); }
-          65% { transform: scale3d(0.95, 1.05, 1); }
-          75% { transform: scale3d(1.05, 0.95, 1); }
-          to { transform: scale3d(1, 1, 1); }
+            from {
+                transform: scale3d(1, 1, 1);
+            }
+
+            30% {
+                transform: scale3d(1.25, 0.75, 1);
+            }
+
+            40% {
+                transform: scale3d(0.75, 1.25, 1);
+            }
+
+            50% {
+                transform: scale3d(1.15, 0.85, 1);
+            }
+
+            65% {
+                transform: scale3d(0.95, 1.05, 1);
+            }
+
+            75% {
+                transform: scale3d(1.05, 0.95, 1);
+            }
+
+            to {
+                transform: scale3d(1, 1, 1);
+            }
         }
     </style>
 </head>
+
 <body>
 
-<!-- Overlay de Gracias -->
-<div class="overlay-gracias" id="overlayGracias">
-    <i class="bi bi-check-circle-fill gracias-icon"></i>
-    <h1 class="gracias-titulo">¡Gracias por su compra!</h1>
-    <p class="gracias-mensaje">Su compra ha sido procesada exitosamente</p>
-    <div class="gracias-total" id="graciasTotal">$0.00</div>
-    <p class="gracias-disfrute">🎭 ¡Que disfrute la función!</p>
-    <div class="gracias-progress">
-        <div class="gracias-progress-bar" id="graciasProgressBar"></div>
-    </div>
-</div>
-
-<!-- Overlay de Transición (Evento/Horario) -->
-<div class="overlay-transicion" id="overlayTransicion">
-    <i class="bi bi-calendar-event transicion-icon" id="transicionIcon"></i>
-    <h1 class="transicion-titulo" id="transicionTitulo">Cargando...</h1>
-    <p class="transicion-subtitulo" id="transicionSubtitulo">Preparando el evento</p>
-    <div class="transicion-hora" id="transicionHora"></div>
-</div>
-
-<?php if (!$evento_info): ?>
-
-<div class="view-cartelera" id="viewCartelera">
-    <div class="header-cartelera">
-        <h1><i class="bi bi-film"></i> Cartelera</h1>
-        <p>Próximas funciones disponibles</p>
-    </div>
-
-    <?php if (empty($eventos_disponibles)): ?>
-    <div style="text-align:center; padding:100px; color:var(--text-secondary);">
-        <i class="bi bi-calendar-x" style="font-size:5rem; opacity:0.3;"></i>
-        <h3 style="margin-top:24px; font-weight:600;">No hay eventos disponibles</h3>
-        <p>Pronto agregaremos nuevas funciones</p>
-    </div>
-    <?php else: ?>
-    <div class="eventos-grid">
-        <?php foreach ($eventos_disponibles as $id_evt => $evt): 
-            $img = '';
-            if (!empty($evt['imagen'])) {
-                $rutas = ["../evt_interfaz/" . $evt['imagen'], $evt['imagen']];
-                foreach ($rutas as $r) { if (file_exists($r)) { $img = $r; break; } }
-            }
-        ?>
-        <div class="evento-card">
-            <?php if($img): ?>
-                <img src="<?= htmlspecialchars($img) ?>" class="evento-poster" alt="">
-            <?php else: ?>
-                <div class="evento-poster-placeholder"><i class="bi bi-image"></i></div>
-            <?php endif; ?>
-            <div class="evento-info">
-                <h3 class="evento-titulo"><?= htmlspecialchars($evt['titulo']) ?></h3>
-                <p class="evento-funciones"><?= count($evt['funciones']) ?> funciones disponibles</p>
-            </div>
+    <!-- Overlay de Gracias -->
+    <div class="overlay-gracias" id="overlayGracias">
+        <i class="bi bi-check-circle-fill gracias-icon"></i>
+        <h1 class="gracias-titulo">¡Gracias por su compra!</h1>
+        <p class="gracias-mensaje">Su compra ha sido procesada exitosamente</p>
+        <div class="gracias-total" id="graciasTotal">$0.00</div>
+        <p class="gracias-disfrute">🎭 ¡Que disfrute la función!</p>
+        <div class="gracias-progress">
+            <div class="gracias-progress-bar" id="graciasProgressBar"></div>
         </div>
-        <?php endforeach; ?>
     </div>
-    <?php endif; ?>
-</div>
 
-<!-- Script de sincronización para cartelera -->
-<script>
-(function() {
-    const canalCartelera = new BroadcastChannel('pos_sync_channel');
-    console.log('🎬 Visor Cartelera - Escuchando cambios de evento...');
-    
-    canalCartelera.onmessage = (event) => {
-        const data = event.data;
-        console.log('📥 Cartelera recibió:', data);
-        
-        if (data.accion === 'INIT' && data.id_evento) {
-            console.log('🔄 Redirigiendo a evento:', data.id_evento);
-            window.location.href = `visor_cliente.php?id_evento=${data.id_evento}`;
-        }
-        
-        if (data.accion === 'SELECCION_EVENTO' && data.id_evento) {
-            console.log('🎭 Evento seleccionado:', data.titulo);
-            window.location.href = `visor_cliente.php?id_evento=${data.id_evento}`;
-        }
-    };
-})();
-</script>
-</body>
-</html>
+    <!-- Overlay de Transición (Evento/Horario) -->
+    <div class="overlay-transicion" id="overlayTransicion">
+        <i class="bi bi-calendar-event transicion-icon" id="transicionIcon"></i>
+        <h1 class="transicion-titulo" id="transicionTitulo">Cargando...</h1>
+        <p class="transicion-subtitulo" id="transicionSubtitulo">Preparando el evento</p>
+        <div class="transicion-hora" id="transicionHora"></div>
+    </div>
+
+    <?php if (!$evento_info): ?>
+
+        <div class="view-cartelera" id="viewCartelera">
+            <div class="header-cartelera">
+                <h1><i class="bi bi-film"></i> Cartelera</h1>
+                <p>Próximas funciones disponibles</p>
+            </div>
+
+            <?php if (empty($eventos_disponibles)): ?>
+                <div style="text-align:center; padding:100px; color:var(--text-secondary);">
+                    <i class="bi bi-calendar-x" style="font-size:5rem; opacity:0.3;"></i>
+                    <h3 style="margin-top:24px; font-weight:600;">No hay eventos disponibles</h3>
+                    <p>Pronto agregaremos nuevas funciones</p>
+                </div>
+            <?php else: ?>
+                <div class="eventos-grid">
+                    <?php foreach ($eventos_disponibles as $id_evt => $evt):
+                        $img = '';
+                        if (!empty($evt['imagen'])) {
+                            $rutas = ["../evt_interfaz/" . $evt['imagen'], $evt['imagen']];
+                            foreach ($rutas as $r) {
+                                if (file_exists($r)) {
+                                    $img = $r;
+                                    break;
+                                }
+                            }
+                        }
+                        ?>
+                        <div class="evento-card">
+                            <?php if ($img): ?>
+                                <img src="<?= htmlspecialchars($img) ?>" class="evento-poster" alt="">
+                            <?php else: ?>
+                                <div class="evento-poster-placeholder"><i class="bi bi-image"></i></div>
+                            <?php endif; ?>
+                            <div class="evento-info">
+                                <h3 class="evento-titulo"><?= htmlspecialchars($evt['titulo']) ?></h3>
+                                <p class="evento-funciones"><?= count($evt['funciones']) ?>
+                                    función<?= count($evt['funciones']) !== 1 ? 'es' : '' ?>
+                                    disponible<?= count($evt['funciones']) !== 1 ? 's' : '' ?></p>
+                                <?php
+                                // Calcular total de boletos disponibles sumando todas las funciones
+                                $total_disponibles = 0;
+                                foreach ($evt['funciones'] as $func) {
+                                    $total_disponibles += $func['disponibles'] ?? 0;
+                                }
+                                $total_asientos = $evt['total_asientos'] ?? 0;
+
+                                if ($total_asientos > 0):
+                                    $claseDisp = '';
+                                    if ($total_disponibles <= 0) {
+                                        $claseDisp = 'agotado';
+                                    } elseif ($total_disponibles <= 20) {
+                                        $claseDisp = 'pocos';
+                                    }
+                                    ?>
+                                    <div class="evento-disponibles <?= $claseDisp ?>">
+                                        <i class="bi bi-ticket-perforated"></i>
+                                        <?php if ($total_disponibles <= 0): ?>
+                                            Agotado
+                                        <?php else: ?>
+                                            <?= $total_disponibles ?> boleto<?= $total_disponibles !== 1 ? 's' : '' ?>
+                                            disponible<?= $total_disponibles !== 1 ? 's' : '' ?>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- Script de sincronización para cartelera -->
+        <script>
+            (function () {
+                const canalCartelera = new BroadcastChannel('pos_sync_channel');
+                console.log('🎬 Visor Cartelera - Escuchando cambios de evento...');
+
+                canalCartelera.onmessage = (event) => {
+                    const data = event.data;
+                    console.log('📥 Cartelera recibió:', data);
+
+                    if (data.accion === 'INIT' && data.id_evento) {
+                        console.log('🔄 Redirigiendo a evento:', data.id_evento);
+                        window.location.href = `visor_cliente.php?id_evento=${data.id_evento}`;
+                    }
+
+                    if (data.accion === 'SELECCION_EVENTO' && data.id_evento) {
+                        console.log('🎭 Evento seleccionado:', data.titulo);
+                        window.location.href = `visor_cliente.php?id_evento=${data.id_evento}`;
+                    }
+                };
+            })();
+        </script>
+    </body>
+
+    </html>
 <?php else: ?>
 
-<div id="viewHorarios" class="view-horarios">
-    <div class="horarios-header">
-        <h1><?= htmlspecialchars($evento_info['titulo']) ?></h1>
-        <p>Seleccione el horario de su preferencia</p>
+    <div id="viewHorarios" class="view-horarios">
+        <div class="horarios-header">
+            <h1><?= htmlspecialchars($evento_info['titulo']) ?></h1>
+            <p>Seleccione el horario de su preferencia</p>
+        </div>
+
+        <div class="horarios-content">
+            <div class="horarios-titulo">Horarios Disponibles</div>
+
+            <?php if (empty($funciones_evento)): ?>
+                <p style="color:var(--text-secondary); font-size:1.1rem;">No hay funciones disponibles</p>
+            <?php else: ?>
+                <div class="horarios-grid">
+                    <?php
+                    $hoy = new DateTime();
+                    $hoy->setTime(0, 0, 0);
+                    $manana = clone $hoy;
+                    $manana->modify('+1 day');
+
+                    $dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                    foreach ($funciones_evento as $f):
+                        $fecha = new DateTime($f['fecha_hora']);
+                        $fechaSolo = clone $fecha;
+                        $fechaSolo->setTime(0, 0, 0);
+
+                        // Determinar cómo mostrar la fecha
+                        if ($fechaSolo == $hoy) {
+                            $mostrarFecha = 'Hoy';
+                        } elseif ($fechaSolo == $manana) {
+                            $mostrarFecha = 'Mañana';
+                        } else {
+                            $mostrarFecha = $dias[(int) $fecha->format('w')] . ' ' . $fecha->format('d');
+                        }
+
+                        // Formato de hora más amigable (12h con AM/PM)
+                        $hora = $fecha->format('g:i A');
+                        ?>
+                        <div class="horario-card">
+                            <div class="horario-dia"><?= $mostrarFecha ?></div>
+                            <div class="horario-hora"><?= $hora ?></div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
-    
-    <div class="horarios-content">
-        <div class="horarios-titulo">Horarios Disponibles</div>
-        
-        <?php if (empty($funciones_evento)): ?>
-        <p style="color:var(--text-secondary); font-size:1.1rem;">No hay funciones disponibles</p>
-        <?php else: ?>
-        <div class="horarios-grid">
-            <?php 
-            $hoy = new DateTime();
-            $hoy->setTime(0, 0, 0);
-            $manana = clone $hoy;
-            $manana->modify('+1 day');
-            
-            $dias = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-            foreach ($funciones_evento as $f): 
-                $fecha = new DateTime($f['fecha_hora']);
-                $fechaSolo = clone $fecha;
-                $fechaSolo->setTime(0, 0, 0);
-                
-                // Determinar cómo mostrar la fecha
-                if ($fechaSolo == $hoy) {
-                    $mostrarFecha = 'Hoy';
-                } elseif ($fechaSolo == $manana) {
-                    $mostrarFecha = 'Mañana';
-                } else {
-                    $mostrarFecha = $dias[(int)$fecha->format('w')] . ' ' . $fecha->format('d');
-                }
-                
-                // Formato de hora más amigable (12h con AM/PM)
-                $hora = $fecha->format('g:i A');
-            ?>
-            <div class="horario-card">
-                <div class="horario-dia"><?= $mostrarFecha ?></div>
-                <div class="horario-hora"><?= $hora ?></div>
+
+    <div id="viewMapa" class="view-mapa hidden">
+        <div class="mapa-panel">
+            <div class="mapa-header">
+                <h2><?= ($evento_info['tipo'] == 1) ? 'Escenario' : 'Pasarela' ?></h2>
             </div>
-            <?php endforeach; ?>
-        </div>
-        <?php endif; ?>
-    </div>
-</div>
 
-<div id="viewMapa" class="view-mapa hidden">
-    <div class="mapa-panel">
-        <div class="mapa-header">
-            <h2><?= ($evento_info['tipo']==1)?'Escenario':'Pasarela' ?></h2>
-        </div>
-        
-        <div class="mapa-container">
-            <div class="seat-map-wrapper" id="mapaContenido">
-                <?php
-                if ($evento_info['tipo'] == 2) {
-                    echo "<div class='screen'>PASARELA / ESCENARIO</div>";
-                } else {
-                    echo "<div class='screen'>ESCENARIO</div>";
-                }
+            <div class="mapa-container">
+                <div class="seat-map-wrapper" id="mapaContenido">
+                    <?php
+                    if ($evento_info['tipo'] == 2) {
+                        echo "<div class='screen'>PASARELA / ESCENARIO</div>";
+                    } else {
+                        echo "<div class='screen'>ESCENARIO</div>";
+                    }
 
-                if ($evento_info['tipo'] == 2) {
-                    for ($fila=1; $fila<=10; $fila++) {
+                    if ($evento_info['tipo'] == 2) {
+                        for ($fila = 1; $fila <= 10; $fila++) {
+                            echo "<div class='seat-row'>";
+                            echo "<span class='row-label'>PB$fila</span>";
+                            for ($i = 1; $i <= 6; $i++) {
+                                $id = "PB$fila-$i";
+                                $id_cat = $mapa_guardado[$id] ?? 0;
+                                $color = $colores_categoria[$id_cat] ?? '#cbd5e1';
+                                echo "<div class='seat' id='seat-$id' data-id='$id' style='background:$color'>$id</div>";
+                            }
+                            echo "<div class='pasillo'></div>";
+                            for ($i = 7; $i <= 12; $i++) {
+                                $id = "PB$fila-$i";
+                                $id_cat = $mapa_guardado[$id] ?? 0;
+                                $color = $colores_categoria[$id_cat] ?? '#cbd5e1';
+                                echo "<div class='seat' id='seat-$id' data-id='$id' style='background:$color'>$id</div>";
+                            }
+                            echo "<span class='row-label'>PB$fila</span>";
+                            echo "</div>";
+                        }
+                        echo "<div style='height:16px'></div>";
+                    }
+
+                    $letras = range('A', 'O');
+                    foreach ($letras as $fila) {
                         echo "<div class='seat-row'>";
-                        echo "<span class='row-label'>PB$fila</span>";
-                        for($i=1; $i<=6; $i++) {
-                            $id = "PB$fila-$i";
+                        echo "<span class='row-label'>$fila</span>";
+                        for ($i = 1; $i <= 6; $i++) {
+                            $id = "$fila$i";
                             $id_cat = $mapa_guardado[$id] ?? 0;
                             $color = $colores_categoria[$id_cat] ?? '#cbd5e1';
                             echo "<div class='seat' id='seat-$id' data-id='$id' style='background:$color'>$id</div>";
                         }
                         echo "<div class='pasillo'></div>";
-                        for($i=7; $i<=12; $i++) {
-                            $id = "PB$fila-$i";
+                        for ($i = 7; $i <= 20; $i++) {
+                            $id = "$fila$i";
                             $id_cat = $mapa_guardado[$id] ?? 0;
                             $color = $colores_categoria[$id_cat] ?? '#cbd5e1';
                             echo "<div class='seat' id='seat-$id' data-id='$id' style='background:$color'>$id</div>";
                         }
-                        echo "<span class='row-label'>PB$fila</span>";
+                        echo "<div class='pasillo'></div>";
+                        for ($i = 21; $i <= 26; $i++) {
+                            $id = "$fila$i";
+                            $id_cat = $mapa_guardado[$id] ?? 0;
+                            $color = $colores_categoria[$id_cat] ?? '#cbd5e1';
+                            echo "<div class='seat' id='seat-$id' data-id='$id' style='background:$color'>$id</div>";
+                        }
+                        echo "<span class='row-label'>$fila</span>";
                         echo "</div>";
                     }
-                    echo "<div style='height:16px'></div>";
-                }
 
-                $letras = range('A','O');
-                foreach ($letras as $fila) {
                     echo "<div class='seat-row'>";
-                    echo "<span class='row-label'>$fila</span>";
-                    for($i=1; $i<=6; $i++) {
-                        $id = "$fila$i";
+                    echo "<span class='row-label'>P</span>";
+                    for ($i = 1; $i <= 30; $i++) {
+                        $id = "P$i";
                         $id_cat = $mapa_guardado[$id] ?? 0;
                         $color = $colores_categoria[$id_cat] ?? '#cbd5e1';
                         echo "<div class='seat' id='seat-$id' data-id='$id' style='background:$color'>$id</div>";
                     }
-                    echo "<div class='pasillo'></div>";
-                    for($i=7; $i<=20; $i++) {
-                        $id = "$fila$i";
-                        $id_cat = $mapa_guardado[$id] ?? 0;
-                        $color = $colores_categoria[$id_cat] ?? '#cbd5e1';
-                        echo "<div class='seat' id='seat-$id' data-id='$id' style='background:$color'>$id</div>";
-                    }
-                    echo "<div class='pasillo'></div>";
-                    for($i=21; $i<=26; $i++) {
-                        $id = "$fila$i";
-                        $id_cat = $mapa_guardado[$id] ?? 0;
-                        $color = $colores_categoria[$id_cat] ?? '#cbd5e1';
-                        echo "<div class='seat' id='seat-$id' data-id='$id' style='background:$color'>$id</div>";
-                    }
-                    echo "<span class='row-label'>$fila</span>";
+                    echo "<span class='row-label'>P</span>";
                     echo "</div>";
-                }
+                    ?>
+                </div>
+            </div>
 
-                echo "<div class='seat-row'>";
-                echo "<span class='row-label'>P</span>";
-                for($i=1; $i<=30; $i++) {
-                    $id = "P$i";
-                    $id_cat = $mapa_guardado[$id] ?? 0;
-                    $color = $colores_categoria[$id_cat] ?? '#cbd5e1';
-                    echo "<div class='seat' id='seat-$id' data-id='$id' style='background:$color'>$id</div>";
-                }
-                echo "<span class='row-label'>P</span>";
-                echo "</div>";
-                ?>
-            </div>
-        </div>
-        
-        <div class="categorias-leyenda">
-            <?php foreach ($categorias_evento as $cat): ?>
-            <div class="cat-item">
-                <div class="cat-color" style="background:<?= $cat['color'] ?>"></div>
-                <span><?= htmlspecialchars($cat['nombre_categoria']) ?></span>
-                <span class="cat-precio">$<?= number_format($cat['precio'], 0) ?></span>
-            </div>
-            <?php endforeach; ?>
-            <div class="cat-item">
-                <div class="cat-color" style="background:repeating-linear-gradient(45deg,#ef4444,#ef4444 4px,#dc2626 4px,#dc2626 8px)"></div>
-                <span>Vendido</span>
-            </div>
-        </div>
-    </div>
-
-    <div class="info-panel">
-        <div class="evento-header-info">
-            <div class="evento-nombre"><?= htmlspecialchars($evento_info['titulo']) ?></div>
-            <div class="evento-funcion">
-                <i class="bi bi-calendar3"></i>
-                <span id="txtHorario">-</span>
-            </div>
-        </div>
-
-        <div class="carrito-section">
-            <div class="carrito-titulo">
-                Sus Asientos <span id="contadorAsientos" class="badge-contador"></span>
-            </div>
-            <div class="carrito-items" id="listaCarrito">
-                <div class="carrito-vacio">
-                    <i class="bi bi-inbox"></i>
-                    <p>Esperando selección...</p>
+            <div class="categorias-leyenda">
+                <?php foreach ($categorias_evento as $cat): ?>
+                    <div class="cat-item">
+                        <div class="cat-color" style="background:<?= $cat['color'] ?>"></div>
+                        <span><?= htmlspecialchars($cat['nombre_categoria']) ?></span>
+                        <span class="cat-precio">$<?= number_format($cat['precio'], 0) ?></span>
+                    </div>
+                <?php endforeach; ?>
+                <div class="cat-item">
+                    <div class="cat-color"
+                        style="background:repeating-linear-gradient(45deg,#ef4444,#ef4444 4px,#dc2626 4px,#dc2626 8px)">
+                    </div>
+                    <span>Vendido</span>
                 </div>
             </div>
         </div>
 
-        <div class="total-section">
-            <div class="total-label">Total a Pagar</div>
-            <div class="total-amount"><span class="currency">$</span><span id="txtTotal">0.00</span></div>
+        <div class="info-panel">
+            <div class="evento-header-info">
+                <div class="evento-nombre"><?= htmlspecialchars($evento_info['titulo']) ?></div>
+                <div class="evento-funcion">
+                    <i class="bi bi-calendar3"></i>
+                    <span id="txtHorario">-</span>
+                </div>
+            </div>
+
+            <div class="carrito-section">
+                <div class="carrito-titulo">
+                    Sus Asientos <span id="contadorAsientos" class="badge-contador"></span>
+                </div>
+                <div class="carrito-items" id="listaCarrito">
+                    <div class="carrito-vacio">
+                        <i class="bi bi-inbox"></i>
+                        <p>Esperando selección...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="total-section">
+                <div class="total-label">Total a Pagar</div>
+                <div class="total-amount"><span class="currency">$</span><span id="txtTotal">0.00</span></div>
+            </div>
         </div>
     </div>
-</div>
 
 <?php endif; ?>
 
 <?php if ($evento_info): ?>
-<!-- Script principal para vista de evento -->
-<script>
-const canal = new BroadcastChannel('pos_sync_channel');
-const idEventoActual = <?= $id_evento ?>;
-let funcionSeleccionada = false;
+    <!-- Script principal para vista de evento -->
+    <script>
+        const canal = new BroadcastChannel('pos_sync_channel');
+        const idEventoActual = <?= $id_evento ?>;
+        let funcionSeleccionada = false;
 
-console.log('🎬 Visor Cliente iniciado - Evento actual:', idEventoActual);
+        console.log('🎬 Visor Cliente iniciado - Evento actual:', idEventoActual);
 
-// SOLICITAR ESTADO COMPLETO AL POS (Handshake)
-setTimeout(() => {
-    console.log('🔄 Solicitando sincronización al POS...');
-    canal.postMessage({ accion: 'REQUEST_SYNC' });
-}, 500);
-
-// ===== FUNCIONES DE ANIMACIÓN =====
-
-// Mostrar overlay de transición para evento
-function mostrarTransicionEvento(titulo) {
-    const overlay = document.getElementById('overlayTransicion');
-    const icon = document.getElementById('transicionIcon');
-    const tituloEl = document.getElementById('transicionTitulo');
-    const subtituloEl = document.getElementById('transicionSubtitulo');
-    const horaEl = document.getElementById('transicionHora');
-    
-    icon.className = 'bi bi-film transicion-icon';
-    tituloEl.textContent = titulo;
-    subtituloEl.textContent = 'Cargando evento...';
-    horaEl.textContent = '';
-    
-    overlay.classList.add('active');
-    
-    // Se ocultará cuando cargue la nueva página
-}
-
-// Mostrar overlay de transición para horario
-function mostrarTransicionHorario(texto) {
-    const overlay = document.getElementById('overlayTransicion');
-    const icon = document.getElementById('transicionIcon');
-    const tituloEl = document.getElementById('transicionTitulo');
-    const subtituloEl = document.getElementById('transicionSubtitulo');
-    const horaEl = document.getElementById('transicionHora');
-    
-    icon.className = 'bi bi-clock transicion-icon';
-    tituloEl.textContent = 'Horario Seleccionado';
-    subtituloEl.textContent = 'Preparando mapa de asientos...';
-    horaEl.textContent = texto;
-    
-    overlay.classList.add('active');
-    
-    // Ocultar después de 2 segundos
-    setTimeout(() => {
-        overlay.classList.remove('active');
-    }, 2000);
-}
-
-// Crear confetti para compra exitosa
-function crearConfetti() {
-    const overlay = document.getElementById('overlayGracias');
-    const colores = ['#fbbf24', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899'];
-    
-    for (let i = 0; i < 100; i++) {
+        // SOLICITAR ESTADO COMPLETO AL POS (Handshake)
         setTimeout(() => {
-            const confetti = document.createElement('div');
-            confetti.className = 'confetti';
-            confetti.style.left = Math.random() * 100 + '%';
-            confetti.style.background = colores[Math.floor(Math.random() * colores.length)];
-            confetti.style.animationDuration = (2 + Math.random() * 2) + 's';
-            confetti.style.width = (5 + Math.random() * 10) + 'px';
-            confetti.style.height = confetti.style.width;
-            overlay.appendChild(confetti);
-            
-            setTimeout(() => confetti.remove(), 4000);
-        }, i * 30);
-    }
-}
+            console.log('🔄 Solicitando sincronización al POS...');
+            canal.postMessage({ accion: 'REQUEST_SYNC' });
+        }, 500);
 
-// Mostrar animación de gracias por la compra
-function mostrarGracias(total) {
-    const overlay = document.getElementById('overlayGracias');
-    const progressBar = document.getElementById('graciasProgressBar');
-    
-    document.getElementById('graciasTotal').textContent = '$' + parseFloat(total).toFixed(2);
-    
-    // Reiniciar la animación de la barra de progreso
-    if (progressBar) {
-        progressBar.style.animation = 'none';
-        progressBar.offsetHeight; // Forzar reflow
-        progressBar.style.animation = 'progressGrow 5s linear forwards, shimmer 1.5s infinite';
-    }
-    
-    overlay.classList.add('active');
-    crearConfetti();
-    
-    overlay.classList.add('active');
-    crearConfetti();
-    
-    // Transición automática ELIMINADA - Esperar a NUEVA_VENTA
-    // setTimeout(() => {
-    //    cerrarGraciasYContinuar();
-    // }, 5000);
-}
+        // ===== FUNCIONES DE ANIMACIÓN =====
 
-// Cerrar overlay de gracias y mostrar vista de horarios
-function cerrarGraciasYContinuar() {
-    const overlay = document.getElementById('overlayGracias');
-    overlay.classList.remove('active');
-    
-    // Cambiar a vista de horarios en lugar de ir a cartelera
-    funcionSeleccionada = false;
-    const viewHorarios = document.getElementById('viewHorarios');
-    const viewMapa = document.getElementById('viewMapa');
-    
-    if (viewMapa) viewMapa.classList.add('hidden');
-    if (viewHorarios) viewHorarios.classList.remove('hidden');
-    
-    // Resetear la vista
-    resetearVista();
-    
-    console.log('🕐 Vista de horarios mostrada después de venta');
-}
+        // Mostrar overlay de transición para evento
+        function mostrarTransicionEvento(titulo) {
+            const overlay = document.getElementById('overlayTransicion');
+            const icon = document.getElementById('transicionIcon');
+            const tituloEl = document.getElementById('transicionTitulo');
+            const subtituloEl = document.getElementById('transicionSubtitulo');
+            const horaEl = document.getElementById('transicionHora');
 
-// ===== MANEJO DE MENSAJES =====
+            icon.className = 'bi bi-film transicion-icon';
+            tituloEl.textContent = titulo;
+            subtituloEl.textContent = 'Cargando evento...';
+            horaEl.textContent = '';
 
-canal.onmessage = (event) => {
-    const data = event.data;
-    console.log('📥 Mensaje recibido:', data);
+            overlay.classList.add('active');
 
-    // Cambio de evento
-    if (data.accion === 'INIT' && idEventoActual !== parseInt(data.id_evento)) {
-        console.log('🔄 Cambiando a evento:', data.id_evento);
-        mostrarTransicionEvento(data.titulo || 'Cargando evento...');
-        setTimeout(() => {
-            window.location.href = `visor_cliente.php?id_evento=${data.id_evento}`;
-        }, 800);
-        return;
-    }
-    
-    // Selección de evento (desde cartelera)
-    if (data.accion === 'SELECCION_EVENTO') {
-        console.log('🎭 Evento seleccionado:', data.titulo);
-        mostrarTransicionEvento(data.titulo || 'Cargando evento...');
-        setTimeout(() => {
-            window.location.href = `visor_cliente.php?id_evento=${data.id_evento}`;
-        }, 800);
-        return;
-    }
+            // Se ocultará cuando cargue la nueva página
+        }
 
-    // Selección de horario/función
-    if (data.accion === 'UPDATE_FUNCION' && data.texto) {
-        console.log('🕐 Horario seleccionado:', data.texto);
-        funcionSeleccionada = true;
-        
-        // Mostrar animación de transición
-        mostrarTransicionHorario(data.texto);
-        
-        // Actualizar UI después de un pequeño delay
-        setTimeout(() => {
-            const txtHorario = document.getElementById('txtHorario');
-            if (txtHorario) txtHorario.textContent = data.texto;
-            
+        // Mostrar overlay de transición para horario
+        function mostrarTransicionHorario(texto) {
+            const overlay = document.getElementById('overlayTransicion');
+            const icon = document.getElementById('transicionIcon');
+            const tituloEl = document.getElementById('transicionTitulo');
+            const subtituloEl = document.getElementById('transicionSubtitulo');
+            const horaEl = document.getElementById('transicionHora');
+
+            icon.className = 'bi bi-clock transicion-icon';
+            tituloEl.textContent = 'Horario Seleccionado';
+            subtituloEl.textContent = 'Preparando mapa de asientos...';
+            horaEl.textContent = texto;
+
+            overlay.classList.add('active');
+
+            // Ocultar después de 2 segundos
+            setTimeout(() => {
+                overlay.classList.remove('active');
+            }, 2000);
+        }
+
+        // Crear confetti para compra exitosa
+        function crearConfetti() {
+            const overlay = document.getElementById('overlayGracias');
+            const colores = ['#fbbf24', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899'];
+
+            for (let i = 0; i < 100; i++) {
+                setTimeout(() => {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    confetti.style.left = Math.random() * 100 + '%';
+                    confetti.style.background = colores[Math.floor(Math.random() * colores.length)];
+                    confetti.style.animationDuration = (2 + Math.random() * 2) + 's';
+                    confetti.style.width = (5 + Math.random() * 10) + 'px';
+                    confetti.style.height = confetti.style.width;
+                    overlay.appendChild(confetti);
+
+                    setTimeout(() => confetti.remove(), 4000);
+                }, i * 30);
+            }
+        }
+
+        // Mostrar animación de gracias por la compra
+        function mostrarGracias(total) {
+            const overlay = document.getElementById('overlayGracias');
+            const progressBar = document.getElementById('graciasProgressBar');
+
+            document.getElementById('graciasTotal').textContent = '$' + parseFloat(total).toFixed(2);
+
+            // Reiniciar la animación de la barra de progreso
+            if (progressBar) {
+                progressBar.style.animation = 'none';
+                progressBar.offsetHeight; // Forzar reflow
+                progressBar.style.animation = 'progressGrow 5s linear forwards, shimmer 1.5s infinite';
+            }
+
+            overlay.classList.add('active');
+            crearConfetti();
+
+            overlay.classList.add('active');
+            crearConfetti();
+
+            // Transición automática ELIMINADA - Esperar a NUEVA_VENTA
+            // setTimeout(() => {
+            //    cerrarGraciasYContinuar();
+            // }, 5000);
+        }
+
+        // Cerrar overlay de gracias y mostrar vista de horarios
+        function cerrarGraciasYContinuar() {
+            const overlay = document.getElementById('overlayGracias');
+            overlay.classList.remove('active');
+
+            // Cambiar a vista de horarios en lugar de ir a cartelera
+            funcionSeleccionada = false;
             const viewHorarios = document.getElementById('viewHorarios');
             const viewMapa = document.getElementById('viewMapa');
-            if (viewHorarios) viewHorarios.classList.add('hidden');
-            if (viewMapa) {
-                viewMapa.classList.remove('hidden');
-                setTimeout(ajustarMapa, 100);
-            }
+
+            if (viewMapa) viewMapa.classList.add('hidden');
+            if (viewHorarios) viewHorarios.classList.remove('hidden');
+
+            // Resetear la vista
             resetearVista();
-        }, 500);
-    }
 
-    // Actualización del carrito
-    if (data.accion === 'UPDATE_CARRITO') {
-        console.log('🛒 Carrito actualizado:', data.cantidad, 'items');
-        actualizarInterfaz(data.carrito, data.total);
-    }
-    
-    // Actualización de asientos vendidos
-    if (data.accion === 'UPDATE_VENDIDOS') {
-        console.log('🔴 Vendidos actualizados:', data.cantidad, 'asientos');
-        marcarVendidos(data.asientos);
-    }
-    
-    // Compra exitosa
-    if (data.accion === 'COMPRA_EXITOSA') {
-        console.log('✅ Compra exitosa! Total:', data.total);
-        // Mostrar gracias (NO OCULTAR AUTOMÁTICAMENTE, esperar a NUEVA_VENTA)
-        mostrarGracias(data.total);
-    }
-    
-    // Nueva Venta: Limpiar pantalla de gracias y resetear vista
-    if (data.accion === 'NUEVA_VENTA') {
-        console.log('✨ Nueva venta iniciada: Limpiando pantalla de gracias');
-        
-        // Ocultar overlay de gracias
-        const overlayGracias = document.getElementById('overlayGracias');
-        if (overlayGracias) overlayGracias.classList.remove('active');
-        
-        // Resetear vista
-        resetearVista();
-        
-        // Asegurar que se ve el mapa o los horarios según corresponda
-        const viewHorarios = document.getElementById('viewHorarios');
-        const viewMapa = document.getElementById('viewMapa');
-        
-        // Si estábamos en horarios, mantener horarios. Si no, mapa.
-        // Por defecto, nueva venta suele implicar selección nueva, mantenemos donde esté
-    }
-    
-    // Regresar a cartelera (Cambio de evento)
-    if (data.accion === 'REGRESAR_CARTELERA') {
-        console.log('🏠 Regresando a cartelera');
-        window.location.href = 'visor_cliente.php';
-    }
-
-    // Selección de evento desde cartelera (Forzar recarga si es diferente)
-    if (data.accion === 'SELECCION_EVENTO') {
-        console.log('📅 Selección de evento:', data);
-        if (data.id_evento) {
-            window.location.href = 'visor_cliente.php?id_evento=' + data.id_evento;
+            console.log('🕐 Vista de horarios mostrada después de venta');
         }
-    }
-    
-    // Mostrar horarios (después de una venta, sin cambiar de evento)
-    if (data.accion === 'MOSTRAR_HORARIOS') {
-        console.log('🕐 Mostrando vista de horarios');
-        funcionSeleccionada = false;
-        
-        // Ocultar overlay de gracias si está activo
-        const overlayGracias = document.getElementById('overlayGracias');
-        if (overlayGracias) overlayGracias.classList.remove('active');
-        
-        // Cambiar a vista de horarios
-        const viewHorarios = document.getElementById('viewHorarios');
-        const viewMapa = document.getElementById('viewMapa');
-        
-        if (viewMapa) viewMapa.classList.add('hidden');
-        if (viewHorarios) viewHorarios.classList.remove('hidden');
-        
-        // Resetear la vista del mapa
-        resetearVista();
-    }
-};
 
-// ===== FUNCIONES DE INTERFAZ =====
+        // ===== MANEJO DE MENSAJES =====
 
-function resetearVista() {
-    document.querySelectorAll('.seat.client-selected').forEach(el => {
-        el.classList.remove('client-selected');
-    });
-    const lista = document.getElementById('listaCarrito');
-    if (lista) lista.innerHTML = '<div class="carrito-vacio"><i class="bi bi-inbox"></i><p>Esperando selección...</p></div>';
-    const total = document.getElementById('txtTotal');
-    if (total) total.textContent = '0.00';
-    const contador = document.getElementById('contadorAsientos');
-    if (contador) contador.textContent = '';
-}
+        canal.onmessage = (event) => {
+            const data = event.data;
+            console.log('📥 Mensaje recibido:', data);
 
-function actualizarInterfaz(carrito, total, descuentoInfo = null) {
-    const lista = document.getElementById('listaCarrito');
-    if (!lista) return;
-    
-    document.querySelectorAll('.seat.client-selected').forEach(el => {
-        el.classList.remove('client-selected');
-    });
-
-    if (carrito.length === 0) {
-        lista.innerHTML = '<div class="carrito-vacio"><i class="bi bi-inbox"></i><p>Esperando selección...</p></div>';
-        const totalEl = document.getElementById('txtTotal');
-        if (totalEl) totalEl.textContent = '0.00';
-        const contador = document.getElementById('contadorAsientos');
-        if (contador) contador.textContent = '';
-        ocultarInfoDescuento();
-        return;
-    }
-
-    lista.innerHTML = '';
-    
-    // Actualizar contador de asientos
-    const contador = document.getElementById('contadorAsientos');
-    if (contador) {
-        contador.textContent = carrito.length;
-    }
-    
-    // Limitar el delay máximo para que las animaciones no se amontonen
-    const maxDelay = 0.3;
-    const delayStep = Math.min(0.05, maxDelay / carrito.length);
-    
-    let hayDescuento = false;
-    let hayCortesia = false;
-    let totalDescuento = 0;
-    
-    carrito.forEach((item, index) => {
-        const el = document.getElementById('seat-' + item.id);
-        if (el) el.classList.add('client-selected');
-
-        const esCortesia = item.tipo_boleto === 'cortesia';
-        const tieneDescuento = item.descuento_aplicado && parseFloat(item.descuento_aplicado) > 0;
-        const precioBase = parseFloat(item.precio || 0);
-        const descuento = parseFloat(item.descuento_aplicado || 0);
-        const precioFinal = esCortesia ? 0 : Math.max(0, precioBase - descuento);
-
-        if (tieneDescuento) { hayDescuento = true; totalDescuento += descuento; }
-        if (esCortesia) hayCortesia = true;
-
-        const itemDiv = document.createElement('div');
-        itemDiv.className = 'carrito-item';
-        if (tieneDescuento) itemDiv.classList.add('con-descuento');
-        if (esCortesia) itemDiv.classList.add('cortesia');
-        itemDiv.style.animationDelay = (index * delayStep) + 's';
-        
-        // Generar badge de tipo/descuento
-        let badgeHTML = '';
-        if (esCortesia) {
-            badgeHTML = '<span class="descuento-badge cortesia"><i class="bi bi-gift-fill"></i> Cortesía</span>';
-        } else if (tieneDescuento) {
-            // Mostrar claramente el valor del descuento
-            let descText = '';
-            if (descuento > 0) {
-                descText = `-$${descuento.toFixed(2)}`;
-            } else {
-                descText = '%';
+            // Cambio de evento
+            if (data.accion === 'INIT' && idEventoActual !== parseInt(data.id_evento)) {
+                console.log('🔄 Cambiando a evento:', data.id_evento);
+                mostrarTransicionEvento(data.titulo || 'Cargando evento...');
+                setTimeout(() => {
+                    window.location.href = `visor_cliente.php?id_evento=${data.id_evento}`;
+                }, 800);
+                return;
             }
-            badgeHTML = `<span class="descuento-badge descuento"><i class="bi bi-tag-fill"></i> ${descText}</span>`;
+
+            // Selección de evento (desde cartelera)
+            if (data.accion === 'SELECCION_EVENTO') {
+                console.log('🎭 Evento seleccionado:', data.titulo);
+                mostrarTransicionEvento(data.titulo || 'Cargando evento...');
+                setTimeout(() => {
+                    window.location.href = `visor_cliente.php?id_evento=${data.id_evento}`;
+                }, 800);
+                return;
+            }
+
+            // Selección de horario/función
+            if (data.accion === 'UPDATE_FUNCION' && data.texto) {
+                console.log('🕐 Horario seleccionado:', data.texto);
+                funcionSeleccionada = true;
+
+                // Mostrar animación de transición
+                mostrarTransicionHorario(data.texto);
+
+                // Actualizar UI después de un pequeño delay
+                setTimeout(() => {
+                    const txtHorario = document.getElementById('txtHorario');
+                    if (txtHorario) txtHorario.textContent = data.texto;
+
+                    const viewHorarios = document.getElementById('viewHorarios');
+                    const viewMapa = document.getElementById('viewMapa');
+                    if (viewHorarios) viewHorarios.classList.add('hidden');
+                    if (viewMapa) {
+                        viewMapa.classList.remove('hidden');
+                        setTimeout(ajustarMapa, 100);
+                    }
+                    resetearVista();
+                }, 500);
+            }
+
+            // Actualización del carrito
+            if (data.accion === 'UPDATE_CARRITO') {
+                console.log('🛒 Carrito actualizado:', data.cantidad, 'items');
+                actualizarInterfaz(data.carrito, data.total);
+            }
+
+            // Actualización de asientos vendidos
+            if (data.accion === 'UPDATE_VENDIDOS') {
+                console.log('🔴 Vendidos actualizados:', data.cantidad, 'asientos');
+                marcarVendidos(data.asientos);
+            }
+
+            // Compra exitosa
+            if (data.accion === 'COMPRA_EXITOSA') {
+                console.log('✅ Compra exitosa! Total:', data.total);
+                // Mostrar gracias (NO OCULTAR AUTOMÁTICAMENTE, esperar a NUEVA_VENTA)
+                mostrarGracias(data.total);
+            }
+
+            // Nueva Venta: Limpiar pantalla de gracias y resetear vista
+            if (data.accion === 'NUEVA_VENTA') {
+                console.log('✨ Nueva venta iniciada: Limpiando pantalla de gracias');
+
+                // Ocultar overlay de gracias
+                const overlayGracias = document.getElementById('overlayGracias');
+                if (overlayGracias) overlayGracias.classList.remove('active');
+
+                // Resetear vista
+                resetearVista();
+
+                // Asegurar que se ve el mapa o los horarios según corresponda
+                const viewHorarios = document.getElementById('viewHorarios');
+                const viewMapa = document.getElementById('viewMapa');
+
+                // Si estábamos en horarios, mantener horarios. Si no, mapa.
+                // Por defecto, nueva venta suele implicar selección nueva, mantenemos donde esté
+            }
+
+            // Regresar a cartelera (Cambio de evento)
+            if (data.accion === 'REGRESAR_CARTELERA') {
+                console.log('🏠 Regresando a cartelera');
+                window.location.href = 'visor_cliente.php';
+            }
+
+            // Selección de evento desde cartelera (Forzar recarga si es diferente)
+            if (data.accion === 'SELECCION_EVENTO') {
+                console.log('📅 Selección de evento:', data);
+                if (data.id_evento) {
+                    window.location.href = 'visor_cliente.php?id_evento=' + data.id_evento;
+                }
+            }
+
+            // Mostrar horarios (después de una venta, sin cambiar de evento)
+            if (data.accion === 'MOSTRAR_HORARIOS') {
+                console.log('🕐 Mostrando vista de horarios');
+                funcionSeleccionada = false;
+
+                // Ocultar overlay de gracias si está activo
+                const overlayGracias = document.getElementById('overlayGracias');
+                if (overlayGracias) overlayGracias.classList.remove('active');
+
+                // Cambiar a vista de horarios
+                const viewHorarios = document.getElementById('viewHorarios');
+                const viewMapa = document.getElementById('viewMapa');
+
+                if (viewMapa) viewMapa.classList.add('hidden');
+                if (viewHorarios) viewHorarios.classList.remove('hidden');
+
+                // Resetear la vista del mapa
+                resetearVista();
+            }
+        };
+
+        // ===== FUNCIONES DE INTERFAZ =====
+
+        function resetearVista() {
+            document.querySelectorAll('.seat.client-selected').forEach(el => {
+                el.classList.remove('client-selected');
+            });
+            const lista = document.getElementById('listaCarrito');
+            if (lista) lista.innerHTML = '<div class="carrito-vacio"><i class="bi bi-inbox"></i><p>Esperando selección...</p></div>';
+            const total = document.getElementById('txtTotal');
+            if (total) total.textContent = '0.00';
+            const contador = document.getElementById('contadorAsientos');
+            if (contador) contador.textContent = '';
         }
 
-        // Generar HTML del precio
-        let precioHTML = '';
-        if (esCortesia) {
-            precioHTML = `
+        function actualizarInterfaz(carrito, total, descuentoInfo = null) {
+            const lista = document.getElementById('listaCarrito');
+            if (!lista) return;
+
+            document.querySelectorAll('.seat.client-selected').forEach(el => {
+                el.classList.remove('client-selected');
+            });
+
+            if (carrito.length === 0) {
+                lista.innerHTML = '<div class="carrito-vacio"><i class="bi bi-inbox"></i><p>Esperando selección...</p></div>';
+                const totalEl = document.getElementById('txtTotal');
+                if (totalEl) totalEl.textContent = '0.00';
+                const contador = document.getElementById('contadorAsientos');
+                if (contador) contador.textContent = '';
+                ocultarInfoDescuento();
+                return;
+            }
+
+            lista.innerHTML = '';
+
+            // Actualizar contador de asientos
+            const contador = document.getElementById('contadorAsientos');
+            if (contador) {
+                contador.textContent = carrito.length;
+            }
+
+            // Limitar el delay máximo para que las animaciones no se amontonen
+            const maxDelay = 0.3;
+            const delayStep = Math.min(0.05, maxDelay / carrito.length);
+
+            let hayDescuento = false;
+            let hayCortesia = false;
+            let totalDescuento = 0;
+
+            carrito.forEach((item, index) => {
+                const el = document.getElementById('seat-' + item.id);
+                if (el) el.classList.add('client-selected');
+
+                const esCortesia = item.tipo_boleto === 'cortesia';
+                const tieneDescuento = item.descuento_aplicado && parseFloat(item.descuento_aplicado) > 0;
+                const precioBase = parseFloat(item.precio || 0);
+                const descuento = parseFloat(item.descuento_aplicado || 0);
+                const precioFinal = esCortesia ? 0 : Math.max(0, precioBase - descuento);
+
+                if (tieneDescuento) { hayDescuento = true; totalDescuento += descuento; }
+                if (esCortesia) hayCortesia = true;
+
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'carrito-item';
+                if (tieneDescuento) itemDiv.classList.add('con-descuento');
+                if (esCortesia) itemDiv.classList.add('cortesia');
+                itemDiv.style.animationDelay = (index * delayStep) + 's';
+
+                // Generar badge de tipo/descuento
+                let badgeHTML = '';
+                if (esCortesia) {
+                    badgeHTML = '<span class="descuento-badge cortesia"><i class="bi bi-gift-fill"></i> Cortesía</span>';
+                } else if (tieneDescuento) {
+                    // Mostrar claramente el valor del descuento
+                    let descText = '';
+                    if (descuento > 0) {
+                        descText = `-$${descuento.toFixed(2)}`;
+                    } else {
+                        descText = '%';
+                    }
+                    badgeHTML = `<span class="descuento-badge descuento"><i class="bi bi-tag-fill"></i> ${descText}</span>`;
+                }
+
+                // Generar HTML del precio
+                let precioHTML = '';
+                if (esCortesia) {
+                    precioHTML = `
                 <div class="precio-wrapper">
                     <span class="item-precio tachado precio-strike">$${precioBase.toFixed(2)}</span>
                     <span class="item-precio-final">GRATIS</span>
                 </div>
             `;
-        } else if (tieneDescuento) {
-            precioHTML = `
+                } else if (tieneDescuento) {
+                    precioHTML = `
                 <div class="precio-wrapper">
                     <div class="descuento-detalle" style="font-size: 0.8rem; color: #d97706; font-weight: 600;">
                         Ahorras: $${descuento.toFixed(2)}
@@ -1685,11 +1948,11 @@ function actualizarInterfaz(carrito, total, descuentoInfo = null) {
                     <span class="item-precio-final" style="font-size: 1.4rem;">$${precioFinal.toFixed(2)}</span>
                 </div>
             `;
-        } else {
-            precioHTML = `<div class="item-precio">$${precioBase.toFixed(2)}</div>`;
-        }
+                } else {
+                    precioHTML = `<div class="item-precio">$${precioBase.toFixed(2)}</div>`;
+                }
 
-        itemDiv.innerHTML = `
+                itemDiv.innerHTML = `
             <div>
                 <div class="item-asiento">${item.id}</div>
                 <div style="display:flex; gap:5px; align-items:center;">
@@ -1699,134 +1962,135 @@ function actualizarInterfaz(carrito, total, descuentoInfo = null) {
             </div>
             ${precioHTML}
         `;
-        lista.appendChild(itemDiv);
-    });
-    
-    // Mostrar notificación si hay cortesía o descuento nuevo
-    if (hayCortesia && !window.ultimoEstadoCortesia) {
-        mostrarNotificacionVisor('🎁 Boleto de cortesía aplicado', 'cortesia-notif');
-    }
-    if (hayDescuento && !window.ultimoEstadoDescuento) {
-        mostrarNotificacionVisor('🏷️ Descuento aplicado: -$' + totalDescuento.toFixed(2), 'descuento-notif');
-    }
-    window.ultimoEstadoCortesia = hayCortesia;
-    window.ultimoEstadoDescuento = hayDescuento;
-    
-    // Scroll suave al último elemento después de la animación
-    setTimeout(() => {
-        lista.scrollTop = lista.scrollHeight;
-    }, 100);
+                lista.appendChild(itemDiv);
+            });
 
-    const totalEl = document.getElementById('txtTotal');
-    if (totalEl) {
-        totalEl.textContent = parseFloat(total).toFixed(2);
-        
-        // Mostrar info de descuento
-        if (totalDescuento > 0) {
-            mostrarInfoDescuento(totalDescuento);
-        } else {
-            ocultarInfoDescuento();
+            // Mostrar notificación si hay cortesía o descuento nuevo
+            if (hayCortesia && !window.ultimoEstadoCortesia) {
+                mostrarNotificacionVisor('🎁 Boleto de cortesía aplicado', 'cortesia-notif');
+            }
+            if (hayDescuento && !window.ultimoEstadoDescuento) {
+                mostrarNotificacionVisor('🏷️ Descuento aplicado: -$' + totalDescuento.toFixed(2), 'descuento-notif');
+            }
+            window.ultimoEstadoCortesia = hayCortesia;
+            window.ultimoEstadoDescuento = hayDescuento;
+
+            // Scroll suave al último elemento después de la animación
+            setTimeout(() => {
+                lista.scrollTop = lista.scrollHeight;
+            }, 100);
+
+            const totalEl = document.getElementById('txtTotal');
+            if (totalEl) {
+                totalEl.textContent = parseFloat(total).toFixed(2);
+
+                // Mostrar info de descuento
+                if (totalDescuento > 0) {
+                    mostrarInfoDescuento(totalDescuento);
+                } else {
+                    ocultarInfoDescuento();
+                }
+            }
         }
-    }
-}
 
-// Mostrar notificación animada en el visor
-function mostrarNotificacionVisor(mensaje, tipo = '') {
-    // Remover notificación anterior
-    const anterior = document.querySelector('.visor-notificacion');
-    if (anterior) anterior.remove();
-    
-    const notif = document.createElement('div');
-    notif.className = 'visor-notificacion ' + tipo;
-    notif.innerHTML = `<i class="bi bi-stars"></i><span>${mensaje}</span>`;
-    document.body.appendChild(notif);
-    
-    // Animar entrada
-    setTimeout(() => notif.classList.add('show'), 50);
-    
-    // Ocultar después de 5 segundos (aumentado para mejor visibilidad)
-    setTimeout(() => {
-        notif.classList.remove('show');
-        setTimeout(() => notif.remove(), 500);
-    }, 5000);
-}
+        // Mostrar notificación animada en el visor
+        function mostrarNotificacionVisor(mensaje, tipo = '') {
+            // Remover notificación anterior
+            const anterior = document.querySelector('.visor-notificacion');
+            if (anterior) anterior.remove();
 
-// Mostrar info de descuento total
-function mostrarInfoDescuento(monto) {
-    let infoEl = document.getElementById('descuentoTotalInfo');
-    if (!infoEl) {
-        const totalWrapper = document.querySelector('.total-amount');
-        if (totalWrapper && totalWrapper.parentElement) {
-            infoEl = document.createElement('div');
-            infoEl.id = 'descuentoTotalInfo';
-            infoEl.className = 'total-descuento-info';
-            totalWrapper.parentElement.appendChild(infoEl);
+            const notif = document.createElement('div');
+            notif.className = 'visor-notificacion ' + tipo;
+            notif.innerHTML = `<i class="bi bi-stars"></i><span>${mensaje}</span>`;
+            document.body.appendChild(notif);
+
+            // Animar entrada
+            setTimeout(() => notif.classList.add('show'), 50);
+
+            // Ocultar después de 5 segundos (aumentado para mejor visibilidad)
+            setTimeout(() => {
+                notif.classList.remove('show');
+                setTimeout(() => notif.remove(), 500);
+            }, 5000);
         }
-    }
-    if (infoEl) {
-        infoEl.innerHTML = `<i class="bi bi-tag-fill"></i> Ahorro: $${monto.toFixed(2)}`;
-    }
-}
 
-// Ocultar info de descuento
-function ocultarInfoDescuento() {
-    const infoEl = document.getElementById('descuentoTotalInfo');
-    if (infoEl) infoEl.remove();
-    window.ultimoEstadoCortesia = false;
-    window.ultimoEstadoDescuento = false;
-}
+        // Mostrar info de descuento total
+        function mostrarInfoDescuento(monto) {
+            let infoEl = document.getElementById('descuentoTotalInfo');
+            if (!infoEl) {
+                const totalWrapper = document.querySelector('.total-amount');
+                if (totalWrapper && totalWrapper.parentElement) {
+                    infoEl = document.createElement('div');
+                    infoEl.id = 'descuentoTotalInfo';
+                    infoEl.className = 'total-descuento-info';
+                    totalWrapper.parentElement.appendChild(infoEl);
+                }
+            }
+            if (infoEl) {
+                infoEl.innerHTML = `<i class="bi bi-tag-fill"></i> Ahorro: $${monto.toFixed(2)}`;
+            }
+        }
 
-function marcarVendidos(ids) {
-    if (!ids || !Array.isArray(ids)) return;
-    
-    document.querySelectorAll('.seat.vendido').forEach(el => el.classList.remove('vendido'));
-    ids.forEach(id => {
-        const el = document.getElementById('seat-' + id);
-        if(el) el.classList.add('vendido');
-    });
-}
+        // Ocultar info de descuento
+        function ocultarInfoDescuento() {
+            const infoEl = document.getElementById('descuentoTotalInfo');
+            if (infoEl) infoEl.remove();
+            window.ultimoEstadoCortesia = false;
+            window.ultimoEstadoDescuento = false;
+        }
 
-function ajustarMapa() {
-    const mapa = document.getElementById('mapaContenido');
-    if(mapa) {
-        const container = mapa.parentElement;
-        const scale = Math.min(
-            container.clientWidth / mapa.scrollWidth,
-            container.clientHeight / mapa.scrollHeight
-        ) * 0.88;
-        mapa.style.transform = `scale(${Math.max(scale, 0.35)})`;
-    }
-}
+        function marcarVendidos(ids) {
+            if (!ids || !Array.isArray(ids)) return;
 
-// Inicialización
-window.onload = () => {
-    console.log('🎬 Visor Cliente cargado');
-    ajustarMapa();
-};
-window.onresize = ajustarMapa;
-</script>
-<script src="js/teatro-sync.js"></script>
-<script>
-// El visor cliente NO debe auto-recargar ni mostrar notificaciones
-// Solo escucha cambios de venta para actualizar asientos vendidos
-if (typeof TeatroSync !== 'undefined') {
-    TeatroSync.init({
-        eventoId: <?= $id_evento ?: 'null' ?>,
-        autoReload: false // NO recargar automáticamente
-    });
-    
-    // Solo escuchar ventas para marcar asientos
-    TeatroSync.on('venta', (data) => {
-        console.log('[Visor] Venta detectada');
-        if (data.datos && data.datos.asientos) {
-            data.datos.asientos.forEach(asiento => {
-                const el = document.getElementById('seat-' + asiento);
+            document.querySelectorAll('.seat.vendido').forEach(el => el.classList.remove('vendido'));
+            ids.forEach(id => {
+                const el = document.getElementById('seat-' + id);
                 if (el) el.classList.add('vendido');
             });
         }
-    });
-}
-</script>
+
+        function ajustarMapa() {
+            const mapa = document.getElementById('mapaContenido');
+            if (mapa) {
+                const container = mapa.parentElement;
+                const scale = Math.min(
+                    container.clientWidth / mapa.scrollWidth,
+                    container.clientHeight / mapa.scrollHeight
+                ) * 0.88;
+                mapa.style.transform = `scale(${Math.max(scale, 0.35)})`;
+            }
+        }
+
+        // Inicialización
+        window.onload = () => {
+            console.log('🎬 Visor Cliente cargado');
+            ajustarMapa();
+        };
+        window.onresize = ajustarMapa;
+    </script>
+    <script src="js/teatro-sync.js"></script>
+    <script>
+        // El visor cliente NO debe auto-recargar ni mostrar notificaciones
+        // Solo escucha cambios de venta para actualizar asientos vendidos
+        if (typeof TeatroSync !== 'undefined') {
+            TeatroSync.init({
+                eventoId: <?= $id_evento ?: 'null' ?>,
+                autoReload: false // NO recargar automáticamente
+            });
+
+            // Solo escuchar ventas para marcar asientos
+            TeatroSync.on('venta', (data) => {
+                console.log('[Visor] Venta detectada');
+                if (data.datos && data.datos.asientos) {
+                    data.datos.asientos.forEach(asiento => {
+                        const el = document.getElementById('seat-' + asiento);
+                        if (el) el.classList.add('vendido');
+                    });
+                }
+            });
+        }
+    </script>
 <?php endif; ?>
 </body>
+
 </html>

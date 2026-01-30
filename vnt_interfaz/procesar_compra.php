@@ -57,12 +57,7 @@ if (!isset($conn) || !$conn) {
     exit;
 }
 
-// Importar clases de QR Code para v6.x
-use Endroid\QrCode\Builder\Builder;
-use Endroid\QrCode\Encoding\Encoding;
-use Endroid\QrCode\ErrorCorrectionLevel\ErrorCorrectionLevelHigh;
-use Endroid\QrCode\RoundBlockSizeMode\RoundBlockSizeModeMargin;
-use Endroid\QrCode\Writer\PngWriter;
+// Librería de QR eliminada - ya no es necesaria
 
 // Leer datos JSON del request
 $input = file_get_contents('php://input');
@@ -82,11 +77,7 @@ if (empty($asientos)) {
     exit;
 }
 
-// Crear directorio para QR si no existe
-$qr_dir = __DIR__ . '/../boletos_qr';
-if (!file_exists($qr_dir)) {
-    mkdir($qr_dir, 0777, true);
-}
+// Directorio QR ya no es necesario
 
 $conn->begin_transaction();
 
@@ -295,26 +286,7 @@ try {
             $stmt->close();
         }
 
-        // Generar código QR - compatible con endroid/qr-code 4.4.9
-        try {
-            $result = Builder::create()
-                ->writer(new PngWriter())
-                ->writerOptions([])
-                ->data($codigo_unico)
-                ->encoding(new Encoding('UTF-8'))
-                ->errorCorrectionLevel(new ErrorCorrectionLevelHigh())
-                ->size(300)
-                ->margin(10)
-                ->roundBlockSizeMode(new RoundBlockSizeModeMargin())
-                ->build();
-
-            // Guardar imagen QR
-            $qr_path = $qr_dir . '/' . $codigo_unico . '.png';
-            $result->saveToFile($qr_path);
-
-        } catch (Exception $qr_error) {
-            throw new Exception("Error al generar QR: " . $qr_error->getMessage());
-        }
+        // QR eliminado - ya no es necesario
 
         $boletos_generados[] = [
             'asiento' => $codigo_asiento,
