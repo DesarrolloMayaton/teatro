@@ -26,7 +26,7 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Historial de Transacciones</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" integrity="sha512-dPXYcDub/aeb08c63jRq/k6GqJ6SZlWgIz2NNZZiP9RXXpR6+8E/gVBbBQs8rY7xMz5p5yUB78/5Q1xQHcGQ4g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     
     <style>
         :root {
@@ -193,6 +193,99 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
             border-color: var(--primary);
             box-shadow: 0 0 10px var(--primary);
         }
+
+        /* Live Indicator Styles */
+        .live-indicator {
+            width: 10px;
+            height: 10px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: liveGlow 1.5s ease-in-out infinite;
+            box-shadow: 0 0 8px #22c55e;
+        }
+        
+        @keyframes liveGlow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+        
+        .live-indicator.paused {
+            background: #6b7280;
+            animation: none;
+            box-shadow: none;
+        }
+        
+        #btnRealTime.btn-success {
+            background: linear-gradient(135deg, #059669, #10b981);
+            border: none;
+            box-shadow: 0 2px 10px rgba(16, 185, 129, 0.3);
+        }
+        
+        #btnRealTime.btn-secondary {
+            background: linear-gradient(135deg, #374151, #4b5563);
+            border: none;
+        }
+        
+        /* Nueva transacción animación */
+        @keyframes newRowHighlight {
+            0% { background: rgba(34, 197, 94, 0.4); }
+            100% { background: transparent; }
+        }
+        
+        .new-transaction {
+            animation: newRowHighlight 2s ease-out forwards;
+        }
+        
+        /* Estilos para pestañas mejoradas */
+        .nav-pills .nav-link {
+            transition: all 0.3s ease;
+        }
+        
+        .nav-pills .nav-link.active {
+            background: linear-gradient(135deg, var(--primary), #818cf8) !important;
+            color: white !important;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        }
+        
+        .nav-pills .nav-link:not(.active):hover {
+            background: rgba(99, 102, 241, 0.2);
+            color: white !important;
+        }
+        
+        /* Form controls grandes */
+        .form-control-lg, .form-select-lg {
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            border-radius: 0.5rem;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25) !important;
+        }
+        
+        /* Labels de formulario */
+        .form-label {
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Botones grandes mejorados */
+        .btn-lg {
+            padding: 0.75rem 1.25rem;
+            font-size: 1rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-lg:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        
+        .btn-lg:active {
+            transform: translateY(0);
+        }
     </style>
 </head>
 <body class="p-3">
@@ -205,15 +298,15 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
                 <span id="headerTotalCount" class="badge bg-primary ms-3 fs-6">0 registros</span>
             </div>
             
-            <ul class="nav nav-pills bg-dark rounded border border-secondary p-1" id="pills-tab" role="tablist">
+            <ul class="nav nav-pills bg-dark rounded-3 border border-secondary p-2 gap-2" id="pills-tab" role="tablist">
                 <li class="nav-item">
-                    <button class="nav-link active rounded-1 text-white" id="pills-historial-tab" data-bs-toggle="pill" data-bs-target="#pills-historial">
-                        <i class="bi bi-list-ul"></i> Historial
+                    <button class="nav-link active rounded-2 px-4 py-3 d-flex align-items-center gap-2 fw-bold" id="pills-historial-tab" data-bs-toggle="pill" data-bs-target="#pills-historial" style="font-size: 1.1rem;">
+                        <i class="bi bi-list-ul fs-5"></i> Historial
                     </button>
                 </li>
                 <li class="nav-item">
-                    <button class="nav-link rounded-1 text-secondary" id="pills-stats-tab" data-bs-toggle="pill" data-bs-target="#pills-stats">
-                        <i class="bi bi-bar-chart-fill"></i> Estadísticas
+                    <button class="nav-link rounded-2 px-4 py-3 d-flex align-items-center gap-2 fw-bold text-secondary" id="pills-stats-tab" data-bs-toggle="pill" data-bs-target="#pills-stats" style="font-size: 1.1rem;">
+                        <i class="bi bi-bar-chart-fill fs-5"></i> Estadísticas
                     </button>
                 </li>
             </ul>
@@ -225,18 +318,54 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
             <div class="tab-pane fade show active" id="pills-historial">
                 <div class="card p-0 overflow-hidden">
                     
-                    <!-- Search Bar Toolbar -->
-                    <div class="p-3 bg-dark border-bottom border-secondary d-flex flex-wrap gap-3 align-items-center">
-                        <div class="flex-grow-1 position-relative" style="min-width: 250px;">
-                            <i class="bi bi-search position-absolute text-muted" style="left: 15px; top: 10px;"></i>
-                            <input type="text" id="searchInput" class="form-control ps-5" placeholder="Buscar por cliente, vendedor, evento o acción..." autocomplete="off">
+                    <!-- Search Bar Toolbar - REDISEÑADO -->
+                    <div class="bg-dark p-4 border-bottom border-secondary">
+                        <div class="row g-3 align-items-end">
+                            <!-- Búsqueda -->
+                            <div class="col-lg-4 col-md-12">
+                                <label class="form-label text-primary fw-bold mb-2">
+                                    <i class="bi bi-search me-1"></i> Buscar
+                                </label>
+                                <div class="position-relative">
+                                    <i class="bi bi-search position-absolute text-muted" style="left: 15px; top: 50%; transform: translateY(-50%);"></i>
+                                    <input type="text" id="searchInput" class="form-control form-control-lg ps-5 bg-black text-white border-secondary" placeholder="Cliente, vendedor, evento o acción..." autocomplete="off">
+                                </div>
+                            </div>
+                            
+                            <!-- Fecha Desde -->
+                            <div class="col-lg-2 col-md-4 col-sm-6">
+                                <label class="form-label text-warning fw-bold mb-2">
+                                    <i class="bi bi-calendar-event me-1"></i> Desde
+                                </label>
+                                <input type="date" id="filterDesde" class="form-control form-control-lg bg-black text-white border-secondary">
+                            </div>
+                            
+                            <!-- Fecha Hasta -->
+                            <div class="col-lg-2 col-md-4 col-sm-6">
+                                <label class="form-label text-warning fw-bold mb-2">
+                                    <i class="bi bi-calendar-check me-1"></i> Hasta
+                                </label>
+                                <input type="date" id="filterHasta" class="form-control form-control-lg bg-black text-white border-secondary">
+                            </div>
+                            
+                            <!-- Botones de Acción -->
+                            <div class="col-lg-4 col-md-4 col-sm-12">
+                                <div class="d-flex gap-2 flex-wrap justify-content-end">
+                                    <button class="btn btn-primary btn-lg px-4" onclick="filtrarConFechas()" title="Aplicar Filtros">
+                                        <i class="bi bi-funnel-fill me-1"></i> Filtrar
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-lg px-3" onclick="limpiarBusqueda()" title="Limpiar filtros">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                    </button>
+                                    <div class="vr bg-secondary mx-1"></div>
+                                    <button id="btnRealTime" class="btn btn-success btn-lg d-flex align-items-center gap-2 px-3" onclick="toggleRealTime()" title="Actualización en tiempo real">
+                                        <span class="live-indicator"></span>
+                                        <i class="bi bi-broadcast"></i>
+                                        <span id="realTimeLabel">LIVE</span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="d-flex gap-2">
-                             <input type="date" id="filterDesde" class="form-control form-control-sm" style="width: 140px;" placeholder="Desde">
-                             <input type="date" id="filterHasta" class="form-control form-control-sm" style="width: 140px;" placeholder="Hasta">
-                        </div>
-                        <button class="btn btn-primary" onclick="filtrarConFechas()" title="Aplicar Filtros"><i class="bi bi-funnel"></i> Filtrar</button>
-                        <button class="btn btn-outline-secondary" onclick="limpiarBusqueda()" title="Limpiar"><i class="bi bi-arrow-clockwise"></i></button>
                     </div>
 
                     <!-- Enhanced Table -->
@@ -263,134 +392,10 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
                 </div>
             </div>
 
-            <!-- TAB ESTADISTICAS (PREMIUM) -->
+            <!-- TAB ESTADISTICAS (PREMIUM - IFRAME) -->
             <div class="tab-pane fade" id="pills-stats">
-                <div class="card bg-transparent border-0">
-                    
-                    <!-- Filters Toolbar -->
-                    <div class="d-flex flex-wrap gap-3 mb-4 align-items-center bg-dark p-3 rounded border border-secondary shadow-sm">
-                        <div class="d-flex align-items-center gap-2">
-                             <label class="text-secondary small fw-bold text-uppercase">Base de Datos:</label>
-                             <select id="statsFromDB" class="form-select form-select-sm bg-black text-white border-secondary" style="width: 140px;">
-                                 <option value="actual">Actual</option>
-                                 <option value="historico">Histórico</option>
-                                 <option value="ambas">Ambas</option>
-                             </select>
-                        </div>
-                        <div class="vr bg-secondary mx-2"></div>
-                        <div class="d-flex gap-2">
-                             <input type="date" id="statsDesde" class="form-control form-control-sm bg-black text-white border-secondary" placeholder="Desde">
-                             <input type="date" id="statsHasta" class="form-control form-control-sm bg-black text-white border-secondary" placeholder="Hasta">
-                        </div>
-                        <div class="vr bg-secondary mx-2"></div>
-                        <select id="statsEvento" class="form-select form-select-sm bg-black text-white border-secondary" style="max-width: 200px;">
-                             <option value="">Todo los Eventos</option>
-                             <?php foreach($eventos_filtro as $ev): ?>
-                                <option value="<?= $ev['id_evento'] ?>"><?= $ev['titulo'] ?></option>
-                             <?php endforeach; ?>
-                        </select>
-                        
-                        <div class="ms-auto d-flex gap-2">
-                            <button class="btn btn-primary btn-sm px-3 fw-bold" onclick="cargarEstadisticas()"><i class="bi bi-lightning-charge-fill"></i> Actualizar</button>
-                            <button class="btn btn-success btn-sm px-3 fw-bold" onclick="descargarPDF()"><i class="bi bi-file-earmark-pdf-fill"></i> PDF</button>
-                        </div>
-                    </div>
-
-                    <!-- KPI Cards Row -->
-                    <div class="row g-4 mb-4">
-                        <div class="col-md-3">
-                            <div class="card h-100 border-0 shadow-lg position-relative overflow-hidden kpi-card animate-enter delay-1" style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);">
-                                <div class="card-body p-4 text-center">
-                                    <div class="text-white-50 text-uppercase small fw-bold ls-1 mb-2">Ingresos Totales</div>
-                                    <h2 class="display-6 fw-bold text-white mb-0" id="kpi-ingresos">$0.00</h2>
-                                    <i class="bi bi-currency-dollar position-absolute text-white opacity-10" style="bottom: -10px; right: -10px; font-size: 5rem;"></i>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="card h-100 border-0 shadow-lg position-relative overflow-hidden kpi-card animate-enter delay-2" style="background: linear-gradient(135deg, #0f766e 0%, #115e59 100%);">
-                                <div class="card-body p-4 text-center">
-                                    <div class="text-white-50 text-uppercase small fw-bold ls-1 mb-2">Boletos Vendidos</div>
-                                    <h2 class="display-6 fw-bold text-white mb-0" id="kpi-boletos">0</h2>
-                                    <i class="bi bi-ticket-perforated position-absolute text-white opacity-10" style="bottom: -10px; right: -10px; font-size: 5rem;"></i>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="card h-100 border-0 shadow-lg position-relative overflow-hidden kpi-card animate-enter delay-3" style="background: linear-gradient(135deg, #701a75 0%, #581c87 100%);">
-                                <div class="card-body p-4 text-center">
-                                    <div class="text-white-50 text-uppercase small fw-bold ls-1 mb-2">Ticket Promedio</div>
-                                    <h2 class="display-6 fw-bold text-white mb-0" id="kpi-promedio">$0.00</h2>
-                                    <i class="bi bi-graph-up-arrow position-absolute text-white opacity-10" style="bottom: -10px; right: -10px; font-size: 5rem;"></i>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="card h-100 border-0 shadow-lg position-relative overflow-hidden kpi-card animate-enter delay-4" style="background: linear-gradient(135deg, #881337 0%, #4c0519 100%);">
-                                <div class="card-body p-4 text-center">
-                                    <div class="text-white-50 text-uppercase small fw-bold ls-1 mb-2">Eventos Activos</div>
-                                    <h2 class="display-6 fw-bold text-white mb-0" id="kpi-eventos">0</h2>
-                                    <i class="bi bi-calendar-check position-absolute text-white opacity-10" style="bottom: -10px; right: -10px; font-size: 5rem;"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Charts Row -->
-                    <div class="row g-4 mb-4">
-                        <div class="col-lg-5">
-                            <div class="card bg-dark border-secondary shadow h-100 glass-panel animate-enter delay-2">
-                                <div class="card-header bg-transparent border-secondary text-white fw-bold text-uppercase small">
-                                    <i class="bi bi-clock me-2 text-info"></i>Actividad de Ventas
-                                </div>
-                                <div class="card-body">
-                                    <canvas id="chartHora" style="max-height: 250px;"></canvas>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-lg-4">
-                            <div class="card bg-dark border-secondary shadow h-100 glass-panel animate-enter delay-3">
-                                <div class="card-header bg-transparent border-secondary text-white fw-bold text-uppercase small">
-                                    <i class="bi bi-pie-chart me-2 text-warning"></i>Por Categoría
-                                </div>
-                                <div class="card-body position-relative">
-                                    <canvas id="chartCategoria" style="max-height: 250px;"></canvas>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-lg-3">
-                            <div class="card bg-dark border-secondary shadow h-100 glass-panel animate-enter delay-4">
-                                <div class="card-header bg-transparent border-secondary text-white fw-bold text-uppercase small">
-                                    <i class="bi bi-tag-fill me-2 text-danger"></i>Por Tipo
-                                </div>
-                                <div class="card-body position-relative">
-                                    <canvas id="chartTipo" style="max-height: 250px;"></canvas>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Top Events Table -->
-                    <div class="card bg-dark border-secondary shadow">
-                        <div class="card-header bg-transparent border-secondary text-white fw-bold text-uppercase small">
-                            <i class="bi bi-trophy me-2 text-warning"></i>Eventos Más Vendidos
-                        </div>
-                        <div class="table-responsive">
-                            <table class="table table-dark table-hover mb-0 align-middle">
-                                <thead>
-                                    <tr class="text-secondary small text-uppercase">
-                                        <th class="ps-4">Evento</th>
-                                        <th class="text-center">Boletos</th>
-                                        <th class="text-end pe-4">Ingresos Generados</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tbodyTopEvents">
-                                    <!-- Dynamic -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
+                <div class="card bg-transparent border-0 p-0" style="margin: -1rem;">
+                    <iframe id="statsIframe" src="estadisticas.php" style="width: 100%; height: calc(100vh - 100px); border: none; border-radius: 8px;"></iframe>
                 </div>
             </div>
 
@@ -424,17 +429,160 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
         let chartHoraInstance = null;
         let chartCategoriaInstance = null;
         let chartTipoInstance = null;
+        
+        // === TIEMPO REAL ===
+        let realTimeEnabled = true;
+        let realTimeInterval = null;
+        let lastTransactionId = 0;
+        const POLLING_INTERVAL = 5000; // 5 segundos
+        
+        // === TIEMPO REAL ESTADÍSTICAS ===
+        let realTimeStatsEnabled = true;
+        let realTimeStatsInterval = null;
+        const POLLING_STATS_INTERVAL = 10000; // 10 segundos para estadísticas
 
         // Auto load
         document.addEventListener('DOMContentLoaded', () => {
             fetchTransactions();
+            startRealTime(); // Iniciar tiempo real por defecto
             
             // Auto-load stats if tab is active, or wait until clicked
             const statsTab = document.getElementById('pills-stats-tab');
             statsTab.addEventListener('shown.bs.tab', () => {
+                // Limpiar filtros de estadísticas al entrar
+                limpiarFiltrosStats();
                 cargarEstadisticas();
+                if (realTimeStatsEnabled) {
+                    startRealTimeStats();
+                }
+            });
+            
+            // Detener polling de stats cuando se sale de la pestaña
+            const historialTab = document.getElementById('pills-historial-tab');
+            historialTab.addEventListener('shown.bs.tab', () => {
+                stopRealTimeStats();
+                // Limpiar filtros de historial al entrar
+                limpiarBusqueda();
             });
         });
+        
+        // === FUNCIONES PARA LIMPIAR FILTROS ===
+        function limpiarFiltrosStats() {
+            document.getElementById('statsFromDB').value = 'actual';
+            document.getElementById('statsDesde').value = '';
+            document.getElementById('statsHasta').value = '';
+            document.getElementById('statsEvento').value = '';
+        }
+        
+        // === FUNCIONES TIEMPO REAL ===
+        function toggleRealTime() {
+            realTimeEnabled = !realTimeEnabled;
+            
+            const btn = document.getElementById('btnRealTime');
+            const label = document.getElementById('realTimeLabel');
+            const indicator = btn.querySelector('.live-indicator');
+            
+            if (realTimeEnabled) {
+                btn.classList.remove('btn-secondary');
+                btn.classList.add('btn-success');
+                label.textContent = 'LIVE';
+                indicator.classList.remove('paused');
+                startRealTime();
+            } else {
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-secondary');
+                label.textContent = 'PAUSADO';
+                indicator.classList.add('paused');
+                stopRealTime();
+            }
+        }
+        
+        function startRealTime() {
+            if (realTimeInterval) clearInterval(realTimeInterval);
+            realTimeInterval = setInterval(checkNewTransactions, POLLING_INTERVAL);
+        }
+        
+        function stopRealTime() {
+            if (realTimeInterval) {
+                clearInterval(realTimeInterval);
+                realTimeInterval = null;
+            }
+        }
+        
+        async function checkNewTransactions() {
+            // Solo verificar nuevas transacciones si estamos en la página 1 y sin filtros
+            const query = document.getElementById('searchInput').value;
+            const desde = document.getElementById('filterDesde').value;
+            const hasta = document.getElementById('filterHasta').value;
+            
+            if (currentPage !== 1 || query !== '' || desde !== '' || hasta !== '') {
+                return; // No hacer polling si hay filtros activos o no estamos en página 1
+            }
+            
+            try {
+                const params = new URLSearchParams({
+                    q: '',
+                    fecha_desde: '',
+                    fecha_hasta: '',
+                    page: 1,
+                    last_id: lastTransactionId
+                });
+                
+                const res = await fetch(`api_search_transactions.php?${params.toString()}`);
+                const data = await res.json();
+                
+                if (!data.success) return;
+                
+                // Si hay nuevas transacciones (id mayor al último conocido)
+                if (data.data.length > 0 && data.data[0].id_transaccion > lastTransactionId) {
+                    // Actualizar la tabla completa
+                    fetchTransactions();
+                }
+            } catch (e) {
+                console.error('Error checking new transactions:', e);
+            }
+        }
+        
+        // === FUNCIONES TIEMPO REAL ESTADÍSTICAS ===
+        function toggleRealTimeStats() {
+            realTimeStatsEnabled = !realTimeStatsEnabled;
+            
+            const btn = document.getElementById('btnRealTimeStats');
+            const label = document.getElementById('realTimeStatsLabel');
+            const indicator = btn.querySelector('.live-indicator');
+            
+            if (realTimeStatsEnabled) {
+                btn.classList.remove('btn-secondary');
+                btn.classList.add('btn-success');
+                label.textContent = 'LIVE';
+                indicator.classList.remove('paused');
+                startRealTimeStats();
+            } else {
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-secondary');
+                label.textContent = 'PAUSADO';
+                indicator.classList.add('paused');
+                stopRealTimeStats();
+            }
+        }
+        
+        function startRealTimeStats() {
+            if (realTimeStatsInterval) clearInterval(realTimeStatsInterval);
+            realTimeStatsInterval = setInterval(() => {
+                // Solo actualizar si la pestaña de stats está activa
+                const statsTab = document.getElementById('pills-stats');
+                if (statsTab.classList.contains('show') && statsTab.classList.contains('active')) {
+                    cargarEstadisticas();
+                }
+            }, POLLING_STATS_INTERVAL);
+        }
+        
+        function stopRealTimeStats() {
+            if (realTimeStatsInterval) {
+                clearInterval(realTimeStatsInterval);
+                realTimeStatsInterval = null;
+            }
+        }
 
         // Search Input Logic (from previous tasks) ...
         document.getElementById('searchInput').addEventListener('input', (e) => {
@@ -515,6 +663,11 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
                 countLabel.innerText = `Total: ${data.pagination.total} registros | Pág ${data.pagination.page} de ${data.pagination.pages}`;
                 document.getElementById('headerTotalCount').innerText = data.pagination.total + ' registros';
                 renderPagination(data.pagination.page, data.pagination.pages);
+                
+                // Guardar el último ID para el polling en tiempo real
+                if (data.data.length > 0 && currentPage === 1) {
+                    lastTransactionId = data.data[0].id_transaccion;
+                }
 
             } catch (e) {
                 console.error(e);
@@ -580,179 +733,27 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
             modal.show();
         }
 
-        // --- PREMIUM STATISTICS LOGIC ---
-        async function cargarEstadisticas() {
-            const db = document.getElementById('statsFromDB').value;
-            const id_evento = document.getElementById('statsEvento').value;
-            const desde = document.getElementById('statsDesde').value;
-            const hasta = document.getElementById('statsHasta').value;
-
-            // params
-            const params = new URLSearchParams({ db, id_evento, fecha_desde: desde, fecha_hasta: hasta });
-
-            try {
-                const res = await fetch(`api_stats.php?${params.toString()}`);
-                const r = await res.json();
-                
-                if(!r.success) throw new Error(r.error);
-
-                const d = r.data;
-
-                // 1. Update KPIs with animation
-                animateValue("kpi-ingresos", parseFloat(d.resumen.total_ingresos || 0), "$");
-                animateValue("kpi-boletos", parseInt(d.resumen.total_boletos || 0));
-                animateValue("kpi-promedio", parseFloat(d.resumen.ticket_promedio || 0), "$");
-                animateValue("kpi-eventos", parseInt(d.resumen.eventos_activos || 0));
-
-                // 2. Charts
-                renderCharts(d);
-
-                // 3. Top Events Table
-                const tbodyEv = document.getElementById('tbodyTopEvents');
-                if(d.por_evento.length === 0) {
-                    tbodyEv.innerHTML = `<tr><td colspan="3" class="text-center text-muted py-3">Sin datos registrados</td></tr>`;
-                } else {
-                    tbodyEv.innerHTML = d.por_evento.map((ev, i) => `
-                        <tr class="animate-enter premium-hover" style="animation-delay: ${i * 0.1}s">
-                            <td class="ps-4 fw-bold text-white">${ev.titulo}</td>
-                            <td class="text-center"><span class="badge bg-secondary rounded-pill">${ev.cantidad}</span></td>
-                            <td class="text-end pe-4 text-success fw-bold">$${parseFloat(ev.total).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-                        </tr>
-                    `).join('');
-                }
-
-            } catch (e) {
-                console.error("Stats Error:", e);
-                alert("Error al cargar estadísticas: " + e.message);
-            }
+        // === ESTADÍSTICAS - Ahora manejadas por iframe ===
+        // Las siguientes funciones están vacías porque las estadísticas se manejan en estadisticas.php
+        function cargarEstadisticas() {
+            // Recarga el iframe de estadísticas
+            const iframe = document.getElementById('statsIframe');
+            if (iframe) iframe.src = iframe.src;
         }
-
-        function animateValue(id, value, prefix = "") {
-            const obj = document.getElementById(id);
-            obj.innerHTML = prefix + (value.toLocaleString(undefined, {minimumFractionDigits: prefix==="$"?2:0, maximumFractionDigits:2}));
-            // Simple direct set for now. Can add counting animation later if requested.
+        
+        function limpiarFiltrosStats() {
+            // Recarga el iframe sin filtros
+            const iframe = document.getElementById('statsIframe');
+            if (iframe) iframe.src = 'estadisticas.php';
         }
-
-        function renderCharts(data) {
-            // Colors
-            const colorPrimary = '#6366f1';
-            const colorAccent = '#22d3ee';
-            const colorPurple = '#a855f7';
-            const colorPink = '#ec4899';
-            const colorGrid = '#334155';
-
-            // --- Chart Hora (Bar) ---
-            const ctxHora = document.getElementById('chartHora').getContext('2d');
-            
-            // Build Labels 00-23
-            const labelsHora = Array.from({length: 24}, (_, i) => i + ':00');
-            const dataHoraValues = new Array(24).fill(0);
-            
-            data.por_hora.forEach(item => {
-                dataHoraValues[parseInt(item.hora)] = parseFloat(item.ingresos);
-            });
-
-            if(chartHoraInstance) chartHoraInstance.destroy();
-
-            chartHoraInstance = new Chart(ctxHora, {
-                type: 'bar',
-                data: {
-                    labels: labelsHora,
-                    datasets: [{
-                        label: 'Ingresos ($)',
-                        data: dataHoraValues,
-                        backgroundColor: colorPrimary,
-                        borderRadius: 4,
-                        hoverBackgroundColor: colorAccent
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { mode: 'index', intersect: false }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: { color: colorGrid, drawBorder: false },
-                            ticks: { color: '#94a3b8' }
-                        },
-                        x: {
-                            grid: { display: false },
-                            ticks: { color: '#94a3b8', maxTicksLimit: 12 }
-                        }
-                    }
-                }
-            });
-
-            // --- Chart Categoria (Doughnut) ---
-            const ctxCat = document.getElementById('chartCategoria').getContext('2d');
-            
-            if(chartCategoriaInstance) chartCategoriaInstance.destroy();
-
-            const labelsCat = data.por_categoria.map(c => c.nombre_categoria);
-            const dataCatValues = data.por_categoria.map(c => c.cantidad);
-
-            chartCategoriaInstance = new Chart(ctxCat, {
-                type: 'doughnut',
-                data: {
-                    labels: labelsCat,
-                    datasets: [{
-                        data: dataCatValues,
-                        backgroundColor: [colorAccent, colorPurple, colorPink, colorPrimary, '#f59e0b'],
-                        borderWidth: 0,
-                        hoverOffset: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'bottom', labels: { color: '#cbd5e1', padding: 20, usePointStyle: true, boxWidth: 10 } }
-                    },
-                    cutout: '60%'
-                }
-            });
-
-            // --- Chart Tipo (Pie) ---
-            const ctxTipo = document.getElementById('chartTipo').getContext('2d');
-            
-            if(chartTipoInstance) chartTipoInstance.destroy();
-
-            const labelsTipo = data.por_tipo.map(t => t.tipo_boleto.charAt(0).toUpperCase() + t.tipo_boleto.slice(1));
-            const dataTipoValues = data.por_tipo.map(t => t.cantidad);
-
-            chartTipoInstance = new Chart(ctxTipo, {
-                type: 'pie',
-                data: {
-                    labels: labelsTipo,
-                    datasets: [{
-                        data: dataTipoValues,
-                        backgroundColor: ['#10b981', '#f43f5e', '#3b82f6', '#f59e0b'],
-                        borderWidth: 0,
-                        hoverOffset: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'bottom', labels: { color: '#cbd5e1', padding: 15, usePointStyle: true, boxWidth: 10 } }
-                    }
-                }
-            });
+        
+        function toggleRealTimeStats() {
+            // Manejado internamente por el iframe
         }
-
+        
         function descargarPDF() {
-            const db = document.getElementById('statsFromDB').value;
-            const id_evento = document.getElementById('statsEvento').value;
-            const desde = document.getElementById('statsDesde').value;
-            const hasta = document.getElementById('statsHasta').value;
-            
-            const params = new URLSearchParams({ db, id_evento, fecha_desde: desde, fecha_hasta: hasta });
-            window.open(`generar_pdf.php?${params.toString()}`, '_blank');
+            // Abrir la ventana de PDF
+            window.open('generar_pdf.php', '_blank');
         }
     </script>
 </body>

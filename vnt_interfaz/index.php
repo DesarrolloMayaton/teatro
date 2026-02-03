@@ -1828,7 +1828,7 @@ if ($evento_info):
         <!-- Carrito de Compras (siempre visible) -->
         <div class="carrito-simple" style="background: var(--bg-primary); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
             <h6 style="margin: 0 0 8px 0; color: #0066ff; font-size: 0.85rem;"><i class="bi bi-cart3"></i> Carrito</h6>
-            <div id="carritoItems" style="max-height: 140px; overflow-y: auto; margin-bottom: 8px; scrollbar-width: thin;">
+            <div id="carritoItems" style="max-height: 220px; overflow-y: auto; margin-bottom: 8px; scrollbar-width: thin;">
                 <div class="carrito-vacio" style="font-size: 0.8rem; padding: 30px 10px; text-align: center; color: #86868b;">Selecciona asientos en el mapa</div>
             </div>
             <div style="background: linear-gradient(135deg, #0066ff 0%, #0052cc 100%); padding: 12px; border-radius: 8px;">
@@ -2727,7 +2727,7 @@ window.URL_REGRESAR = '<?= $url_regresar ?>';
     resetInactividad();
 })();
 </script>
-<script src="js/carrito.js?v=25"></script>
+<script src="js/carrito.js?v=26"></script>
 
 <script src="js/carrito-patch.js"></script>
 <script src="js/descuentos-modal.js"></script>
