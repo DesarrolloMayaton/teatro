@@ -422,8 +422,8 @@ function actualizarCarrito() {
         html += `
             <div class="carrito-item">
                 <div class="asiento-info">
-                    <strong>${item.asiento}</strong>
-                    <small style="display: block;">${item.categoria}</small>
+                    <strong style="color: #ffffff;">${item.asiento}</strong>
+                    <small style="display: block; color: #cccccc;">${item.categoria}</small>
                     <span class="text-success" style="font-size: 0.9rem;">$${precioMostrar.toFixed(2)}</span>
                     ${descuentoItem > 0 ? `<small class="text-danger" style="display: block;">-$${descuentoItem.toFixed(2)}</small>` : ''}
                     ${descuentoItem > 0 ? `<strong class="text-primary" style="font-size: 0.9rem;">$${precioFinal.toFixed(2)}</strong>` : ''}
