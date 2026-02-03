@@ -12,7 +12,7 @@ if ($id_evento > 0) {
     $res = $conn->query("SELECT titulo, tipo, mapa_json, imagen FROM evento WHERE id_evento = $id_evento");
     if ($res && $fila = $res->fetch_assoc()) {
         $evento_info = $fila;
-        $mapa_guardado = json_decode($fila['mapa_json'], true) ?: [];
+        $mapa_guardado = json_decode($fila['mapa_json'] ?? '', true) ?: [];
     }
     // Se permite vender hasta 2 horas después de iniciada la función O si es del día de hoy
     $fecha_limite = date('Y-m-d H:i:s', strtotime('-2 hours'));
