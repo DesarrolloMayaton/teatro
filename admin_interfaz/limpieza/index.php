@@ -650,10 +650,7 @@ $conn->close();
     </style>
 
     <!-- Botón de regreso -->
-    <a href="../Ajs_interfaz/index.php"
-        style="position: fixed; bottom: 16px; left: 16px; padding: 10px 16px; background: #334155; color: #f1f5f9; border-radius: 10px; text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 8px; z-index: 100;">
-        <i class="bi bi-arrow-left"></i> Ajustes
-    </a>
+
 </body>
 
 </html>

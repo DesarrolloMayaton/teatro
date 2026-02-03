@@ -577,6 +577,89 @@ if ($res_admin->num_rows > 0) {
         .toggle-switch:not(.disabled):active .toggle-slider {
             transform: scale(0.95);
         }
+        
+        /* Animación de cambio de estado */
+        @keyframes toggleActivate {
+            0% { transform: scale(1); }
+            25% { transform: scale(1.15); box-shadow: 0 0 25px rgba(16, 185, 129, 0.8); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        @keyframes toggleDeactivate {
+            0% { transform: scale(1); }
+            25% { transform: scale(1.15); box-shadow: 0 0 25px rgba(239, 68, 68, 0.8); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .toggle-slider.activating {
+            animation: toggleActivate 0.6s ease;
+        }
+        
+        .toggle-slider.deactivating {
+            animation: toggleDeactivate 0.6s ease;
+        }
+        
+        /* Indicador de estado con texto */
+        .estado-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 20px;
+            margin-left: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .estado-label.activo {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        
+        .estado-label.inactivo {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        /* Toggle Password Visibility */
+        .password-wrapper {
+            position: relative;
+        }
+        
+        .password-wrapper input {
+            padding-right: 45px;
+        }
+        
+        .btn-toggle-password {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            padding: 5px;
+            font-size: 1.1em;
+            transition: all 0.3s;
+        }
+        
+        .btn-toggle-password:hover {
+            color: #667eea;
+        }
+        
+        .password-info {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .password-info i {
+            color: #f59e0b;
+        }
 
         .acciones-cell {
             display: flex;
@@ -784,31 +867,9 @@ if ($res_admin->num_rows > 0) {
 </head>
 
 <body>
-    <!-- MODAL DE ACCESO INICIAL -->
-    <div class="modal-overlay active" id="modalAccesoInicial">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3><i class="bi bi-shield-lock"></i> Acceso Restringido</h3>
-            </div>
-            <div class="modal-body">
-                <i class="bi bi-person-badge-fill security-icon"></i>
-                <p class="security-text">Esta sección requiere verificación de administrador.<br>Ingresa tu contraseña
-                    para continuar.</p>
-                <input type="password" id="passwordAccesoInicial" class="password-input-security" placeholder="••••••"
-                    maxlength="20" onkeypress="if(event.key==='Enter') verificarAccesoInicial()" autofocus>
-                <div id="errorAcceso" style="color: #ef4444; text-align: center; margin-top: 15px; display: none;">
-                    <i class="bi bi-exclamation-triangle"></i> Contraseña incorrecta
-                </div>
-            </div>
-            <div class="modal-footer" style="justify-content: center;">
-                <button class="btn-modal btn-guardar" onclick="verificarAccesoInicial()">
-                    <i class="bi bi-unlock-fill"></i> Acceder
-                </button>
-            </div>
-        </div>
-    </div>
 
-    <div class="container page-bloqueada" id="contenidoPrincipal">
+
+    <div class="container" id="contenidoPrincipal">
         <div class="page-header">
             <h1><i class="bi bi-people-fill"></i> Gestión de Usuarios</h1>
         </div>
@@ -825,34 +886,34 @@ if ($res_admin->num_rows > 0) {
                     </div>
                 <?php endif; ?>
 
-                <form method="POST">
+                <form method="POST" id="formRegistro" onsubmit="return solicitarRegistro(event)">
                     <input type="hidden" name="registrar_nuevo" value="1">
 
                     <div class="form-group">
                         <label>Nombre de usuario</label>
-                        <input type="text" name="nombre" required placeholder="Ej: juan.perez">
+                        <input type="text" name="nombre" id="reg_nombre" required placeholder="Ej: juan.perez">
                     </div>
 
                     <div class="form-group">
                         <label>Apellido</label>
-                        <input type="text" name="apellido" required placeholder="Ej: Pérez García">
+                        <input type="text" name="apellido" id="reg_apellido" required placeholder="Ej: Pérez García">
                     </div>
 
                     <div class="form-group">
                         <label>Contraseña (mín. 6 caracteres)</label>
-                        <input type="password" name="password" required placeholder="••••••" pattern="[A-Za-z0-9]{6,}"
+                        <input type="password" name="password" id="reg_password" required placeholder="••••••" pattern="[A-Za-z0-9]{6,}"
                             title="Solo letras y números, mínimo 6 caracteres" autocomplete="new-password">
                     </div>
 
                     <div class="form-group">
                         <label>Confirmar contraseña</label>
-                        <input type="password" name="password_confirm" required placeholder="••••••" pattern="[A-Za-z0-9]{6,}"
+                        <input type="password" name="password_confirm" id="reg_password_confirm" required placeholder="••••••" pattern="[A-Za-z0-9]{6,}"
                             title="Debe coincidir y solo letras y números" autocomplete="new-password">
                     </div>
 
                     <div class="form-group">
                         <label>Rol</label>
-                        <select name="rol" required>
+                        <select name="rol" id="reg_rol" required>
                             <option value="empleado">Empleado</option>
                             <option value="admin">Administrador</option>
                         </select>
@@ -992,8 +1053,17 @@ if ($res_admin->num_rows > 0) {
 
                 <div class="form-group">
                     <label>Nueva contraseña (dejar vacío para no cambiar)</label>
-                    <input type="password" id="editar_password" placeholder="Dejar vacío para mantener" pattern="[A-Za-z0-9]{6,}"
-                        title="Solo letras y números, mínimo 6 caracteres" autocomplete="new-password">
+                    <div class="password-wrapper">
+                        <input type="password" id="editar_password" placeholder="Dejar vacío para mantener" pattern="[A-Za-z0-9]{6,}"
+                            title="Solo letras y números, mínimo 6 caracteres" autocomplete="new-password">
+                        <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('editar_password', this)">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                    <div class="password-info">
+                        <i class="bi bi-shield-lock"></i>
+                        <span>La contraseña actual está encriptada y no puede mostrarse por seguridad</span>
+                    </div>
                 </div>
 
                 <div class="form-group" id="grupo_rol">
@@ -1014,7 +1084,7 @@ if ($res_admin->num_rows > 0) {
     </div>
 
     <script>
-        let idPendienteEditar = null;
+        let accionPendiente = null;
 
         // Mostrar error en modal de seguridad
         function mostrarErrorSeguridad(mensaje) {
@@ -1026,6 +1096,20 @@ if ($res_admin->num_rows > 0) {
         // Ocultar error de seguridad
         function ocultarErrorSeguridad() {
             document.getElementById('errorSeguridad').style.display = 'none';
+        }
+
+        // Toggle password visibility
+        function togglePasswordVisibility(inputId, button) {
+            const input = document.getElementById(inputId);
+            const icon = button.querySelector('i');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'bi bi-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'bi bi-eye';
+            }
         }
 
         // Mostrar notificación flotante
@@ -1052,45 +1136,8 @@ if ($res_admin->num_rows > 0) {
             setTimeout(() => notif.remove(), 4000);
         }
 
-        // Verificar acceso inicial a la página
-        async function verificarAccesoInicial() {
-            const password = document.getElementById('passwordAccesoInicial').value;
-            const errorDiv = document.getElementById('errorAcceso');
-
-            if (!password) {
-                errorDiv.style.display = 'block';
-                errorDiv.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Ingresa tu contraseña';
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('ajax', 'verificar_password');
-            formData.append('password', password);
-
-            const response = await fetch('', { method: 'POST', body: formData });
-            const data = await response.json();
-
-            if (data.success) {
-                // Desbloquear la página
-                document.getElementById('modalAccesoInicial').classList.remove('active');
-                document.getElementById('contenidoPrincipal').classList.remove('page-bloqueada');
-                errorDiv.style.display = 'none';
-            } else {
-                errorDiv.style.display = 'block';
-                errorDiv.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Contraseña incorrecta';
-                document.getElementById('passwordAccesoInicial').value = '';
-                document.getElementById('passwordAccesoInicial').focus();
-            }
-        }
-
-        // Enfocar automáticamente el campo de contraseña al cargar
-        window.addEventListener('load', () => {
-            document.getElementById('passwordAccesoInicial').focus();
-        });
-
-        // Solicitar edición (primero pide contraseña)
-        function solicitarEditar(id) {
-            idPendienteEditar = id;
+        // Helper para mostrar modal de seguridad
+        function mostrarModalSeguridad() {
             document.getElementById('passwordSeguridad').value = '';
             ocultarErrorSeguridad();
             document.getElementById('modalSeguridad').classList.add('active');
@@ -1100,7 +1147,13 @@ if ($res_admin->num_rows > 0) {
         // Cerrar modal de seguridad
         function cerrarModalSeguridad() {
             document.getElementById('modalSeguridad').classList.remove('active');
-            idPendienteEditar = null;
+            accionPendiente = null;
+        }
+
+        // Solicitar edición (primero pide contraseña)
+        function solicitarEditar(id) {
+            accionPendiente = { tipo: 'editar', id: id };
+            mostrarModalSeguridad();
         }
 
         // Verificar contraseña de admin
@@ -1120,14 +1173,68 @@ if ($res_admin->num_rows > 0) {
             const data = await response.json();
 
             if (data.success) {
-                const idEditar = idPendienteEditar; // Guardar antes de limpiar
-                document.getElementById('modalSeguridad').classList.remove('active');
-                idPendienteEditar = null;
-                abrirModalEditar(idEditar);
+                const accion = accionPendiente;
+                cerrarModalSeguridad();
+                
+                if (accion) {
+                    if (accion.tipo === 'editar') {
+                        abrirModalEditar(accion.id);
+                    } else if (accion.tipo === 'toggle') {
+                        realizarToggle(accion.id, accion.element);
+                    } else if (accion.tipo === 'eliminar') {
+                        realizarEliminacion(accion.id);
+                    } else if (accion.tipo === 'registro') {
+                        // Enviar el formulario de registro
+                        document.getElementById('formRegistro').submit();
+                    }
+                }
             } else {
                 mostrarErrorSeguridad('Contraseña incorrecta');
                 document.getElementById('passwordSeguridad').value = '';
                 document.getElementById('passwordSeguridad').focus();
+            }
+        }
+
+        async function realizarToggle(id, checkbox) {
+             const slider = checkbox.parentElement.querySelector('.toggle-slider');
+             const wasChecked = !checkbox.checked;
+             
+             const formData = new FormData();
+             formData.append('ajax', 'toggle_estado');
+             formData.append('id', id);
+             const response = await fetch('', { method: 'POST', body: formData });
+             const data = await response.json();
+             
+             if (data.success) {
+                 checkbox.checked = data.activo;
+                 
+                 if (data.activo) {
+                     slider.classList.add('activating');
+                     mostrarNotificacion('Usuario ACTIVADO correctamente', 'success');
+                 } else {
+                     slider.classList.add('deactivating');
+                     mostrarNotificacion('Usuario DESACTIVADO', 'error');
+                 }
+                 
+                 setTimeout(() => {
+                     slider.classList.remove('activating', 'deactivating');
+                 }, 600);
+             } else {
+                 mostrarNotificacion('Error: ' + data.message, 'error');
+                 checkbox.checked = wasChecked;
+             }
+        }
+
+        async function realizarEliminacion(id) {
+            const formData = new FormData();
+            formData.append('ajax', 'eliminar_usuario');
+            formData.append('id', id);
+            const response = await fetch('', { method: 'POST', body: formData });
+            const data = await response.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                mostrarNotificacion('Error: ' + data.message, 'error');
             }
         }
 
@@ -1200,39 +1307,56 @@ if ($res_admin->num_rows > 0) {
             }
         }
 
-        // Toggle estado activo/inactivo
-        async function toggleEstado(id, checkbox) {
-            const formData = new FormData();
-            formData.append('ajax', 'toggle_estado');
-            formData.append('id', id);
-
-            const response = await fetch('', { method: 'POST', body: formData });
-            const data = await response.json();
-
-            if (!data.success) {
-                checkbox.checked = !checkbox.checked;
-                mostrarNotificacion('Error: ' + data.message, 'error');
-            }
+        // Toggle estado activo/inactivo (con seguridad)
+        function toggleEstado(id, checkbox) {
+            checkbox.checked = !checkbox.checked; // Revertir visualmente
+            accionPendiente = { tipo: 'toggle', id: id, element: checkbox };
+            mostrarModalSeguridad();
         }
 
-        // Eliminar usuario
-        async function eliminarUsuario(id, nombre) {
+        // Eliminar usuario (con seguridad)
+        function eliminarUsuario(id, nombre) {
             if (!confirm(`¿Estás seguro de ELIMINAR al usuario "${nombre}"?\n\nEsta acción no se puede deshacer.`)) {
                 return;
             }
+            accionPendiente = { tipo: 'eliminar', id: id };
+            mostrarModalSeguridad();
+        }
 
-            const formData = new FormData();
-            formData.append('ajax', 'eliminar_usuario');
-            formData.append('id', id);
-
-            const response = await fetch('', { method: 'POST', body: formData });
-            const data = await response.json();
-
-            if (data.success) {
-                document.getElementById('fila-' + id).remove();
-            } else {
-                mostrarNotificacion('Error: ' + data.message, 'error');
+        // Solicitar registro (pide contraseña primero)
+        function solicitarRegistro(event) {
+            event.preventDefault();
+            
+            // Validar campos del formulario
+            const nombre = document.getElementById('reg_nombre').value.trim();
+            const apellido = document.getElementById('reg_apellido').value.trim();
+            const password = document.getElementById('reg_password').value;
+            const passwordConfirm = document.getElementById('reg_password_confirm').value;
+            
+            if (!nombre || !apellido || !password || !passwordConfirm) {
+                mostrarNotificacion('Todos los campos son obligatorios', 'error');
+                return false;
             }
+            
+            if (password !== passwordConfirm) {
+                mostrarNotificacion('Las contraseñas no coinciden', 'error');
+                return false;
+            }
+            
+            if (password.length < 6) {
+                mostrarNotificacion('La contraseña debe tener al menos 6 caracteres', 'error');
+                return false;
+            }
+            
+            if (!/^[A-Za-z0-9]+$/.test(password)) {
+                mostrarNotificacion('La contraseña solo puede contener letras y números', 'error');
+                return false;
+            }
+            
+            // Pedir contraseña de admin
+            accionPendiente = { tipo: 'registro' };
+            mostrarModalSeguridad();
+            return false;
         }
 
         // Cerrar modales con ESC

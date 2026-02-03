@@ -307,6 +307,8 @@ try {
         $funcion_info = $conn->query("SELECT fecha_hora FROM funciones WHERE id_funcion = " . (int) $id_funcion)->fetch_assoc();
     }
 
+    $nombre_cliente = isset($data['nombre_cliente']) ? $data['nombre_cliente'] : 'Cliente General';
+
     $datos_venta = [
         'evento' => [
             'id' => $id_evento,
@@ -316,6 +318,7 @@ try {
             'id' => $id_funcion,
             'fecha_hora' => $funcion_info['fecha_hora'] ?? null
         ],
+        'cliente' => $nombre_cliente,
         'boletos' => $boletos_generados,
         'total' => $total_venta,
         'usuario_vendedor' => $id_usuario_vendedor

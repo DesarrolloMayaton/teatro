@@ -40,6 +40,40 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
             flex-direction: column;
             border-right: 1px solid var(--border-color);
             flex-shrink: 0;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .settings-sidebar.collapsed {
+            width: 80px;
+        }
+
+        .settings-sidebar.collapsed .settings-sidebar-subtitle,
+        .settings-sidebar.collapsed .settings-menu-section-title,
+        .settings-sidebar.collapsed .menu-text,
+        .settings-sidebar.collapsed .toggle-text,
+        .settings-sidebar.collapsed .settings-sidebar-title span {
+            display: none;
+        }
+
+        .settings-sidebar.collapsed .settings-sidebar-title {
+            justify-content: center;
+        }
+        
+        .settings-sidebar.collapsed .settings-menu-item {
+            justify-content: center;
+            padding: 12px 0;
+        }
+
+        .settings-sidebar.collapsed .settings-menu-item .menu-icon {
+            margin: 0;
+        }
+
+        .settings-sidebar.collapsed .settings-back {
+            text-align: center;
+        }
+
+        .settings-sidebar.collapsed .btn-toggle {
+            justify-content: center;
         }
 
         .settings-sidebar-header {
@@ -197,13 +231,30 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
             transition: var(--transition-fast);
         }
 
-        .settings-back a:hover {
+        /* Toggle Button */
+        .btn-toggle {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: var(--radius-md);
+            color: var(--text-muted);
+            background: transparent;
+            border: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: var(--transition-fast);
+            cursor: pointer;
+        }
+
+        .btn-toggle:hover {
             background: var(--bg-tertiary);
             color: var(--text-primary);
         }
 
-        .settings-back a i {
-            font-size: 1rem;
+        .btn-toggle i {
+            font-size: 1.2rem;
         }
 
         /* Content area */
@@ -376,10 +427,10 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
         </nav>
 
         <div class="settings-back">
-            <a href="../../index.php">
-                <i class="bi bi-arrow-left"></i>
-                <span>Volver al inicio</span>
-            </a>
+            <button id="sidebarToggle" class="btn-toggle" title="Minimizar menú">
+                <i class="bi bi-arrow-bar-left"></i>
+                <span class="toggle-text">Ocultar Menú</span>
+            </button>
         </div>
     </aside>
 
@@ -416,6 +467,27 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
             const headerIcon = document.getElementById('headerIcon');
             const headerTitle = document.getElementById('headerTitle');
             const headerDesc = document.getElementById('headerDesc');
+
+            // Sidebar Toggle Logic
+            const sidebar = document.querySelector('.settings-sidebar');
+            const toggleBtn = document.getElementById('sidebarToggle');
+            const toggleIcon = toggleBtn.querySelector('i');
+            const toggleText = toggleBtn.querySelector('.toggle-text');
+
+            toggleBtn.addEventListener('click', () => {
+                sidebar.classList.toggle('collapsed');
+                const isCollapsed = sidebar.classList.contains('collapsed');
+                
+                if (isCollapsed) {
+                    toggleIcon.className = 'bi bi-arrow-bar-right';
+                    toggleText.textContent = ''; // Hidden by CSS anyway, but cleaner
+                    toggleBtn.title = 'Expandir menú';
+                } else {
+                    toggleIcon.className = 'bi bi-arrow-bar-left';
+                    toggleText.textContent = 'Ocultar Menú';
+                    toggleBtn.title = 'Minimizar menú';
+                }
+            });
 
             menuItems.forEach(item => {
                 item.addEventListener('click', function(e) {

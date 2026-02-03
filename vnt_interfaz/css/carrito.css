@@ -109,6 +109,7 @@
   align-items: center;
   transition: all 0.2s ease;
   animation: slideInCart 0.3s ease;
+  color: #ffffff;
 }
 
 @keyframes slideInCart {
@@ -136,6 +137,19 @@
   line-height: 1.2;
 }
 
+/* Ensure all text in cart items is visible */
+.carrito-item .asiento-info strong {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.carrito-item .asiento-info small {
+  font-size: 0.75rem;
+  color: #a0a0a0 !important;
+}
+
 .carrito-item .asiento-nombre {
   font-weight: 700;
   font-size: 0.9rem;
@@ -145,8 +159,7 @@
 
 .carrito-item .asiento-categoria {
   font-size: 0.7rem;
-  color: #86868b;
-  display: none;
+  color: #a0a0a0;
 }
 
 .carrito-item .asiento-precio {

@@ -1,846 +1,760 @@
 <?php
-session_start();
+/* =========================
+   ADMIN - TRANSACCIONES (Consolidado & Mejorado)
+   - Búsqueda en Vivo
+   - Alto Contraste
+   - Detalle Completo (Cliente, Evento, Asientos)
+   ========================= */
 
+session_start();
 if (!isset($_SESSION['usuario_id'])) {
     header('Location: ../../login.php');
     exit();
 }
-
-// Accesible para todos los usuarios logueados (empleados y admins)
 $es_admin = ($_SESSION['usuario_rol'] === 'admin' || (isset($_SESSION['admin_verificado']) && $_SESSION['admin_verificado']));
+require_once '../../evt_interfaz/conexion.php';
 
-require_once '../../transacciones_helper.php';
-
-$fecha_desde = $_GET['fecha_desde'] ?? '';
-$fecha_hasta = $_GET['fecha_hasta'] ?? '';
-$transacciones = [];
-
-$sql_base = "SELECT t.id_transaccion, t.accion, t.descripcion, t.fecha_hora, u.nombre, u.apellido
-             FROM transacciones t
-             JOIN usuarios u ON t.id_usuario = u.id_usuario";
-
-if ($fecha_desde && $fecha_hasta) {
-    $sql = $sql_base . " WHERE t.fecha_hora >= ? AND t.fecha_hora <= ? ORDER BY t.fecha_hora DESC LIMIT 500";
-    $stmt = $conn->prepare($sql);
-    $desde = $fecha_desde . ' 00:00:00';
-    $hasta = $fecha_hasta . ' 23:59:59';
-    $stmt->bind_param('ss', $desde, $hasta);
-} elseif ($fecha_desde) {
-    $sql = $sql_base . " WHERE t.fecha_hora >= ? ORDER BY t.fecha_hora DESC LIMIT 500";
-    $stmt = $conn->prepare($sql);
-    $desde = $fecha_desde . ' 00:00:00';
-    $stmt->bind_param('s', $desde);
-} elseif ($fecha_hasta) {
-    $sql = $sql_base . " WHERE t.fecha_hora <= ? ORDER BY t.fecha_hora DESC LIMIT 500";
-    $stmt = $conn->prepare($sql);
-    $hasta = $fecha_hasta . ' 23:59:59';
-    $stmt->bind_param('s', $hasta);
-} else {
-    $sql = $sql_base . " ORDER BY t.fecha_hora DESC LIMIT 200";
-    $stmt = $conn->prepare($sql);
-}
-
-$stmt->execute();
-$result = $stmt->get_result();
-
-while ($row = $result->fetch_assoc()) {
-    $transacciones[] = $row;
-}
-
-$stmt->close();
-
+// Carga inicial de filtros para estadísticas
+$eventos_filtro = [];
+$res_ev = $conn->query("SELECT id_evento, titulo FROM evento ORDER BY id_evento DESC");
+while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transacciones del Sistema</title>
-    <link rel="icon" href="../../crt_interfaz/imagenes_teatro/nat.png" type="image/png">
+    <title>Historial de Transacciones</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" integrity="sha512-dPXYcDub/aeb08c63jRq/k6GqJ6SZlWgIz2NNZZiP9RXXpR6+8E/gVBbBQs8rY7xMz5p5yUB78/5Q1xQHcGQ4g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
     <style>
         :root {
-            --primary: #1561f0;
-            --primary-dark: #0d4fc4;
-            --success: #32d74b;
-            --danger: #ff453a;
-            --warning: #ff9f0a;
-            --info: #64d2ff;
-            --bg-main: #131313;
-            --bg-card: #1c1c1e;
-            --bg-input: #2b2b2b;
-            --text-primary: #ffffff;
-            --text-secondary: #86868b;
-            --border: #3a3a3c;
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
-            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-            --radius-lg: 16px;
+            --bs-body-bg: #131313;
+            --bs-body-color: #e0e0e0;
+            --card-bg: #1e1e1e;
+            --input-bg: #2b2b2b;
+            --border-color: #444;
+            --primary: #6366f1; /* Indigo más brillante */
+            --accent: #22d3ee; /* Cian brillante */
         }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; padding-top: 1rem; }
         
-        * { box-sizing: border-box; }
-        
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background: var(--bg-main);
-            color: var(--text-primary);
-            padding: 20px;
-            min-height: 100vh;
+        /* High Contrast Card */
+        .card { 
+            background-color: var(--card-bg); 
+            border: 1px solid var(--border-color); 
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
-        
-        .container-fluid {
-            max-width: 1200px;
-            margin: 0 auto;
+
+        /* Inputs Search */
+        .form-control, .form-select { 
+            background-color: #000; 
+            border: 1px solid #555; 
+            color: #fff; 
+            font-size: 0.95rem;
         }
-        
-        .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-md);
-            margin-bottom: 24px;
-            transition: all 0.2s ease;
+        .form-control:focus { 
+            background-color: #111; 
+            border-color: var(--primary); 
+            color: #fff; 
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3); 
         }
-        
-        .card:hover { box-shadow: var(--shadow-lg); }
-        
-        h2, h3 {
-            color: var(--text-primary);
-            font-weight: 700;
-            letter-spacing: -0.5px;
+
+        /* Table Enhanced */
+        .table-custom {
+            width: 100%;
+            border-collapse: separate; 
+            border-spacing: 0;
+            margin-bottom: 0;
         }
-        
-        .table {
-            color: var(--text-primary);
-            margin: 0;
-        }
-        
-        .table thead { background: var(--bg-input); }
-        
-        .table th {
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            letter-spacing: 0.5px;
-            border-color: var(--border);
-        }
-        
-        .table td {
-            border-color: var(--border);
-        }
-        
-        .badge-accion {
-            background: rgba(99, 102, 241, 0.15);
-            color: var(--primary);
-            border-radius: 999px;
-            padding: 4px 10px;
-            font-size: 0.75rem;
+        .table-custom thead th {
+            background-color: #2d2d2d;
+            color: #fff;
+            padding: 12px 15px;
             font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid var(--primary);
         }
-        
-        .descripcion {
-            max-width: 320px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            color: var(--text-secondary);
+        .table-custom tbody tr {
+            background-color: #1a1a1a;
+            color: #ddd;
+            transition: all 0.2s;
         }
-        
-        tbody tr {
+        .table-custom tbody tr:nth-child(even) {
+            background-color: #222;
+        }
+        .table-custom tbody tr:hover {
+            background-color: #333;
             cursor: pointer;
-            transition: all 0.2s ease;
+            color: #fff;
         }
-        
-        tbody tr:hover {
-            background-color: rgba(99, 102, 241, 0.08);
+        .table-custom td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #333;
+            vertical-align: middle;
+            font-size: 0.9rem;
         }
-        
-        .modal-content {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            color: var(--text-primary);
+
+        /* Badges */
+        .badge-client {
+            background: rgba(34, 211, 238, 0.1);
+            color: #22d3ee;
+            border: 1px solid rgba(34, 211, 238, 0.3);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 500;
         }
-        
-        .modal-header, .modal-footer {
-            border-color: var(--border);
+        .badge-event {
+            background: rgba(168, 85, 247, 0.1);
+            color: #c084fc;
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 0.8rem;
         }
-        
-        .modal-body {
-            max-height: 70vh;
-            overflow-y: auto;
-        }
-        
-        .detalle-item {
+
+        /* Modal Detail */
+        .detail-row {
+            padding: 10px 0;
+            border-bottom: 1px solid #333;
             display: flex;
             justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid var(--border);
         }
-        
-        .detalle-item:last-child { border-bottom: none; }
-        
-        .detalle-label {
-            font-weight: 600;
-            color: var(--text-secondary);
-            min-width: 150px;
+        .detail-row:last-child { border-bottom: none; }
+        .detail-label { color: #888; }
+        .detail-val { color: #fff; font-weight: 600; text-align: right; }
+
+        /* Pagination Links */
+        .pagination-link {
+            color: #888;
+            padding: 5px 10px;
+            border: 1px solid #444;
+            margin: 0 2px;
+            text-decoration: none;
+            border-radius: 4px;
         }
-        
-        .detalle-valor {
-            color: var(--text-primary);
-            word-break: break-word;
-            flex: 1;
-            text-align: right;
-        }
-        
-        .json-viewer {
-            background: var(--bg-input);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 12px;
-            font-family: 'Courier New', monospace;
-            font-size: 0.85rem;
-            overflow-x: auto;
-            max-height: 300px;
-            overflow-y: auto;
-            color: var(--text-primary);
-        }
-        
-        .badge-accion-modal {
-            display: inline-block;
-            background: rgba(99, 102, 241, 0.15);
-            color: var(--primary);
-            border-radius: 999px;
-            padding: 6px 14px;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-        
-        .filtros-label {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-        }
-        
-        .form-control {
-            background: var(--bg-input);
-            border: 1px solid var(--border);
-            color: var(--text-primary);
-            border-radius: 8px;
-        }
-        
-        .form-control:focus {
-            background: var(--bg-input);
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
-            color: var(--text-primary);
-        }
-        
-        .btn-primary {
-            background: var(--primary);
-            border-color: var(--primary);
-        }
-        
-        .btn-outline-secondary {
-            color: var(--text-secondary);
-            border-color: var(--border);
-        }
-        
-        .btn-outline-secondary:hover {
-            background: var(--bg-input);
-            color: var(--text-primary);
-        }
-        
-        .btn-outline-primary {
-            color: var(--primary);
-            border-color: var(--primary);
-        }
-        
-        .btn-outline-primary:hover {
-            background: var(--primary);
-            color: white;
-        }
-        
-        .nueva-transaccion {
-            animation: slideInDown 0.5s ease-out;
-            background: rgba(99, 102, 241, 0.1) !important;
-        }
-        
-        @keyframes slideInDown {
-            from { opacity: 0; transform: translateY(-20px); }
+        /* Premium Animations & Glassmorphism */
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
         
-        .status-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 12px;
-            border-radius: 999px;
-            font-size: 0.75rem;
-            font-weight: 600;
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 5px rgba(99, 102, 241, 0.2); }
+            50% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.4); }
+            100% { box-shadow: 0 0 5px rgba(99, 102, 241, 0.2); }
+        }
+
+        .animate-enter {
+            animation: fadeSlideUp 0.5s ease-out forwards;
+            opacity: 0; /* Init hidden */
+        }
+
+        /* Stagger delays */
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.2s; }
+        .delay-3 { animation-delay: 0.3s; }
+        .delay-4 { animation-delay: 0.4s; }
+
+        .glass-panel {
+            background: rgba(33, 37, 41, 0.85); /* bg-dark with opacity */
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .premium-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border-color: var(--primary) !important;
+        }
+
+        /* Improved Table */
+        .table-custom tr { transition: all 0.2s ease; }
+        .table-custom tr:hover td {
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+            box-shadow: inset 4px 0 0 var(--primary);
         }
         
-        .status-indicator.active {
-            background: rgba(16, 185, 129, 0.15);
-            color: var(--success);
+        /* Stats Cards */
+        .kpi-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .kpi-card:hover { transform: scale(1.03); box-shadow: 0 15px 30px rgba(0,0,0,0.5); }
+
+        .pagination-link.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary);
         }
-        
-        .status-indicator.paused {
-            background: rgba(245, 158, 11, 0.15);
-            color: var(--warning);
-        }
-        
-        .status-indicator .pulse {
-            width: 8px;
-            height: 8px;
+
+        /* Live Indicator Styles */
+        .live-indicator {
+            width: 10px;
+            height: 10px;
+            background: #22c55e;
             border-radius: 50%;
-            background: currentColor;
-            animation: pulse 2s infinite;
+            animation: liveGlow 1.5s ease-in-out infinite;
+            box-shadow: 0 0 8px #22c55e;
         }
         
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+        @keyframes liveGlow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
         }
         
-        .text-secondary { color: var(--text-secondary) !important; }
-        .btn-close { filter: invert(1); }
+        .live-indicator.paused {
+            background: #6b7280;
+            animation: none;
+            box-shadow: none;
+        }
+        
+        #btnRealTime.btn-success {
+            background: linear-gradient(135deg, #059669, #10b981);
+            border: none;
+            box-shadow: 0 2px 10px rgba(16, 185, 129, 0.3);
+        }
+        
+        #btnRealTime.btn-secondary {
+            background: linear-gradient(135deg, #374151, #4b5563);
+            border: none;
+        }
+        
+        /* Nueva transacción animación */
+        @keyframes newRowHighlight {
+            0% { background: rgba(34, 197, 94, 0.4); }
+            100% { background: transparent; }
+        }
+        
+        .new-transaction {
+            animation: newRowHighlight 2s ease-out forwards;
+        }
+        
+        /* Estilos para pestañas mejoradas */
+        .nav-pills .nav-link {
+            transition: all 0.3s ease;
+        }
+        
+        .nav-pills .nav-link.active {
+            background: linear-gradient(135deg, var(--primary), #818cf8) !important;
+            color: white !important;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        }
+        
+        .nav-pills .nav-link:not(.active):hover {
+            background: rgba(99, 102, 241, 0.2);
+            color: white !important;
+        }
+        
+        /* Form controls grandes */
+        .form-control-lg, .form-select-lg {
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            border-radius: 0.5rem;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25) !important;
+        }
+        
+        /* Labels de formulario */
+        .form-label {
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Botones grandes mejorados */
+        .btn-lg {
+            padding: 0.75rem 1.25rem;
+            font-size: 1rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-lg:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        
+        .btn-lg:active {
+            transform: translateY(0);
+        }
     </style>
 </head>
-<body>
-<div class="container-fluid">
-    <div class="card p-4 mb-4">
-        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-3">
-            <div>
-                <h2 class="m-0 d-flex align-items-center"><i class="bi bi-clock-history me-3"></i>Transacciones de Usuarios</h2>
-                <p class="text-secondary mb-0">Historial de acciones realizadas por los usuarios logeados.</p>
+<body class="p-3">
+    <div class="container-fluid">
+        
+        <!-- Header & Tabs -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="d-flex align-items-center">
+                <h3 class="fw-bold mb-0 text-white"><i class="bi bi-clock-history me-2" style="color:var(--primary)"></i>Centro de Actividad</h3>
+                <span id="headerTotalCount" class="badge bg-primary ms-3 fs-6">0 registros</span>
             </div>
-            <div class="text-end">
-                <div class="mb-2">
-                    <span class="status-indicator active" id="statusIndicator">
-                        <span class="pulse"></span>
-                        <span id="statusText">Actualizando en tiempo real</span>
-                    </span>
-                </div>
-                <span class="text-secondary small">Registros mostrados:</span>
-                <div class="fs-4 fw-bold" id="countTransacciones"><?php echo count($transacciones); ?></div>
-            </div>
+            
+            <ul class="nav nav-pills bg-dark rounded-3 border border-secondary p-2 gap-2" id="pills-tab" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active rounded-2 px-4 py-3 d-flex align-items-center gap-2 fw-bold" id="pills-historial-tab" data-bs-toggle="pill" data-bs-target="#pills-historial" style="font-size: 1.1rem;">
+                        <i class="bi bi-list-ul fs-5"></i> Historial
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link rounded-2 px-4 py-3 d-flex align-items-center gap-2 fw-bold text-secondary" id="pills-stats-tab" data-bs-toggle="pill" data-bs-target="#pills-stats" style="font-size: 1.1rem;">
+                        <i class="bi bi-bar-chart-fill fs-5"></i> Estadísticas
+                    </button>
+                </li>
+            </ul>
         </div>
-        <form method="GET" class="row g-3 align-items-end">
-            <div class="col-md-4">
-                <label for="fecha_desde" class="filtros-label">Desde</label>
-                <input type="date" id="fecha_desde" name="fecha_desde" class="form-control" value="<?php echo htmlspecialchars($fecha_desde); ?>">
-            </div>
-            <div class="col-md-4">
-                <label for="fecha_hasta" class="filtros-label">Hasta</label>
-                <input type="date" id="fecha_hasta" name="fecha_hasta" class="form-control" value="<?php echo htmlspecialchars($fecha_hasta); ?>">
-            </div>
-            <div class="col-md-4 d-flex gap-2">
-                <button type="button" onclick="aplicarFiltros()" class="btn btn-primary flex-grow-1"><i class="bi bi-funnel"></i> Filtrar</button>
-                <a href="index.php" class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i></a>
-                <button type="button" onclick="toggleAutoUpdate()" class="btn btn-outline-primary" id="btnToggleUpdate" title="Pausar/Reanudar actualización automática">
-                    <i class="bi bi-pause-fill" id="iconToggleUpdate"></i>
-                </button>
-            </div>
-        </form>
-    </div>
 
-    <div class="card p-3">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>Fecha y hora</th>
-                        <th>Usuario</th>
-                        <th>Acción</th>
-                        <th>Descripción</th>
-                    </tr>
-                </thead>
-                <tbody id="transaccionesBody">
-                <?php if (empty($transacciones)): ?>
-                    <tr id="emptyRow">
-                        <td colspan="4" class="text-center text-secondary py-4">No hay transacciones para el criterio seleccionado.</td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach ($transacciones as $t): ?>
-                        <tr data-id="<?php echo $t['id_transaccion']; ?>">
-                            <td class="text-nowrap"><?php echo date('d/m/Y H:i:s', strtotime($t['fecha_hora'])); ?></td>
-                            <td><?php echo htmlspecialchars($t['nombre'] . ' ' . $t['apellido']); ?></td>
-                            <td><span class="badge-accion"><?php echo htmlspecialchars($t['accion']); ?></span></td>
-                            <td class="descripcion" title="<?php echo htmlspecialchars($t['descripcion'] ?? ''); ?>"><?php echo htmlspecialchars($t['descripcion'] ?? ''); ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<!-- Modal de Detalles de Transacción -->
-<div class="modal fade" id="modalDetalleTransaccion" tabindex="-1" aria-labelledby="modalDetalleLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg">
-            <div class="modal-header border-bottom">
-                <h5 class="modal-title fw-bold" id="modalDetalleLabel">
-                    <i class="bi bi-info-circle me-2"></i>Detalles de la Transacción
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="detalleContent">
-                    <div class="text-center py-4">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Cargando...</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer border-top">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-// Estado de la aplicación
-let autoUpdateEnabled = true;
-let updateInterval = null;
-let ultimaIdTransaccion = 0;
-let filtroDesde = '<?php echo htmlspecialchars($fecha_desde); ?>';
-let filtroHasta = '<?php echo htmlspecialchars($fecha_hasta); ?>';
-
-// Inicializar última ID
-document.addEventListener('DOMContentLoaded', () => {
-    const rows = document.querySelectorAll('#transaccionesBody tr[data-id]');
-    if (rows.length > 0) {
-        const ids = Array.from(rows).map(row => parseInt(row.dataset.id));
-        ultimaIdTransaccion = Math.max(...ids);
-        
-        // Agregar eventos de clic a las filas existentes
-        rows.forEach(row => {
-            row.addEventListener('click', () => {
-                abrirDetalleTransaccion(row.dataset.id);
-            });
-        });
-    }
-    
-    // Iniciar actualización automática
-    iniciarAutoUpdate();
-});
-
-// Función para formatear fecha
-function formatearFecha(fechaStr) {
-    const fecha = new Date(fechaStr);
-    const dia = String(fecha.getDate()).padStart(2, '0');
-    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
-    const anio = fecha.getFullYear();
-    const horas = String(fecha.getHours()).padStart(2, '0');
-    const minutos = String(fecha.getMinutes()).padStart(2, '0');
-    const segundos = String(fecha.getSeconds()).padStart(2, '0');
-    return `${dia}/${mes}/${anio} ${horas}:${minutos}:${segundos}`;
-}
-
-// Función para crear una fila de transacción
-function crearFilaTransaccion(t) {
-    const tr = document.createElement('tr');
-    tr.dataset.id = t.id_transaccion;
-    tr.className = 'nueva-transaccion';
-    
-    tr.innerHTML = `
-        <td class="text-nowrap">${formatearFecha(t.fecha_hora)}</td>
-        <td>${escapeHtml(t.nombre + ' ' + t.apellido)}</td>
-        <td><span class="badge-accion">${escapeHtml(t.accion)}</span></td>
-        <td class="descripcion" title="${escapeHtml(t.descripcion || '')}">${escapeHtml(t.descripcion || '')}</td>
-    `;
-    
-    // Agregar evento de clic para abrir modal
-    tr.addEventListener('click', () => {
-        abrirDetalleTransaccion(t.id_transaccion);
-    });
-    
-    // Remover la clase de animación después de que termine
-    setTimeout(() => {
-        tr.classList.remove('nueva-transaccion');
-    }, 500);
-    
-    return tr;
-}
-
-// Función para escapar HTML
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Función para cargar nuevas transacciones
-async function cargarNuevasTransacciones() {
-    if (!autoUpdateEnabled) return;
-    
-    try {
-        const params = new URLSearchParams({
-            ultima_id: ultimaIdTransaccion
-        });
-        
-        if (filtroDesde) params.append('fecha_desde', filtroDesde);
-        if (filtroHasta) params.append('fecha_hasta', filtroHasta);
-        
-        const response = await fetch(`api_transacciones.php?${params.toString()}`);
-        const data = await response.json();
-        
-        if (data.success && data.transacciones.length > 0) {
-            const tbody = document.getElementById('transaccionesBody');
-            const emptyRow = document.getElementById('emptyRow');
+        <div class="tab-content" id="pills-tabContent">
             
-            // Remover fila vacía si existe
-            if (emptyRow) {
-                emptyRow.remove();
-            }
-            
-            // Agregar nuevas transacciones al inicio
-            data.transacciones.reverse().forEach(t => {
-                const nuevaFila = crearFilaTransaccion(t);
-                tbody.insertBefore(nuevaFila, tbody.firstChild);
-                
-                // Actualizar última ID
-                if (t.id_transaccion > ultimaIdTransaccion) {
-                    ultimaIdTransaccion = t.id_transaccion;
-                }
-            });
-            
-            // Actualizar contador
-            const totalRows = tbody.querySelectorAll('tr[data-id]').length;
-            document.getElementById('countTransacciones').textContent = totalRows;
-            
-            // Limitar a 500 filas
-            const allRows = tbody.querySelectorAll('tr[data-id]');
-            if (allRows.length > 500) {
-                for (let i = 500; i < allRows.length; i++) {
-                    allRows[i].remove();
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Error al cargar transacciones:', error);
-    }
-}
-
-// Función para recargar todas las transacciones
-async function recargarTransacciones() {
-    try {
-        const params = new URLSearchParams();
-        if (filtroDesde) params.append('fecha_desde', filtroDesde);
-        if (filtroHasta) params.append('fecha_hasta', filtroHasta);
-        
-        const response = await fetch(`api_transacciones.php?${params.toString()}`);
-        const data = await response.json();
-        
-        if (data.success) {
-            const tbody = document.getElementById('transaccionesBody');
-            tbody.innerHTML = '';
-            
-            if (data.transacciones.length === 0) {
-                tbody.innerHTML = '<tr id="emptyRow"><td colspan="4" class="text-center text-secondary py-4">No hay transacciones para el criterio seleccionado.</td></tr>';
-                ultimaIdTransaccion = 0;
-            } else {
-                data.transacciones.forEach(t => {
-                    tbody.appendChild(crearFilaTransaccion(t));
-                    if (t.id_transaccion > ultimaIdTransaccion) {
-                        ultimaIdTransaccion = t.id_transaccion;
-                    }
-                });
-            }
-            
-            document.getElementById('countTransacciones').textContent = data.count;
-        }
-    } catch (error) {
-        console.error('Error al recargar transacciones:', error);
-    }
-}
-
-// Función para aplicar filtros
-function aplicarFiltros() {
-    filtroDesde = document.getElementById('fecha_desde').value;
-    filtroHasta = document.getElementById('fecha_hasta').value;
-    ultimaIdTransaccion = 0;
-    recargarTransacciones();
-}
-
-// Función para iniciar actualización automática
-function iniciarAutoUpdate() {
-    if (updateInterval) {
-        clearInterval(updateInterval);
-    }
-    updateInterval = setInterval(cargarNuevasTransacciones, 3000); // Cada 3 segundos
-}
-
-// Función para pausar/reanudar actualización
-function toggleAutoUpdate() {
-    autoUpdateEnabled = !autoUpdateEnabled;
-    
-    const statusIndicator = document.getElementById('statusIndicator');
-    const statusText = document.getElementById('statusText');
-    const btnIcon = document.getElementById('iconToggleUpdate');
-    
-    if (autoUpdateEnabled) {
-        statusIndicator.classList.remove('paused');
-        statusIndicator.classList.add('active');
-        statusText.textContent = 'Actualizando en tiempo real';
-        btnIcon.className = 'bi bi-pause-fill';
-        iniciarAutoUpdate();
-    } else {
-        statusIndicator.classList.remove('active');
-        statusIndicator.classList.add('paused');
-        statusText.textContent = 'Actualización pausada';
-        btnIcon.className = 'bi bi-play-fill';
-        if (updateInterval) {
-            clearInterval(updateInterval);
-        }
-    }
-}
-
-// Limpiar intervalo al cerrar la página
-window.addEventListener('beforeunload', () => {
-    if (updateInterval) {
-        clearInterval(updateInterval);
-    }
-});
-
-// Función para abrir el modal de detalles
-async function abrirDetalleTransaccion(idTransaccion) {
-    const modal = new bootstrap.Modal(document.getElementById('modalDetalleTransaccion'));
-    const detalleContent = document.getElementById('detalleContent');
-    
-    // Mostrar spinner
-    detalleContent.innerHTML = `
-        <div class="text-center py-4">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Cargando...</span>
-            </div>
-        </div>
-    `;
-    
-    modal.show();
-    
-    try {
-        const response = await fetch(`api_detalle_transaccion.php?id=${idTransaccion}`);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const text = await response.text();
-        let data;
-        
-        try {
-            data = JSON.parse(text);
-        } catch (e) {
-            console.error('Respuesta no es JSON válido:', text);
-            throw new Error('La respuesta del servidor no es JSON válido');
-        }
-        
-        if (data.success) {
-            const t = data.transaccion;
-            const datosAdicionales = data.datos_adicionales;
-            
-            let html = `
-                <div class="detalle-item">
-                    <span class="detalle-label">ID Transacción:</span>
-                    <span class="detalle-valor">#${t.id_transaccion}</span>
-                </div>
-                <div class="detalle-item">
-                    <span class="detalle-label">Fecha y Hora:</span>
-                    <span class="detalle-valor">${formatearFecha(t.fecha_hora)}</span>
-                </div>
-                <div class="detalle-item">
-                    <span class="detalle-label">Vendedor:</span>
-                    <span class="detalle-valor"><strong>${escapeHtml(t.nombre + ' ' + t.apellido)}</strong></span>
-                </div>
-                <div class="detalle-item">
-                    <span class="detalle-label">Acción:</span>
-                    <span class="detalle-valor"><span class="badge-accion-modal">${escapeHtml(t.accion)}</span></span>
-                </div>
-                <div class="detalle-item">
-                    <span class="detalle-label">Descripción:</span>
-                    <span class="detalle-valor">${escapeHtml(t.descripcion || 'N/A')}</span>
-                </div>
-            `;
-            
-            // Si es una VENTA, mostrar detalles específicos
-            if (t.accion === 'venta' && datosAdicionales && datosAdicionales.evento) {
-                const evt = datosAdicionales.evento;
-                const func = datosAdicionales.funcion;
-                const resumen = datosAdicionales.resumen || {};
-                const boletos = datosAdicionales.boletos || [];
-                
-                html += `
-                    <hr class="my-3">
-                    <div style="background: rgba(16, 185, 129, 0.08); padding: 16px; border-radius: 10px; border: 1px solid rgba(16, 185, 129, 0.2);">
-                        <h6 class="fw-bold mb-3" style="color: var(--success);">
-                            <i class="bi bi-cart-check-fill me-2"></i>Detalles de la Venta
-                        </h6>
-                        <div class="detalle-item">
-                            <span class="detalle-label">Evento:</span>
-                            <span class="detalle-valor"><strong>${escapeHtml(evt.titulo || 'N/A')}</strong></span>
-                        </div>
-                        ${func && func.fecha_hora ? `
-                        <div class="detalle-item">
-                            <span class="detalle-label">Función:</span>
-                            <span class="detalle-valor">${formatearFecha(func.fecha_hora)}</span>
-                        </div>
-                        ` : ''}
-                        <div class="detalle-item">
-                            <span class="detalle-label">Cantidad:</span>
-                            <span class="detalle-valor"><span class="badge bg-primary">${resumen.cantidad || boletos.length} boleto(s)</span></span>
-                        </div>
-                        <div class="detalle-item">
-                            <span class="detalle-label">Total:</span>
-                            <span class="detalle-valor" style="color: var(--success); font-weight: bold; font-size: 1.1rem;">$${(resumen.total || 0).toFixed(2)}</span>
-                        </div>
-                    </div>
-                `;
-                
-                // Mostrar desglose de boletos
-                if (boletos.length > 0) {
-                    html += `
-                        <div style="background: var(--bg-input); padding: 16px; border-radius: 10px; margin-top: 12px;">
-                            <h6 class="fw-bold mb-3" style="color: var(--text-primary);">
-                                <i class="bi bi-ticket-perforated me-2"></i>Desglose de Boletos
-                            </h6>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-borderless mb-0" style="font-size: 0.85rem;">
-                                    <thead>
-                                        <tr style="color: var(--text-secondary);">
-                                            <th>Asiento</th>
-                                            <th>Tipo</th>
-                                            <th class="text-end">Precio</th>
-                                            <th class="text-end">Desc.</th>
-                                            <th class="text-end">Final</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                    `;
+            <!-- TAB HISTORIAL (MEJORADO) -->
+            <div class="tab-pane fade show active" id="pills-historial">
+                <div class="card p-0 overflow-hidden">
                     
-                    boletos.forEach(b => {
-                        const tipoLabel = {
-                            'adulto': '👤 Adulto',
-                            'nino': '👦 Niño',
-                            '3ra_edad': '👴 3ra Edad',
-                            'cortesia': '🎁 Cortesía'
-                        };
-                        html += `
-                            <tr>
-                                <td><strong>${escapeHtml(b.asiento)}</strong></td>
-                                <td>${tipoLabel[b.tipo_boleto] || b.tipo_boleto}</td>
-                                <td class="text-end">$${(b.precio_base || 0).toFixed(2)}</td>
-                                <td class="text-end" style="color: ${b.descuento > 0 ? 'var(--warning)' : 'var(--text-secondary)'};">${b.descuento > 0 ? '-$' + b.descuento.toFixed(2) : '-'}</td>
-                                <td class="text-end"><strong>$${(b.precio_final || 0).toFixed(2)}</strong></td>
-                            </tr>
-                        `;
-                    });
-                    
-                    html += `
-                                    </tbody>
-                                </table>
+                    <!-- Search Bar Toolbar - REDISEÑADO -->
+                    <div class="bg-dark p-4 border-bottom border-secondary">
+                        <div class="row g-3 align-items-end">
+                            <!-- Búsqueda -->
+                            <div class="col-lg-4 col-md-12">
+                                <label class="form-label text-primary fw-bold mb-2">
+                                    <i class="bi bi-search me-1"></i> Buscar
+                                </label>
+                                <div class="position-relative">
+                                    <i class="bi bi-search position-absolute text-muted" style="left: 15px; top: 50%; transform: translateY(-50%);"></i>
+                                    <input type="text" id="searchInput" class="form-control form-control-lg ps-5 bg-black text-white border-secondary" placeholder="Cliente, vendedor, evento o acción..." autocomplete="off">
+                                </div>
+                            </div>
+                            
+                            <!-- Fecha Desde -->
+                            <div class="col-lg-2 col-md-4 col-sm-6">
+                                <label class="form-label text-warning fw-bold mb-2">
+                                    <i class="bi bi-calendar-event me-1"></i> Desde
+                                </label>
+                                <input type="date" id="filterDesde" class="form-control form-control-lg bg-black text-white border-secondary">
+                            </div>
+                            
+                            <!-- Fecha Hasta -->
+                            <div class="col-lg-2 col-md-4 col-sm-6">
+                                <label class="form-label text-warning fw-bold mb-2">
+                                    <i class="bi bi-calendar-check me-1"></i> Hasta
+                                </label>
+                                <input type="date" id="filterHasta" class="form-control form-control-lg bg-black text-white border-secondary">
+                            </div>
+                            
+                            <!-- Botones de Acción -->
+                            <div class="col-lg-4 col-md-4 col-sm-12">
+                                <div class="d-flex gap-2 flex-wrap justify-content-end">
+                                    <button class="btn btn-primary btn-lg px-4" onclick="filtrarConFechas()" title="Aplicar Filtros">
+                                        <i class="bi bi-funnel-fill me-1"></i> Filtrar
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-lg px-3" onclick="limpiarBusqueda()" title="Limpiar filtros">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                    </button>
+                                    <div class="vr bg-secondary mx-1"></div>
+                                    <button id="btnRealTime" class="btn btn-success btn-lg d-flex align-items-center gap-2 px-3" onclick="toggleRealTime()" title="Actualización en tiempo real">
+                                        <span class="live-indicator"></span>
+                                        <i class="bi bi-broadcast"></i>
+                                        <span id="realTimeLabel">LIVE</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Enhanced Table -->
+                    <div class="table-responsive">
+                        <table class="table-custom" id="transactionsTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 200px;">Fecha/Hora</th>
+                                    <th style="width: 150px;">Acción</th>
+                                    <th>Descripción / Detalle</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyTransactions">
+                                <tr><td colspan="3" class="text-center py-5 text-muted">Cargando transacciones...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Footer Pagination -->
+                    <div class="p-3 bg-dark border-top border-secondary d-flex justify-content-between align-items-center">
+                        <small class="text-muted" id="resultsCount">Mostrando 0 resultados</small>
+                        <div id="paginationContainer"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB ESTADISTICAS (PREMIUM - IFRAME) -->
+            <div class="tab-pane fade" id="pills-stats">
+                <div class="card bg-transparent border-0 p-0" style="margin: -1rem;">
+                    <iframe id="statsIframe" src="estadisticas.php" style="width: 100%; height: calc(100vh - 100px); border: none; border-radius: 8px;"></iframe>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Modal Detalle Rico -->
+    <div class="modal fade" id="modalDetail" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark text-white border-secondary shadow-lg">
+                <div class="modal-header border-bottom border-secondary">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-receipt me-2 text-primary"></i>Detalle de Transacción</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4" id="modalDetailBody">
+                    <!-- Dynamic Content -->
+                </div>
+                <div class="modal-footer border-top border-secondary bg-black bg-opacity-25">
+                    <button type="button" class="btn btn-sm btn-outline-light" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let debounceTimer;
+        let currentPage = 1;
+        let chartHoraInstance = null;
+        let chartCategoriaInstance = null;
+        let chartTipoInstance = null;
+        
+        // === TIEMPO REAL ===
+        let realTimeEnabled = true;
+        let realTimeInterval = null;
+        let lastTransactionId = 0;
+        const POLLING_INTERVAL = 5000; // 5 segundos
+        
+        // === TIEMPO REAL ESTADÍSTICAS ===
+        let realTimeStatsEnabled = true;
+        let realTimeStatsInterval = null;
+        const POLLING_STATS_INTERVAL = 10000; // 10 segundos para estadísticas
+
+        // Auto load
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchTransactions();
+            startRealTime(); // Iniciar tiempo real por defecto
+            
+            // Auto-load stats if tab is active, or wait until clicked
+            const statsTab = document.getElementById('pills-stats-tab');
+            statsTab.addEventListener('shown.bs.tab', () => {
+                // Limpiar filtros de estadísticas al entrar
+                limpiarFiltrosStats();
+                cargarEstadisticas();
+                if (realTimeStatsEnabled) {
+                    startRealTimeStats();
+                }
+            });
+            
+            // Detener polling de stats cuando se sale de la pestaña
+            const historialTab = document.getElementById('pills-historial-tab');
+            historialTab.addEventListener('shown.bs.tab', () => {
+                stopRealTimeStats();
+                // Limpiar filtros de historial al entrar
+                limpiarBusqueda();
+            });
+        });
+        
+        // === FUNCIONES PARA LIMPIAR FILTROS ===
+        function limpiarFiltrosStats() {
+            document.getElementById('statsFromDB').value = 'actual';
+            document.getElementById('statsDesde').value = '';
+            document.getElementById('statsHasta').value = '';
+            document.getElementById('statsEvento').value = '';
+        }
+        
+        // === FUNCIONES TIEMPO REAL ===
+        function toggleRealTime() {
+            realTimeEnabled = !realTimeEnabled;
+            
+            const btn = document.getElementById('btnRealTime');
+            const label = document.getElementById('realTimeLabel');
+            const indicator = btn.querySelector('.live-indicator');
+            
+            if (realTimeEnabled) {
+                btn.classList.remove('btn-secondary');
+                btn.classList.add('btn-success');
+                label.textContent = 'LIVE';
+                indicator.classList.remove('paused');
+                startRealTime();
+            } else {
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-secondary');
+                label.textContent = 'PAUSADO';
+                indicator.classList.add('paused');
+                stopRealTime();
+            }
+        }
+        
+        function startRealTime() {
+            if (realTimeInterval) clearInterval(realTimeInterval);
+            realTimeInterval = setInterval(checkNewTransactions, POLLING_INTERVAL);
+        }
+        
+        function stopRealTime() {
+            if (realTimeInterval) {
+                clearInterval(realTimeInterval);
+                realTimeInterval = null;
+            }
+        }
+        
+        async function checkNewTransactions() {
+            // Solo verificar nuevas transacciones si estamos en la página 1 y sin filtros
+            const query = document.getElementById('searchInput').value;
+            const desde = document.getElementById('filterDesde').value;
+            const hasta = document.getElementById('filterHasta').value;
+            
+            if (currentPage !== 1 || query !== '' || desde !== '' || hasta !== '') {
+                return; // No hacer polling si hay filtros activos o no estamos en página 1
+            }
+            
+            try {
+                const params = new URLSearchParams({
+                    q: '',
+                    fecha_desde: '',
+                    fecha_hasta: '',
+                    page: 1,
+                    last_id: lastTransactionId
+                });
+                
+                const res = await fetch(`api_search_transactions.php?${params.toString()}`);
+                const data = await res.json();
+                
+                if (!data.success) return;
+                
+                // Si hay nuevas transacciones (id mayor al último conocido)
+                if (data.data.length > 0 && data.data[0].id_transaccion > lastTransactionId) {
+                    // Actualizar la tabla completa
+                    fetchTransactions();
+                }
+            } catch (e) {
+                console.error('Error checking new transactions:', e);
+            }
+        }
+        
+        // === FUNCIONES TIEMPO REAL ESTADÍSTICAS ===
+        function toggleRealTimeStats() {
+            realTimeStatsEnabled = !realTimeStatsEnabled;
+            
+            const btn = document.getElementById('btnRealTimeStats');
+            const label = document.getElementById('realTimeStatsLabel');
+            const indicator = btn.querySelector('.live-indicator');
+            
+            if (realTimeStatsEnabled) {
+                btn.classList.remove('btn-secondary');
+                btn.classList.add('btn-success');
+                label.textContent = 'LIVE';
+                indicator.classList.remove('paused');
+                startRealTimeStats();
+            } else {
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-secondary');
+                label.textContent = 'PAUSADO';
+                indicator.classList.add('paused');
+                stopRealTimeStats();
+            }
+        }
+        
+        function startRealTimeStats() {
+            if (realTimeStatsInterval) clearInterval(realTimeStatsInterval);
+            realTimeStatsInterval = setInterval(() => {
+                // Solo actualizar si la pestaña de stats está activa
+                const statsTab = document.getElementById('pills-stats');
+                if (statsTab.classList.contains('show') && statsTab.classList.contains('active')) {
+                    cargarEstadisticas();
+                }
+            }, POLLING_STATS_INTERVAL);
+        }
+        
+        function stopRealTimeStats() {
+            if (realTimeStatsInterval) {
+                clearInterval(realTimeStatsInterval);
+                realTimeStatsInterval = null;
+            }
+        }
+
+        // Search Input Logic (from previous tasks) ...
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                currentPage = 1;
+                fetchTransactions();
+            }, 300);
+        });
+
+        function filtrarConFechas() {
+            currentPage = 1;
+            fetchTransactions();
+        }
+
+        function limpiarBusqueda() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('filterDesde').value = '';
+            document.getElementById('filterHasta').value = '';
+            currentPage = 1;
+            fetchTransactions();
+        }
+
+        async function fetchTransactions() {
+             // ... existing logic ...
+            const query = document.getElementById('searchInput').value;
+            const desde = document.getElementById('filterDesde').value;
+            const hasta = document.getElementById('filterHasta').value;
+            
+            const tbody = document.getElementById('tbodyTransactions');
+            const countLabel = document.getElementById('resultsCount');
+            const pagContainer = document.getElementById('paginationContainer');
+
+            if(query === '' && desde === '' && hasta === '' && currentPage === 1) tbody.innerHTML = '<tr><td colspan="3" class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-2"></div><br>Cargando...</td></tr>';
+            
+            const params = new URLSearchParams({
+                q: query,
+                fecha_desde: desde,
+                fecha_hasta: hasta,
+                page: currentPage
+            });
+
+            try {
+                const res = await fetch(`api_search_transactions.php?${params.toString()}`);
+                const data = await res.json();
+                
+                if (!data.success) throw new Error(data.error);
+
+                if (data.data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="text-center py-5 text-muted">No se encontraron transacciones.</td></tr>';
+                    countLabel.innerText = '0 resultados';
+                    pagContainer.innerHTML = '';
+                    return;
+                }
+
+                tbody.innerHTML = data.data.map((t, index) => {
+                    const extra = t.extra || {};
+                    const dateObj = new Date(t.fecha_hora);
+                    const dateStr = dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + 
+                                  dateObj.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+                    let badgeClass = 'bg-secondary';
+                    if(t.accion === 'venta') badgeClass = 'bg-success';
+                    if(t.accion === 'login') badgeClass = 'bg-primary';
+                    if(t.accion === 'logout') badgeClass = 'bg-danger';
+
+                    return `
+                        <tr onclick='openDetail(${JSON.stringify(t)})' class="animate-enter premium-hover" style="animation-delay: ${index * 0.05}s">
+                            <td class="text-white fw-medium">${dateStr}</td>
+                            <td><span class="badge ${badgeClass} bg-opacity-75 text-white shadow-sm" style="font-weight:400; letter-spacing:0.5px;">${t.accion.toUpperCase()}</span></td>
+                            <td>
+                                <div class="text-light">${t.descripcion.length > 80 ? t.descripcion.substring(0,80)+'...' : t.descripcion}</div>
+                            </td>
+                        </tr>
                     `;
+                }).join('');
+
+                countLabel.innerText = `Total: ${data.pagination.total} registros | Pág ${data.pagination.page} de ${data.pagination.pages}`;
+                document.getElementById('headerTotalCount').innerText = data.pagination.total + ' registros';
+                renderPagination(data.pagination.page, data.pagination.pages);
+                
+                // Guardar el último ID para el polling en tiempo real
+                if (data.data.length > 0 && currentPage === 1) {
+                    lastTransactionId = data.data[0].id_transaccion;
+                }
+
+            } catch (e) {
+                console.error(e);
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-5">Error al cargar datos.</td></tr>';
+            }
+        }
+
+        async function goToPage(p) {
+            currentPage = p;
+            fetchTransactions();
+        }
+
+        function renderPagination(curr, total) {
+             // ... existing logic ...
+            const container = document.getElementById('paginationContainer');
+            let html = '';
+            if (total > 1) {
+                if (curr > 1) html += `<a href="#" class="pagination-link" onclick="goToPage(${curr-1})">&laquo;</a>`;
+                let start = Math.max(1, curr - 2);
+                let end = Math.min(total, curr + 2);
+                for(let i=start; i<=end; i++) {
+                     html += `<a href="#" class="pagination-link ${i===curr?'active':''}" onclick="goToPage(${i})">${i}</a>`;
+                }
+                if (curr < total) html += `<a href="#" class="pagination-link" onclick="goToPage(${curr+1})">&raquo;</a>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function openDetail(t) {
+             // ... existing logic ...
+            const extra = t.extra || {};
+            const modal = new bootstrap.Modal(document.getElementById('modalDetail'));
+            const body = document.getElementById('modalDetailBody');
+
+            let contenidoHTML = `
+                <div class="detail-row"><span class="detail-label">ID Transacción</span><span class="detail-val">#${t.id_transaccion}</span></div>
+                <div class="detail-row"><span class="detail-label">Fecha</span><span class="detail-val">${t.fecha_hora}</span></div>
+                <div class="detail-row"><span class="detail-label">Vendedor</span><span class="detail-val">${t.nombre} ${t.apellido}</span></div>
+                <div class="detail-row"><span class="detail-label">Acción</span><span class="detail-val text-uppercase text-primary">${t.accion}</span></div>
+                <div class="mt-3 mb-2 border-top border-secondary pt-2 text-muted small">DESCRIPCIÓN</div>
+                <p class="text-white small">${t.descripcion}</p>
+            `;
+
+            if (t.accion === 'venta' && extra.cantidad) {
+                contenidoHTML += `
+                    <div class="bg-black bg-opacity-50 p-3 rounded mt-3">
+                        <div class="detail-row"><span class="detail-label">Evento</span><span class="detail-val text-warning">${extra.evento || 'N/A'}</span></div>
+                        <div class="detail-row"><span class="detail-label">Cliente</span><span class="detail-val text-info">${extra.cliente || 'Anónimo'}</span></div>
+                        <div class="detail-row"><span class="detail-label">Boletos</span><span class="detail-val">${extra.cantidad}</span></div>
+                        <div class="detail-row mt-2 pt-2 border-top border-secondary"><span class="detail-label">TOTAL COBRADO</span><span class="detail-val text-success fs-5">$${parseFloat(extra.total||0).toFixed(2)}</span></div>
+                    </div>
+                `;
+                
+                if (extra.boletos_detalle) {
+                    contenidoHTML += `<div class="mt-3"><small class="text-muted">Desglose de Asientos:</small><div class="d-flex flex-wrap gap-2 mt-1">`;
+                    extra.boletos_detalle.forEach(b => {
+                        contenidoHTML += `<span class="badge bg-secondary border border-secondary">${b.asiento} ($${b.precio})</span>`;
+                    });
+                    contenidoHTML += `</div></div>`;
                 }
             }
-            
-            // Si es una CANCELACIÓN, mostrar detalles específicos
-            if (t.accion === 'boleto_cancelar' && datosAdicionales && datosAdicionales.boleto) {
-                const boleto = datosAdicionales.boleto;
-                const evt = datosAdicionales.evento;
-                const func = datosAdicionales.funcion;
-                
-                html += `
-                    <hr class="my-3">
-                    <div style="background: rgba(239, 68, 68, 0.08); padding: 16px; border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.2);">
-                        <h6 class="fw-bold mb-3" style="color: var(--danger);">
-                            <i class="bi bi-x-circle-fill me-2"></i>Detalles de la Cancelación
-                        </h6>
-                        <div class="detalle-item">
-                            <span class="detalle-label">Asiento:</span>
-                            <span class="detalle-valor"><strong>${escapeHtml(boleto.asiento || 'N/A')}</strong></span>
-                        </div>
-                        <div class="detalle-item">
-                            <span class="detalle-label">Evento:</span>
-                            <span class="detalle-valor">${escapeHtml(evt?.titulo || 'N/A')}</span>
-                        </div>
-                        ${func && func.fecha_hora ? `
-                        <div class="detalle-item">
-                            <span class="detalle-label">Función:</span>
-                            <span class="detalle-valor">${formatearFecha(func.fecha_hora)}</span>
-                        </div>
-                        ` : ''}
-                    </div>
-                `;
-            }
-            
-            // Si es evento_crear, mostrar detalles del evento
-            if (t.accion === 'evento_crear' && data.evento_detalles) {
-                const evt = data.evento_detalles;
-                html += `
-                    <hr class="my-3">
-                    <div style="background: rgba(37, 99, 235, 0.05); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
-                        <h6 class="fw-bold mb-3" style="color: var(--primary-color);">
-                            <i class="bi bi-calendar-event me-2"></i>Detalles del Evento Creado
-                        </h6>
-                        <div class="detalle-item">
-                            <span class="detalle-label">ID Evento:</span>
-                            <span class="detalle-valor">#${evt.id_evento}</span>
-                        </div>
-                        <div class="detalle-item">
-                            <span class="detalle-label">Título:</span>
-                            <span class="detalle-valor">${escapeHtml(evt.titulo)}</span>
-                        </div>
-                        <div class="detalle-item">
-                            <span class="detalle-label">Descripción:</span>
-                            <span class="detalle-valor">${escapeHtml(evt.descripcion || 'N/A')}</span>
-                        </div>
-                        <div class="detalle-item">
-                            <span class="detalle-label">Tipo:</span>
-                            <span class="detalle-valor">${evt.tipo == 1 ? '🎭 Teatro 420' : evt.tipo == 2 ? '🚶 Pasarela 540' : 'Otro'}</span>
-                        </div>
-                        <div class="detalle-item">
-                            <span class="detalle-label">Inicio Venta:</span>
-                            <span class="detalle-valor">${formatearFecha(evt.inicio_venta)}</span>
-                        </div>
-                        <div class="detalle-item">
-                            <span class="detalle-label">Cierre Venta:</span>
-                            <span class="detalle-valor">${formatearFecha(evt.cierre_venta)}</span>
-                        </div>
-                        <div class="detalle-item">
-                            <span class="detalle-label">Estado:</span>
-                            <span class="detalle-valor">${evt.finalizado ? '<span class="badge bg-danger">Finalizado</span>' : '<span class="badge bg-success">Activo</span>'}</span>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            detalleContent.innerHTML = html;
-        } else {
-            detalleContent.innerHTML = `
-                <div class="alert alert-danger" role="alert">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
-                    Error: ${data.error || 'No se pudo cargar la transacción'}
-                </div>
-            `;
+            body.innerHTML = contenidoHTML;
+            modal.show();
         }
-    } catch (error) {
-        console.error('Error al cargar detalles:', error);
-        detalleContent.innerHTML = `
-            <div class="alert alert-danger" role="alert">
-                <i class="bi bi-exclamation-triangle me-2"></i>
-                <strong>Error:</strong> ${escapeHtml(error.message || 'Error desconocido al cargar los detalles')}
-            </div>
-        `;
-    }
-}
-</script>
+
+        // === ESTADÍSTICAS - Ahora manejadas por iframe ===
+        // Las siguientes funciones están vacías porque las estadísticas se manejan en estadisticas.php
+        function cargarEstadisticas() {
+            // Recarga el iframe de estadísticas
+            const iframe = document.getElementById('statsIframe');
+            if (iframe) iframe.src = iframe.src;
+        }
+        
+        function limpiarFiltrosStats() {
+            // Recarga el iframe sin filtros
+            const iframe = document.getElementById('statsIframe');
+            if (iframe) iframe.src = 'estadisticas.php';
+        }
+        
+        function toggleRealTimeStats() {
+            // Manejado internamente por el iframe
+        }
+        
+        function descargarPDF() {
+            // Abrir la ventana de PDF
+            window.open('generar_pdf.php', '_blank');
+        }
+    </script>
 </body>
 </html>

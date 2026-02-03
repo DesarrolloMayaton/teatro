@@ -104,8 +104,15 @@ function ejecutar_auto_archivado($conn)
     return $eventos_archivados;
 }
 
-// Ejecutar el auto-archivado
-$eventos_auto_archivados = ejecutar_auto_archivado($conn);
+// ==========================================================
+// AUTO-ARCHIVADO DESACTIVADO
+// Los eventos ahora se archivan manualmente por el usuario.
+// El código se mantiene por si se necesita reactivar.
+// ==========================================================
+
+// Ejecutar el auto-archivado (DESACTIVADO)
+// $eventos_auto_archivados = ejecutar_auto_archivado($conn);
+$eventos_auto_archivados = []; // Siempre vacío - sin auto-archivado
 
 // Si se archivaron eventos, guardar en variable de sesión para notificar
 if (!empty($eventos_auto_archivados)) {
@@ -114,3 +121,4 @@ if (!empty($eventos_auto_archivados)) {
     }
     $_SESSION['eventos_auto_archivados'] = $eventos_auto_archivados;
 }
+
