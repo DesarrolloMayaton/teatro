@@ -39,7 +39,6 @@ try {
                 $result = $conn->query("
                     SELECT DISTINCT id_evento, titulo 
                     FROM evento 
-                    WHERE archivado = 0
                     ORDER BY titulo
                 ");
                 while ($row = $result->fetch_assoc()) {
