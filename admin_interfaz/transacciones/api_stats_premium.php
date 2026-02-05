@@ -1,13 +1,7 @@
 <?php
 /**
  * API ESTADÍSTICAS PREMIUM
- * Proporciona métricas completas para el dashboard:
- * - Ocupación del teatro
- * - Ingresos detallados
- * - Asistencia de público
- * - Rendimiento de obras
- * - Tendencias temporales
- * - Ventas de boletos
+ * Proporciona métricas completas para el dashboard
  */
 
 header('Content-Type: application/json');
@@ -29,9 +23,17 @@ try {
     $db_actual = 'trt_25';
     $db_historico = 'trt_historico_evento';
 
-    // ============================================
+    // Determinar qué bases de datos usar
+    $databases = [];
+    if ($db_mode === 'ambas') {
+        $databases = [$db_actual, $db_historico];
+    } elseif ($db_mode === 'historico') {
+        $databases = [$db_historico];
+    } else {
+        $databases = [$db_actual];
+    }
+
     // HELPER: Construir WHERE clause para boletos
-    // ============================================
     $buildWhere = function($prefix = 'b', $statusField = 'estatus', $statusValue = "1") use ($id_evento, $fecha_desde, $fecha_hasta) {
         $where = ["{$prefix}.{$statusField} = {$statusValue}"];
         if ($id_evento) $where[] = "{$prefix}.id_evento = {$id_evento}";
@@ -44,7 +46,7 @@ try {
     // 1. RESUMEN GENERAL (KPIs principales)
     // ============================================
     $queries_resumen = [];
-    foreach (($db_mode === 'ambas' ? [$db_actual, $db_historico] : [$db_mode === 'historico' ? $db_historico : $db_actual]) as $db) {
+    foreach ($databases as $db) {
         $where = $buildWhere('b');
         $queries_resumen[] = "SELECT id_boleto, precio_final, fecha_compra, id_evento, id_funcion, id_categoria FROM {$db}.boletos b WHERE {$where}";
     }
@@ -64,10 +66,16 @@ try {
     // 2. OCUPACIÓN DEL TEATRO
     // ============================================
     // 2a. Ocupación por función
-    $queries_ocupacion = [];
-    foreach (($db_mode === 'ambas' ? [$db_actual, $db_historico] : [$db_mode === 'historico' ? $db_historico : $db_actual]) as $db) {
-        $where_vendido = $buildWhere('b');
-        $queries_ocupacion[] = "
+    $ocupacion_funcion = [];
+    foreach ($databases as $db) {
+        // En histórico no filtrar por estado ya que todas están finalizadas
+        $filtroEstado = ($db === $db_historico) ? "" : "WHERE f.estado = 1";
+        $filtroEvento = "";
+        if ($id_evento) {
+            $filtroEvento = ($db === $db_historico) ? "WHERE f.id_evento = {$id_evento}" : "AND f.id_evento = {$id_evento}";
+        }
+        
+        $sql_ocupacion = "
             SELECT 
                 f.id_funcion,
                 e.titulo as evento,
@@ -77,15 +85,14 @@ try {
                 150 as capacidad
             FROM {$db}.funciones f
             JOIN {$db}.evento e ON f.id_evento = e.id_evento
-            WHERE f.estado = 1
-            " . ($id_evento ? "AND f.id_evento = {$id_evento}" : "") . "
+            {$filtroEstado} {$filtroEvento}
+            ORDER BY f.fecha_hora DESC
+            LIMIT 20
         ";
-    }
-    $ocupacion_funcion = [];
-    foreach ($queries_ocupacion as $q) {
-        $res = $conn->query($q);
+        $res = $conn->query($sql_ocupacion);
         if ($res) while ($row = $res->fetch_assoc()) {
-            $row['porcentaje'] = $row['capacidad'] > 0 ? round(($row['vendidos'] / $row['capacidad']) * 100, 1) : 0;
+            $porcentaje = $row['capacidad'] > 0 ? ($row['vendidos'] / $row['capacidad']) * 100 : 0;
+            $row['porcentaje'] = round(min(100, $porcentaje), 1); // Máximo 100%
             $ocupacion_funcion[] = $row;
         }
     }
@@ -93,7 +100,7 @@ try {
 
     // 2b. Ocupación por día de la semana
     $queries_dia = [];
-    foreach (($db_mode === 'ambas' ? [$db_actual, $db_historico] : [$db_mode === 'historico' ? $db_historico : $db_actual]) as $db) {
+    foreach ($databases as $db) {
         $where = $buildWhere('b');
         $queries_dia[] = "SELECT DAYOFWEEK(fecha_compra) as dia_num, precio_final FROM {$db}.boletos b WHERE {$where}";
     }
@@ -110,11 +117,11 @@ try {
     
     $por_dia = [];
     $res = $conn->query($sql_dia);
-    while ($row = $res->fetch_assoc()) $por_dia[] = $row;
+    if ($res) while ($row = $res->fetch_assoc()) $por_dia[] = $row;
 
     // 2c. Ocupación por horario (matiné, tarde, noche)
     $queries_horario = [];
-    foreach (($db_mode === 'ambas' ? [$db_actual, $db_historico] : [$db_mode === 'historico' ? $db_historico : $db_actual]) as $db) {
+    foreach ($databases as $db) {
         $where = $buildWhere('b');
         $queries_horario[] = "SELECT HOUR(fecha_compra) as hora, precio_final FROM {$db}.boletos b WHERE {$where}";
     }
@@ -131,92 +138,103 @@ try {
     
     $por_horario = [];
     $res = $conn->query($sql_horario);
-    while ($row = $res->fetch_assoc()) $por_horario[] = $row;
+    if ($res) while ($row = $res->fetch_assoc()) $por_horario[] = $row;
 
     // ============================================
     // 3. INGRESOS DETALLADOS
     // ============================================
-    // 3a. Por período (día/semana/mes)
+    // Por mes
     $queries_periodo = [];
-    foreach (($db_mode === 'ambas' ? [$db_actual, $db_historico] : [$db_mode === 'historico' ? $db_historico : $db_actual]) as $db) {
+    foreach ($databases as $db) {
         $where = $buildWhere('b');
         $queries_periodo[] = "SELECT DATE(fecha_compra) as fecha, precio_final FROM {$db}.boletos b WHERE {$where}";
     }
-    
-    // Por día
-    $sql_dia_ingresos = "SELECT fecha, SUM(precio_final) as ingresos, COUNT(*) as boletos
-        FROM (" . implode(" UNION ALL ", $queries_periodo) . ") as p
-        GROUP BY fecha ORDER BY fecha DESC LIMIT 30";
-    $ingresos_diarios = [];
-    $res = $conn->query($sql_dia_ingresos);
-    while ($row = $res->fetch_assoc()) $ingresos_diarios[] = $row;
 
-    // Por mes
     $sql_mes_ingresos = "SELECT DATE_FORMAT(fecha, '%Y-%m') as mes, SUM(precio_final) as ingresos, COUNT(*) as boletos
         FROM (" . implode(" UNION ALL ", $queries_periodo) . ") as p
         GROUP BY mes ORDER BY mes DESC LIMIT 12";
     $ingresos_mensuales = [];
     $res = $conn->query($sql_mes_ingresos);
-    while ($row = $res->fetch_assoc()) $ingresos_mensuales[] = $row;
+    if ($res) while ($row = $res->fetch_assoc()) $ingresos_mensuales[] = $row;
 
-    // 3b. Por tipo de boleto
+    // Por tipo de boleto
     $queries_tipo = [];
-    foreach (($db_mode === 'ambas' ? [$db_actual, $db_historico] : [$db_mode === 'historico' ? $db_historico : $db_actual]) as $db) {
+    foreach ($databases as $db) {
         $where = $buildWhere('b');
         $queries_tipo[] = "SELECT COALESCE(tipo_boleto, 'Normal') as tipo, precio_final FROM {$db}.boletos b WHERE {$where}";
     }
-    $sql_tipo = "SELECT tipo, COUNT(*) as cantidad, SUM(precio_final) as ingresos, AVG(precio_final) as promedio
+    $sql_tipo = "SELECT tipo, COUNT(*) as cantidad, SUM(precio_final) as ingresos
         FROM (" . implode(" UNION ALL ", $queries_tipo) . ") as t
         GROUP BY tipo ORDER BY ingresos DESC";
     $por_tipo = [];
     $res = $conn->query($sql_tipo);
-    while ($row = $res->fetch_assoc()) $por_tipo[] = $row;
+    if ($res) while ($row = $res->fetch_assoc()) $por_tipo[] = $row;
 
-    // 3c. Por categoría
-    $queries_cat = [];
-    foreach (($db_mode === 'ambas' ? [$db_actual, $db_historico] : [$db_mode === 'historico' ? $db_historico : $db_actual]) as $db) {
-        $where = $buildWhere('b');
-        $queries_cat[] = "SELECT c.nombre_categoria, b.precio_final FROM {$db}.boletos b JOIN {$db}.categorias c ON b.id_categoria = c.id_categoria WHERE {$where}";
-    }
-    $sql_cat = "SELECT nombre_categoria, COUNT(*) as cantidad, SUM(precio_final) as ingresos
-        FROM (" . implode(" UNION ALL ", $queries_cat) . ") as c
-        GROUP BY nombre_categoria ORDER BY ingresos DESC";
+    // Por categoría
     $por_categoria = [];
-    $res = $conn->query($sql_cat);
-    while ($row = $res->fetch_assoc()) $por_categoria[] = $row;
+    foreach ($databases as $db) {
+        $where = $buildWhere('b');
+        $sql_cat = "SELECT c.nombre_categoria, COUNT(*) as cantidad, SUM(b.precio_final) as ingresos
+            FROM {$db}.boletos b 
+            JOIN {$db}.categorias c ON b.id_categoria = c.id_categoria
+            WHERE {$where}
+            GROUP BY c.nombre_categoria";
+        $res = $conn->query($sql_cat);
+        if ($res) while ($row = $res->fetch_assoc()) {
+            $found = false;
+            foreach ($por_categoria as &$existing) {
+                if ($existing['nombre_categoria'] === $row['nombre_categoria']) {
+                    $existing['cantidad'] += $row['cantidad'];
+                    $existing['ingresos'] += $row['ingresos'];
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) $por_categoria[] = $row;
+        }
+    }
+    usort($por_categoria, fn($a, $b) => $b['ingresos'] <=> $a['ingresos']);
 
     // ============================================
     // 4. RENDIMIENTO DE OBRAS (EVENTOS)
     // ============================================
-    $queries_eventos = [];
-    foreach (($db_mode === 'ambas' ? [$db_actual, $db_historico] : [$db_mode === 'historico' ? $db_historico : $db_actual]) as $db) {
+    $ranking_eventos = [];
+    foreach ($databases as $db) {
         $where = $buildWhere('b');
-        $queries_eventos[] = "SELECT e.id_evento, e.titulo, b.precio_final, b.id_funcion
+        $sql_eventos = "SELECT e.titulo, COUNT(*) as boletos, SUM(b.precio_final) as ingresos, COUNT(DISTINCT b.id_funcion) as funciones
             FROM {$db}.boletos b 
             JOIN {$db}.evento e ON b.id_evento = e.id_evento
-            WHERE {$where}";
+            WHERE {$where}
+            GROUP BY e.titulo";
+        $res = $conn->query($sql_eventos);
+        if ($res) while ($row = $res->fetch_assoc()) {
+            $found = false;
+            foreach ($ranking_eventos as &$existing) {
+                if ($existing['titulo'] === $row['titulo']) {
+                    $existing['boletos'] += $row['boletos'];
+                    $existing['ingresos'] += $row['ingresos'];
+                    $existing['funciones'] = max($existing['funciones'], $row['funciones']);
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) $ranking_eventos[] = $row;
+        }
     }
-    $sql_eventos = "SELECT titulo, COUNT(*) as boletos, SUM(precio_final) as ingresos, COUNT(DISTINCT id_funcion) as funciones
-        FROM (" . implode(" UNION ALL ", $queries_eventos) . ") as ev
-        GROUP BY titulo ORDER BY ingresos DESC";
-    $ranking_eventos = [];
-    $res = $conn->query($sql_eventos);
+    usort($ranking_eventos, fn($a, $b) => $b['ingresos'] <=> $a['ingresos']);
     $rank = 1;
-    while ($row = $res->fetch_assoc()) {
-        $row['rank'] = $rank++;
-        $row['promedio_funcion'] = $row['funciones'] > 0 ? round($row['ingresos'] / $row['funciones'], 2) : 0;
-        $ranking_eventos[] = $row;
+    foreach ($ranking_eventos as &$ev) {
+        $ev['rank'] = $rank++;
     }
 
-    // Alertas: eventos con baja asistencia (< 30% de capacidad promedio)
+    // Alertas: eventos con baja asistencia (< 30% de capacidad)
     $alertas_eventos = array_filter($ocupacion_funcion, fn($f) => $f['porcentaje'] < 30);
 
     // ============================================
     // 5. TENDENCIAS EN EL TIEMPO
     // ============================================
-    // Ingresos por hora del día
     $queries_hora = [];
-    foreach (($db_mode === 'ambas' ? [$db_actual, $db_historico] : [$db_mode === 'historico' ? $db_historico : $db_actual]) as $db) {
+    foreach ($databases as $db) {
         $where = $buildWhere('b');
         $queries_hora[] = "SELECT HOUR(fecha_compra) as hora, precio_final FROM {$db}.boletos b WHERE {$where}";
     }
@@ -225,71 +243,87 @@ try {
         GROUP BY hora ORDER BY hora";
     $por_hora = [];
     $res = $conn->query($sql_hora);
-    while ($row = $res->fetch_assoc()) $por_hora[] = $row;
+    if ($res) while ($row = $res->fetch_assoc()) $por_hora[] = $row;
 
     // ============================================
-    // 6. VENTAS DE BOLETOS
+    // 6. VENTAS DE BOLETOS - Ocupación general (PROMEDIO de todas las funciones)
     // ============================================
-    // Boletos vendidos vs disponibles (para eventos activos)
-    $capacidad_total = 0;
-    $vendidos_total = 0;
+    // Calcular el promedio de ocupación de todas las funciones
+    $suma_porcentajes = 0;
+    $num_funciones = count($ocupacion_funcion);
     
-    $queries_capacidad = [];
-    foreach (($db_mode === 'ambas' ? [$db_actual, $db_historico] : [$db_mode === 'historico' ? $db_historico : $db_actual]) as $db) {
-        // Capacidad total
-        $sql_cap = "SELECT COALESCE(SUM(asientos), 0) as cap FROM (
-            SELECT COUNT(*) as asientos FROM {$db}.asiento_funcion GROUP BY id_funcion
-        ) as af";
-        $res_cap = $conn->query($sql_cap);
-        if ($res_cap) $capacidad_total += (int)$res_cap->fetch_assoc()['cap'];
-        
-        // Vendidos
-        $where = $buildWhere('b');
-        $sql_v = "SELECT COUNT(*) as vendidos FROM {$db}.boletos b WHERE {$where}";
-        $res_v = $conn->query($sql_v);
-        if ($res_v) $vendidos_total += (int)$res_v->fetch_assoc()['vendidos'];
+    foreach ($ocupacion_funcion as $func) {
+        // Limitar cada función a máximo 100%
+        $porcentaje_func = min(100, (float)$func['porcentaje']);
+        $suma_porcentajes += $porcentaje_func;
     }
+    
+    // Promedio de ocupación (si hay funciones)
+    $promedio_ocupacion = $num_funciones > 0 ? round($suma_porcentajes / $num_funciones, 1) : 0;
+    
+    // Total vendidos y capacidad total
+    $vendidos_total = (int)$resumen['total_boletos'];
+    $capacidad_total = $num_funciones * 150;
 
     $ventas_resumen = [
         'vendidos' => $vendidos_total,
-        'disponibles' => max(0, $capacidad_total - $vendidos_total),
         'capacidad' => $capacidad_total,
-        'porcentaje_ocupacion' => $capacidad_total > 0 ? round(($vendidos_total / $capacidad_total) * 100, 1) : 0
+        'porcentaje_ocupacion' => $promedio_ocupacion // Promedio, no puede superar 100%
     ];
-
-    // Cancelaciones
-    $queries_cancelados = [];
-    foreach (($db_mode === 'ambas' ? [$db_actual, $db_historico] : [$db_mode === 'historico' ? $db_historico : $db_actual]) as $db) {
-        $where_base = [];
-        if ($id_evento) $where_base[] = "id_evento = {$id_evento}";
-        if ($fecha_desde) $where_base[] = "fecha_compra >= '{$fecha_desde} 00:00:00'";
-        if ($fecha_hasta) $where_base[] = "fecha_compra <= '{$fecha_hasta} 23:59:59'";
-        $where_cancelado = "estatus = 0" . (count($where_base) > 0 ? " AND " . implode(" AND ", $where_base) : "");
-        $queries_cancelados[] = "SELECT COUNT(*) as cancelados FROM {$db}.boletos WHERE {$where_cancelado}";
-    }
-    $cancelados_total = 0;
-    foreach ($queries_cancelados as $q) {
-        $res = $conn->query($q);
-        if ($res) $cancelados_total += (int)$res->fetch_assoc()['cancelados'];
-    }
 
     // ============================================
     // 7. TOP VENDEDORES
     // ============================================
-    $queries_vendedores = [];
-    foreach (($db_mode === 'ambas' ? [$db_actual, $db_historico] : [$db_mode === 'historico' ? $db_historico : $db_actual]) as $db) {
+    $top_vendedores = [];
+    foreach ($databases as $db) {
         $where = $buildWhere('b');
-        $queries_vendedores[] = "SELECT CONCAT(u.nombre, ' ', u.apellido) as vendedor, b.precio_final
+        $sql_vendedores = "SELECT COALESCE(CONCAT(u.nombre, ' ', u.apellido), 'Sistema') as vendedor, 
+            COUNT(*) as boletos, SUM(b.precio_final) as ingresos
             FROM {$db}.boletos b 
             LEFT JOIN {$db}.usuarios u ON b.id_usuario = u.id_usuario
-            WHERE {$where}";
+            WHERE {$where}
+            GROUP BY vendedor";
+        $res = $conn->query($sql_vendedores);
+        if ($res) while ($row = $res->fetch_assoc()) {
+            $found = false;
+            foreach ($top_vendedores as &$existing) {
+                if ($existing['vendedor'] === $row['vendedor']) {
+                    $existing['boletos'] += $row['boletos'];
+                    $existing['ingresos'] += $row['ingresos'];
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) $top_vendedores[] = $row;
+        }
     }
-    $sql_vendedores = "SELECT COALESCE(vendedor, 'Sistema') as vendedor, COUNT(*) as boletos, SUM(precio_final) as ingresos
-        FROM (" . implode(" UNION ALL ", $queries_vendedores) . ") as v
-        GROUP BY vendedor ORDER BY ingresos DESC LIMIT 10";
-    $top_vendedores = [];
-    $res = $conn->query($sql_vendedores);
-    while ($row = $res->fetch_assoc()) $top_vendedores[] = $row;
+    usort($top_vendedores, fn($a, $b) => $b['ingresos'] <=> $a['ingresos']);
+    $top_vendedores = array_slice($top_vendedores, 0, 10);
+
+    // ============================================
+    // 8. LISTA DE EVENTOS (para el dropdown de filtros)
+    // ============================================
+    $eventos_lista = [];
+    foreach ($databases as $db) {
+        $fuente = ($db === $db_historico) ? 'historico' : 'actual';
+        
+        // Cargar TODOS los eventos de cada base de datos
+        $sql_eventos = "SELECT id_evento, titulo, '{$fuente}' as fuente FROM {$db}.evento ORDER BY id_evento DESC";
+        $res = $conn->query($sql_eventos);
+        if ($res) {
+            while ($row = $res->fetch_assoc()) {
+                // Evitar duplicados
+                $exists = false;
+                foreach ($eventos_lista as $e) {
+                    if ($e['id_evento'] == $row['id_evento'] && $e['titulo'] == $row['titulo']) {
+                        $exists = true;
+                        break;
+                    }
+                }
+                if (!$exists) $eventos_lista[] = $row;
+            }
+        }
+    }
 
     // ============================================
     // RESPUESTA FINAL
@@ -297,7 +331,6 @@ try {
     echo json_encode([
         'success' => true,
         'data' => [
-            // KPIs principales
             'resumen' => [
                 'total_ingresos' => (float)$resumen['total_ingresos'],
                 'total_boletos' => (int)$resumen['total_boletos'],
@@ -305,42 +338,29 @@ try {
                 'total_eventos' => (int)$resumen['total_eventos'],
                 'total_funciones' => (int)$resumen['total_funciones']
             ],
-            
-            // Ocupación
             'ocupacion' => [
                 'por_funcion' => array_slice($ocupacion_funcion, 0, 10),
                 'por_dia' => $por_dia,
                 'por_horario' => $por_horario,
                 'general' => $ventas_resumen
             ],
-            
-            // Ingresos
             'ingresos' => [
-                'diarios' => array_reverse($ingresos_diarios),
                 'mensuales' => array_reverse($ingresos_mensuales),
                 'por_tipo' => $por_tipo,
                 'por_categoria' => $por_categoria
             ],
-            
-            // Rendimiento de obras
             'rendimiento' => [
-                'ranking' => $ranking_eventos,
+                'ranking' => array_slice($ranking_eventos, 0, 10),
                 'alertas' => array_slice(array_values($alertas_eventos), 0, 5)
             ],
-            
-            // Tendencias
             'tendencias' => [
                 'por_hora' => $por_hora
             ],
-            
-            // Ventas
             'ventas' => [
-                'resumen' => $ventas_resumen,
-                'cancelados' => $cancelados_total
+                'resumen' => $ventas_resumen
             ],
-            
-            // Top vendedores
-            'vendedores' => $top_vendedores
+            'vendedores' => $top_vendedores,
+            'eventos_filtro' => $eventos_lista
         ]
     ]);
 

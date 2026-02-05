@@ -556,6 +556,17 @@ body {
     color: white;
 }
 
+.btn-premium.secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.btn-premium.secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: var(--text-primary);
+}
+
 /* ============ SCROLLBAR ============ */
 ::-webkit-scrollbar {
     width: 8px;

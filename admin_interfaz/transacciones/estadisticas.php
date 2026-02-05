@@ -6,9 +6,18 @@ if (!isset($_SESSION['usuario_id'])) {
 }
 require_once '../../evt_interfaz/conexion.php';
 
-$eventos_filtro = [];
-$res_ev = $conn->query("SELECT id_evento, titulo FROM evento ORDER BY id_evento DESC");
-while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
+// Obtener TODOS los eventos de la base actual (trt_25)
+$eventos_actual = [];
+$res = $conn->query("SELECT id_evento, titulo FROM evento ORDER BY id_evento DESC");
+if ($res) while ($r = $res->fetch_assoc()) $eventos_actual[] = $r;
+
+// Intentar obtener eventos de la base histórica
+$eventos_historico = [];
+$check_hist = $conn->query("SHOW DATABASES LIKE 'trt_historico_evento'");
+if ($check_hist && $check_hist->num_rows > 0) {
+    $res_hist = $conn->query("SELECT id_evento, titulo FROM trt_historico_evento.evento ORDER BY id_evento DESC");
+    if ($res_hist) while ($r = $res_hist->fetch_assoc()) $eventos_historico[] = $r;
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -20,6 +29,82 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" integrity="sha512-dPXYcDub/aeb08c63jRq/k6GqJ6SZlWgIz2NNZZiP9RXXpR6+8E/gVBbBQs8rY7xMz5p5yUB78/5Q1xQHcGQ4g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="premium_dashboard.css">
+    <style>
+        /* Estilos adicionales para la barra de filtros */
+        .filter-bar {
+            background: linear-gradient(145deg, rgba(30, 30, 42, 0.95) 0%, rgba(20, 20, 30, 0.98) 100%);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .filter-label {
+            color: #f8fafc;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .filter-label i {
+            font-size: 1rem;
+        }
+        .filter-select, .filter-input {
+            background: rgba(0, 0, 0, 0.5) !important;
+            border: 2px solid rgba(99, 102, 241, 0.3) !important;
+            color: #fff !important;
+            border-radius: 10px !important;
+            padding: 0.75rem 1rem !important;
+            font-size: 1rem !important;
+            transition: all 0.3s ease !important;
+        }
+        .filter-select:focus, .filter-input:focus {
+            border-color: #6366f1 !important;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25) !important;
+            outline: none !important;
+        }
+        .filter-select option {
+            background: #1a1a24;
+            color: #fff;
+        }
+        .btn-filter {
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .btn-filter-clear {
+            background: rgba(255, 255, 255, 0.1);
+            color: #94a3b8;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .btn-filter-clear:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+        }
+        .filter-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #10b981;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .filter-status .spinner-border {
+            width: 1rem;
+            height: 1rem;
+        }
+    </style>
 </head>
 <body class="p-4">
     <div class="container-fluid">
@@ -37,58 +122,88 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
                     <span class="live-dot"></span>
                     EN VIVO
                 </span>
-                <button class="btn-premium primary" onclick="cargarEstadisticas()">
-                    <i class="bi bi-arrow-clockwise"></i> Actualizar
-                </button>
                 <button class="btn-premium danger" onclick="descargarPDF()">
                     <i class="bi bi-file-pdf"></i> PDF
                 </button>
             </div>
         </div>
 
-        <!-- Filtros -->
-        <div class="glass-card p-4 mb-4">
+        <!-- BARRA DE FILTROS REDISEÑADA -->
+        <div class="filter-bar">
             <div class="row g-3 align-items-end">
-                <div class="col-md-2">
-                    <label class="form-label text-secondary small fw-bold">
-                        <i class="bi bi-database me-1"></i> Base de Datos
-                    </label>
-                    <select id="statsDB" class="form-select input-premium">
-                        <option value="actual">📊 Actual</option>
-                        <option value="historico">📁 Histórico</option>
-                        <option value="ambas">📦 Ambas</option>
-                    </select>
+                <!-- Base de Datos -->
+                <div class="col-lg-2 col-md-4">
+                    <div class="filter-group">
+                        <label class="filter-label">
+                            <i class="bi bi-database-fill" style="color: #6366f1;"></i>
+                            Base de Datos
+                        </label>
+                        <select id="statsDB" class="filter-select" onchange="onCambioBaseDatos()">
+                            <option value="actual">📊 Actual</option>
+                            <option value="historico">📁 Histórico</option>
+                            <option value="ambas">📦 Ambas</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label text-secondary small fw-bold">
-                        <i class="bi bi-calendar me-1"></i> Desde
-                    </label>
-                    <input type="date" id="statsDesde" class="form-control input-premium">
+                
+                <!-- Evento -->
+                <div class="col-lg-3 col-md-4">
+                    <div class="filter-group">
+                        <label class="filter-label">
+                            <i class="bi bi-film" style="color: #a855f7;"></i>
+                            Evento
+                        </label>
+                        <select id="statsEvento" class="filter-select" onchange="cargarEstadisticas()">
+                            <option value="">🎭 Todos los Eventos</option>
+                            <?php foreach($eventos_actual as $ev): ?>
+                                <option value="<?= $ev['id_evento'] ?>"><?= htmlspecialchars($ev['titulo']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label text-secondary small fw-bold">
-                        <i class="bi bi-calendar-check me-1"></i> Hasta
-                    </label>
-                    <input type="date" id="statsHasta" class="form-control input-premium">
+                
+                <!-- Fecha Desde -->
+                <div class="col-lg-2 col-md-4">
+                    <div class="filter-group">
+                        <label class="filter-label">
+                            <i class="bi bi-calendar-event" style="color: #22d3ee;"></i>
+                            Desde
+                        </label>
+                        <input type="date" id="statsDesde" class="filter-input" onchange="cargarEstadisticas()">
+                    </div>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label text-secondary small fw-bold">
-                        <i class="bi bi-film me-1"></i> Evento
-                    </label>
-                    <select id="statsEvento" class="form-select input-premium">
-                        <option value="">🎭 Todos los Eventos</option>
-                        <?php foreach($eventos_filtro as $ev): ?>
-                            <option value="<?= $ev['id_evento'] ?>"><?= htmlspecialchars($ev['titulo']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                
+                <!-- Fecha Hasta -->
+                <div class="col-lg-2 col-md-4">
+                    <div class="filter-group">
+                        <label class="filter-label">
+                            <i class="bi bi-calendar-check" style="color: #22d3ee;"></i>
+                            Hasta
+                        </label>
+                        <input type="date" id="statsHasta" class="filter-input" onchange="cargarEstadisticas()">
+                    </div>
                 </div>
-                <div class="col-md-3 text-end">
-                    <button class="btn-premium primary" onclick="cargarEstadisticas()">
-                        <i class="bi bi-funnel-fill"></i> Aplicar Filtros
-                    </button>
+                
+                <!-- Botones y Estado -->
+                <div class="col-lg-3 col-md-8">
+                    <div class="d-flex gap-2 align-items-center justify-content-end">
+                        <span id="filterStatus" class="filter-status">
+                            <i class="bi bi-check-circle-fill"></i> Listo
+                        </span>
+                        <button class="btn-filter btn-filter-clear" onclick="limpiarFiltros()">
+                            <i class="bi bi-x-circle"></i> Limpiar
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
+
+        <!-- Almacenar eventos para JavaScript -->
+        <script>
+            const eventosActual = <?= json_encode($eventos_actual) ?>;
+            const eventosHistorico = <?= json_encode($eventos_historico) ?>;
+            console.log('Eventos Actual:', eventosActual.length, 'Eventos Histórico:', eventosHistorico.length);
+        </script>
 
         <!-- KPIs Row 1 -->
         <div class="row g-4 mb-4">
@@ -298,12 +413,77 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
             rose: '#f43f5e', blue: '#3b82f6'
         };
 
+        let debounceTimer;
+        
+        // Cargar estadísticas al iniciar
         document.addEventListener('DOMContentLoaded', () => {
             cargarEstadisticas();
-            setInterval(cargarEstadisticas, 30000);
+            // Actualizar automáticamente cada 2 minutos
+            setInterval(cargarEstadisticas, 120000);
         });
+        
+        // Función para cambiar la base de datos
+        function onCambioBaseDatos() {
+            const db = document.getElementById('statsDB').value;
+            const select = document.getElementById('statsEvento');
+            
+            console.log('Cambiando a base de datos:', db);
+            
+            // Limpiar y repoblar el dropdown de eventos
+            select.innerHTML = '<option value="">🎭 Todos los Eventos</option>';
+            
+            let eventos = [];
+            if (db === 'actual') {
+                eventos = eventosActual || [];
+            } else if (db === 'historico') {
+                eventos = eventosHistorico || [];
+                if (eventos.length === 0) {
+                    select.innerHTML += '<option disabled>-- No hay eventos históricos --</option>';
+                }
+            } else { // ambas
+                eventos = [...(eventosActual || [])];
+                // Agregar históricos que no estén ya
+                (eventosHistorico || []).forEach(evH => {
+                    const existe = eventos.some(e => e.id_evento == evH.id_evento && e.titulo == evH.titulo);
+                    if (!existe) eventos.push({...evH, esHistorico: true});
+                });
+            }
+            
+            console.log('Eventos disponibles:', eventos.length);
+            
+            // Agregar opciones al select
+            eventos.forEach(ev => {
+                const sufijo = ev.esHistorico ? ' (Hist.)' : '';
+                select.innerHTML += `<option value="${ev.id_evento}">${ev.titulo}${sufijo}</option>`;
+            });
+            
+            // Cargar estadísticas con el nuevo filtro
+            cargarEstadisticas();
+        }
+        
+        // Función para limpiar todos los filtros
+        function limpiarFiltros() {
+            document.getElementById('statsDB').value = 'actual';
+            document.getElementById('statsDesde').value = '';
+            document.getElementById('statsHasta').value = '';
+            onCambioBaseDatos(); // Esto recarga el dropdown de eventos y llama a cargarEstadisticas
+        }
+        
+        // Mostrar estado de carga
+        function mostrarCargando(cargando) {
+            const status = document.getElementById('filterStatus');
+            if (cargando) {
+                status.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div> Cargando...';
+                status.style.color = '#6366f1';
+            } else {
+                status.innerHTML = '<i class="bi bi-check-circle-fill"></i> Listo';
+                status.style.color = '#10b981';
+            }
+        }
 
         async function cargarEstadisticas() {
+            mostrarCargando(true);
+            
             const params = new URLSearchParams({
                 db: document.getElementById('statsDB').value,
                 id_evento: document.getElementById('statsEvento').value,
@@ -314,7 +494,12 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
             try {
                 const res = await fetch(`api_stats_premium.php?${params}`);
                 const r = await res.json();
-                if (!r.success) throw new Error(r.error);
+                
+                if (!r.success) {
+                    console.error('Error API:', r.error);
+                    mostrarCargando(false);
+                    return;
+                }
                 
                 const d = r.data;
                 
@@ -340,8 +525,11 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
                 renderAlertas(d.rendimiento.alertas);
                 renderOcupacion(d.ocupacion.por_funcion);
                 
+                mostrarCargando(false);
+                
             } catch (e) {
                 console.error('Error:', e);
+                mostrarCargando(false);
             }
         }
 

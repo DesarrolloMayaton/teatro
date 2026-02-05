@@ -11,7 +11,7 @@ include "../conexion.php";
 
 $db_principal = 'trt_25';
 $db_historico = 'trt_historico_evento';
-$tablas = ['evento', 'funciones', 'categorias', 'promociones', 'boletos'];
+$tablas = ['evento', 'funciones', 'categorias', 'promociones', 'boletos', 'precios_tipo_boleto'];
 
 echo "<h2>Inicializando configuración de histórico...</h2>";
 echo "<pre>";

@@ -44,16 +44,22 @@ function archivar_evento_completo($id, $conn)
     $db_principal = 'trt_25';
     $id = (int) $id;
 
-    $tablas = ['evento', 'funciones', 'categorias', 'promociones', 'boletos'];
-
+    $tablas = ['evento', 'funciones', 'categorias', 'promociones', 'boletos', 'precios_tipo_boleto'];
+    
     foreach ($tablas as $tabla) {
         $sql = "INSERT IGNORE INTO `$db_historico`.`$tabla` SELECT * FROM `$db_principal`.`$tabla` WHERE id_evento = $id";
         if (!$conn->query($sql)) {
-            throw new Exception("Error archivando tabla $tabla: " . $conn->error);
+            // Si falla la tabla de precios (puede que no tenga id_evento si es global, pero aquí filtramos por id_evento)
+            // Si el precio es global (id_evento IS NULL), no se debe archivar asociado a un evento específico.
+            // Pero si tiene id_evento asignado, SÍ se debe archivar.
+            if ($tabla !== 'precios_tipo_boleto') { 
+                throw new Exception("Error archivando tabla $tabla: " . $conn->error);
+            }
         }
     }
 
     $conn->query("DELETE FROM `$db_principal`.boletos WHERE id_evento = $id");
+    $conn->query("DELETE FROM `$db_principal`.precios_tipo_boleto WHERE id_evento = $id");
     $conn->query("DELETE FROM `$db_principal`.promociones WHERE id_evento = $id");
     $conn->query("DELETE FROM `$db_principal`.categorias WHERE id_evento = $id");
     $conn->query("DELETE FROM `$db_principal`.funciones WHERE id_evento = $id");

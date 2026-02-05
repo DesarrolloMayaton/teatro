@@ -31,9 +31,11 @@ function archivar_evento_auto($id, $conn)
     $conn->query("INSERT IGNORE INTO {$db_historico}.categorias SELECT * FROM {$db_principal}.categorias WHERE id_evento = $id");
     $conn->query("INSERT IGNORE INTO {$db_historico}.promociones SELECT * FROM {$db_principal}.promociones WHERE id_evento = $id");
     $conn->query("INSERT IGNORE INTO {$db_historico}.boletos SELECT * FROM {$db_principal}.boletos WHERE id_evento = $id");
+    $conn->query("INSERT IGNORE INTO {$db_historico}.precios_tipo_boleto SELECT * FROM {$db_principal}.precios_tipo_boleto WHERE id_evento = $id");
 
     // 2. BORRAR DE PRODUCCIÓN
     $conn->query("DELETE FROM {$db_principal}.boletos WHERE id_evento = $id");
+    $conn->query("DELETE FROM {$db_principal}.precios_tipo_boleto WHERE id_evento = $id");
     $conn->query("DELETE FROM {$db_principal}.promociones WHERE id_evento = $id");
     $conn->query("DELETE FROM {$db_principal}.categorias WHERE id_evento = $id");
     $conn->query("DELETE FROM {$db_principal}.funciones WHERE id_evento = $id");

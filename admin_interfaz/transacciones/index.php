@@ -323,27 +323,27 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
                         <div class="row g-3 align-items-end">
                             <!-- Búsqueda -->
                             <div class="col-lg-4 col-md-12">
-                                <label class="form-label text-primary fw-bold mb-2">
-                                    <i class="bi bi-search me-1"></i> Buscar
+                                <label class="form-label text-light fw-bold mb-2">
+                                    <i class="bi bi-search me-1" style="color: #6366f1;"></i> Buscar
                                 </label>
                                 <div class="position-relative">
-                                    <i class="bi bi-search position-absolute text-muted" style="left: 15px; top: 50%; transform: translateY(-50%);"></i>
+                                    <i class="bi bi-search position-absolute text-secondary" style="left: 15px; top: 50%; transform: translateY(-50%);"></i>
                                     <input type="text" id="searchInput" class="form-control form-control-lg ps-5 bg-black text-white border-secondary" placeholder="Cliente, vendedor, evento o acción..." autocomplete="off">
                                 </div>
                             </div>
                             
                             <!-- Fecha Desde -->
                             <div class="col-lg-2 col-md-4 col-sm-6">
-                                <label class="form-label text-warning fw-bold mb-2">
-                                    <i class="bi bi-calendar-event me-1"></i> Desde
+                                <label class="form-label text-light fw-bold mb-2">
+                                    <i class="bi bi-calendar-event me-1" style="color: #f59e0b;"></i> Desde
                                 </label>
                                 <input type="date" id="filterDesde" class="form-control form-control-lg bg-black text-white border-secondary">
                             </div>
                             
                             <!-- Fecha Hasta -->
                             <div class="col-lg-2 col-md-4 col-sm-6">
-                                <label class="form-label text-warning fw-bold mb-2">
-                                    <i class="bi bi-calendar-check me-1"></i> Hasta
+                                <label class="form-label text-light fw-bold mb-2">
+                                    <i class="bi bi-calendar-check me-1" style="color: #f59e0b;"></i> Hasta
                                 </label>
                                 <input type="date" id="filterHasta" class="form-control form-control-lg bg-black text-white border-secondary">
                             </div>
@@ -446,23 +446,13 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
             fetchTransactions();
             startRealTime(); // Iniciar tiempo real por defecto
             
-            // Auto-load stats if tab is active, or wait until clicked
-            const statsTab = document.getElementById('pills-stats-tab');
-            statsTab.addEventListener('shown.bs.tab', () => {
-                // Limpiar filtros de estadísticas al entrar
-                limpiarFiltrosStats();
-                cargarEstadisticas();
-                if (realTimeStatsEnabled) {
-                    startRealTimeStats();
-                }
-            });
+            // El iframe de estadísticas maneja su propia actualización internamente
+            // No interferir con él desde el padre
             
-            // Detener polling de stats cuando se sale de la pestaña
+            // Detener polling de transacciones cuando se cambia de pestaña (opcional)
             const historialTab = document.getElementById('pills-historial-tab');
             historialTab.addEventListener('shown.bs.tab', () => {
-                stopRealTimeStats();
-                // Limpiar filtros de historial al entrar
-                limpiarBusqueda();
+                // Solo limpiar búsqueda de transacciones, no tocar estadísticas
             });
         });
         
@@ -544,45 +534,11 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
         }
         
         // === FUNCIONES TIEMPO REAL ESTADÍSTICAS ===
-        function toggleRealTimeStats() {
-            realTimeStatsEnabled = !realTimeStatsEnabled;
-            
-            const btn = document.getElementById('btnRealTimeStats');
-            const label = document.getElementById('realTimeStatsLabel');
-            const indicator = btn.querySelector('.live-indicator');
-            
-            if (realTimeStatsEnabled) {
-                btn.classList.remove('btn-secondary');
-                btn.classList.add('btn-success');
-                label.textContent = 'LIVE';
-                indicator.classList.remove('paused');
-                startRealTimeStats();
-            } else {
-                btn.classList.remove('btn-success');
-                btn.classList.add('btn-secondary');
-                label.textContent = 'PAUSADO';
-                indicator.classList.add('paused');
-                stopRealTimeStats();
-            }
-        }
-        
-        function startRealTimeStats() {
-            if (realTimeStatsInterval) clearInterval(realTimeStatsInterval);
-            realTimeStatsInterval = setInterval(() => {
-                // Solo actualizar si la pestaña de stats está activa
-                const statsTab = document.getElementById('pills-stats');
-                if (statsTab.classList.contains('show') && statsTab.classList.contains('active')) {
-                    cargarEstadisticas();
-                }
-            }, POLLING_STATS_INTERVAL);
-        }
-        
-        function stopRealTimeStats() {
-            if (realTimeStatsInterval) {
-                clearInterval(realTimeStatsInterval);
-                realTimeStatsInterval = null;
-            }
-        }
+        // Nota: El iframe de estadísticas maneja su propia actualización cada 30 segundos
+        // Estas funciones están vacías para evitar conflictos
+        function toggleRealTimeStats() {}
+        function startRealTimeStats() {}
+        function stopRealTimeStats() {}
 
         // Search Input Logic (from previous tasks) ...
         document.getElementById('searchInput').addEventListener('input', (e) => {
@@ -733,18 +689,15 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
             modal.show();
         }
 
-        // === ESTADÍSTICAS - Ahora manejadas por iframe ===
-        // Las siguientes funciones están vacías porque las estadísticas se manejan en estadisticas.php
+        // === ESTADÍSTICAS - Manejadas completamente por el iframe ===
+        // El iframe tiene su propio sistema de actualización cada 30 segundos
+        // Estas funciones están vacías para no interferir con los filtros del usuario
         function cargarEstadisticas() {
-            // Recarga el iframe de estadísticas
-            const iframe = document.getElementById('statsIframe');
-            if (iframe) iframe.src = iframe.src;
+            // No hacer nada - el iframe se actualiza solo
         }
         
         function limpiarFiltrosStats() {
-            // Recarga el iframe sin filtros
-            const iframe = document.getElementById('statsIframe');
-            if (iframe) iframe.src = 'estadisticas.php';
+            // No hacer nada - el iframe tiene su propio botón de limpiar
         }
         
         function toggleRealTimeStats() {
