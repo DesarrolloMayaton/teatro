@@ -1217,6 +1217,7 @@ if ($_SESSION['usuario_rol'] !== 'admin') {
             modal.classList.add('active');
             await initializeCameras();
         }
+        //
 
         async function cerrarEscaner() {
             if (html5QrCode) {

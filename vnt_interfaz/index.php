@@ -29,7 +29,18 @@ $colores_por_id = [];
 $categorias_js = []; 
 
 // 2. Cargar todos los eventos (incluyendo imagen para el póster)
-$res_eventos = $conn->query("SELECT id_evento, titulo, tipo, mapa_json, imagen FROM evento WHERE finalizado = 0 ORDER BY titulo ASC");
+// Solo eventos con funciones disponibles
+$fecha_limite_eventos = date('Y-m-d H:i:s', strtotime('-2 hours'));
+$sql_eventos = "SELECT e.id_evento, e.titulo, e.tipo, e.mapa_json, e.imagen,
+                       (SELECT COUNT(*) FROM funciones f 
+                        WHERE f.id_evento = e.id_evento 
+                        AND f.estado = 0 
+                        AND (f.fecha_hora > '$fecha_limite_eventos' OR DATE(f.fecha_hora) = CURDATE())) as tiene_funciones
+                FROM evento e 
+                WHERE e.finalizado = 0 
+                HAVING tiene_funciones > 0
+                ORDER BY e.titulo ASC";
+$res_eventos = $conn->query($sql_eventos);
 if ($res_eventos) {
     $eventos_lista = $res_eventos->fetch_all(MYSQLI_ASSOC);
 }
@@ -630,8 +641,22 @@ body {
 /* === CARTELERA FULLSCREEN (sin evento seleccionado) === */
 .cartelera-fullscreen {
   min-height: 100vh;
-  background: linear-gradient(135deg, var(--bg-primary) 0%, #e2e8f0 100%);
+  height: auto;
+  background: linear-gradient(135deg, var(--bg-primary) 0%, #1c1c1e 100%);
   padding: 40px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Permitir scroll solo cuando estamos en cartelera fullscreen */
+body:has(.cartelera-fullscreen) {
+  overflow-y: auto;
+  height: auto;
+}
+
+html:has(.cartelera-fullscreen) {
+  overflow-y: auto;
+  height: auto;
 }
 
 .cartelera-header {
