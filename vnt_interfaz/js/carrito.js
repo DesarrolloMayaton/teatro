@@ -258,6 +258,9 @@ function marcarAsientosVendidos() {
             }
         }
     });
+
+    // Actualizar resumen de asientos después de marcar vendidos
+    actualizarResumenAsientos();
 }
 
 // Marcar asientos con categoría "No Venta"
@@ -278,6 +281,9 @@ function marcarAsientosNoVenta() {
             }
         }
     });
+
+    // Actualizar resumen de asientos después de marcar "No Venta"
+    actualizarResumenAsientos();
 }
 
 // Verificar si un asiento es de categoría "No Venta"
@@ -2498,6 +2504,46 @@ function actualizarEstadisticas() {
             statTotal.textContent = totalElement.textContent;
         }
     }
+}
+
+// Actualizar el resumen de asientos (disponibles / ocupados / totales)
+function actualizarResumenAsientos() {
+    const lblDisp = document.getElementById('labelAsientosDisponibles');
+    const lblOcup = document.getElementById('labelAsientosOcupados');
+    const lblTot = document.getElementById('labelAsientosTotales');
+
+    if (!lblDisp || !lblOcup || !lblTot) {
+        return;
+    }
+
+    const seats = Array.from(document.querySelectorAll('.seat'));
+    if (seats.length === 0) {
+        lblDisp.textContent = '-';
+        lblOcup.textContent = '-';
+        lblTot.textContent = '-';
+        return;
+    }
+
+    let totalVendibles = 0;
+    let ocupados = 0;
+
+    seats.forEach(seat => {
+        // Excluir asientos marcados como "No Venta"
+        if (seat.classList.contains('no-venta')) {
+            return;
+        }
+
+        totalVendibles++;
+        if (seat.classList.contains('vendido')) {
+            ocupados++;
+        }
+    });
+
+    const disponibles = Math.max(0, totalVendibles - ocupados);
+
+    lblDisp.textContent = disponibles;
+    lblOcup.textContent = ocupados;
+    lblTot.textContent = totalVendibles;
 }
 
 // Función para limpiar toda la selección

@@ -7,6 +7,10 @@
 header('Content-Type: application/json');
 require_once '../../evt_interfaz/conexion.php';
 
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+
 session_start();
 if (!isset($_SESSION['usuario_id'])) {
     echo json_encode(['success' => false, 'error' => 'No autorizado']);
@@ -23,14 +27,30 @@ try {
     $db_actual = 'trt_25';
     $db_historico = 'trt_historico_evento';
 
+    $historico_disponible = false;
+    $check_hist = $conn->query("SHOW DATABASES LIKE '{$db_historico}'");
+    if ($check_hist && $check_hist->num_rows > 0) {
+        $check_boletos = $conn->query("SHOW TABLES FROM {$db_historico} LIKE 'boletos'");
+        $historico_disponible = $check_boletos && $check_boletos->num_rows > 0;
+    }
+
     // Determinar qué bases de datos usar
     $databases = [];
     if ($db_mode === 'ambas') {
-        $databases = [$db_actual, $db_historico];
+        $databases[] = $db_actual;
+        if ($historico_disponible) {
+            $databases[] = $db_historico;
+        }
     } elseif ($db_mode === 'historico') {
-        $databases = [$db_historico];
+        if ($historico_disponible) {
+            $databases[] = $db_historico;
+        }
     } else {
-        $databases = [$db_actual];
+        $databases[] = $db_actual;
+    }
+
+    if (empty($databases)) {
+        $databases[] = $db_actual;
     }
 
     // HELPER: Construir WHERE clause para boletos
@@ -275,12 +295,13 @@ try {
     // 7. TOP VENDEDORES
     // ============================================
     $top_vendedores = [];
+    $usuarios_db = $db_actual;
     foreach ($databases as $db) {
         $where = $buildWhere('b');
         $sql_vendedores = "SELECT COALESCE(CONCAT(u.nombre, ' ', u.apellido), 'Sistema') as vendedor, 
             COUNT(*) as boletos, SUM(b.precio_final) as ingresos
             FROM {$db}.boletos b 
-            LEFT JOIN {$db}.usuarios u ON b.id_usuario = u.id_usuario
+            LEFT JOIN {$usuarios_db}.usuarios u ON b.id_usuario = u.id_usuario
             WHERE {$where}
             GROUP BY vendedor";
         $res = $conn->query($sql_vendedores);
