@@ -94,11 +94,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     $stmt_f->close();
 
-                    $conn->query("DELETE FROM trt_historico_evento.boletos WHERE id_evento = $id_evento");
-                    $conn->query("DELETE FROM trt_historico_evento.promociones WHERE id_evento = $id_evento");
-                    $conn->query("DELETE FROM trt_historico_evento.categorias WHERE id_evento = $id_evento");
-                    $conn->query("DELETE FROM trt_historico_evento.funciones WHERE id_evento = $id_evento");
-                    $conn->query("DELETE FROM trt_historico_evento.evento WHERE id_evento = $id_evento");
+                    // COMENTADO POR SOLICITUD DEL USUARIO:
+                    // Al reactivar, NO borrar el historial. Se crea un nuevo evento, pero el anterior conserva sus boletos y estadísticas.
+                    // $conn->query("DELETE FROM trt_historico_evento.boletos WHERE id_evento = $id_evento");
+                    // $conn->query("DELETE FROM trt_historico_evento.promociones WHERE id_evento = $id_evento");
+                    // $conn->query("DELETE FROM trt_historico_evento.categorias WHERE id_evento = $id_evento");
+                    // $conn->query("DELETE FROM trt_historico_evento.funciones WHERE id_evento = $id_evento");
+                    // $conn->query("DELETE FROM trt_historico_evento.evento WHERE id_evento = $id_evento");
 
                     $evt_id = $new_id;
                 } else {
