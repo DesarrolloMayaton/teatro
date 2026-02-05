@@ -44,16 +44,22 @@ function archivar_evento_completo($id, $conn)
     $db_principal = 'trt_25';
     $id = (int) $id;
 
-    $tablas = ['evento', 'funciones', 'categorias', 'promociones', 'boletos'];
-
+    $tablas = ['evento', 'funciones', 'categorias', 'promociones', 'boletos', 'precios_tipo_boleto'];
+    
     foreach ($tablas as $tabla) {
         $sql = "INSERT IGNORE INTO `$db_historico`.`$tabla` SELECT * FROM `$db_principal`.`$tabla` WHERE id_evento = $id";
         if (!$conn->query($sql)) {
-            throw new Exception("Error archivando tabla $tabla: " . $conn->error);
+            // Si falla la tabla de precios (puede que no tenga id_evento si es global, pero aquí filtramos por id_evento)
+            // Si el precio es global (id_evento IS NULL), no se debe archivar asociado a un evento específico.
+            // Pero si tiene id_evento asignado, SÍ se debe archivar.
+            if ($tabla !== 'precios_tipo_boleto') { 
+                throw new Exception("Error archivando tabla $tabla: " . $conn->error);
+            }
         }
     }
 
     $conn->query("DELETE FROM `$db_principal`.boletos WHERE id_evento = $id");
+    $conn->query("DELETE FROM `$db_principal`.precios_tipo_boleto WHERE id_evento = $id");
     $conn->query("DELETE FROM `$db_principal`.promociones WHERE id_evento = $id");
     $conn->query("DELETE FROM `$db_principal`.categorias WHERE id_evento = $id");
     $conn->query("DELETE FROM `$db_principal`.funciones WHERE id_evento = $id");
@@ -323,9 +329,9 @@ $activos = $conn->query("
         }
 
         .evento-terminado-msg {
-            background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.1) 100%);
-            border: 1px solid rgba(139, 92, 246, 0.4);
-            color: #a5b4fc;
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.1) 100%);
+            border: 1px solid rgba(251, 191, 36, 0.4);
+            color: #fbbf24;
             padding: 8px 12px;
             border-radius: 8px;
             font-size: 0.75rem;
@@ -728,8 +734,8 @@ $activos = $conn->query("
 
                             <?php if ($todasVencidas && count($funciones) > 0): ?>
                                 <div class="evento-terminado-msg">
-                                    <i class="bi bi-clock-history"></i>
-                                    <span>Evento terminado. Se archivará a medianoche.</span>
+                                    <i class="bi bi-exclamation-triangle-fill"></i>
+                                    <span>Evento terminado. Puedes archivarlo.</span>
                                 </div>
                             <?php endif; ?>
 

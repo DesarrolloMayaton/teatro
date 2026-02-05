@@ -12,7 +12,7 @@ if (!isset($_SESSION['usuario_id'])) {
 try {
     $q = $_GET['q'] ?? '';
     $page = max(1, (int)($_GET['page'] ?? 1));
-    $limit = 20; // 20 resultados por página para búsqueda rápida
+    $limit = 100; // 100 resultados por página
     $offset = ($page - 1) * $limit;
 
     $params = [];
