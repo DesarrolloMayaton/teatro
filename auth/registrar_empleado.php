@@ -577,6 +577,89 @@ if ($res_admin->num_rows > 0) {
         .toggle-switch:not(.disabled):active .toggle-slider {
             transform: scale(0.95);
         }
+        
+        /* Animación de cambio de estado */
+        @keyframes toggleActivate {
+            0% { transform: scale(1); }
+            25% { transform: scale(1.15); box-shadow: 0 0 25px rgba(16, 185, 129, 0.8); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        @keyframes toggleDeactivate {
+            0% { transform: scale(1); }
+            25% { transform: scale(1.15); box-shadow: 0 0 25px rgba(239, 68, 68, 0.8); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .toggle-slider.activating {
+            animation: toggleActivate 0.6s ease;
+        }
+        
+        .toggle-slider.deactivating {
+            animation: toggleDeactivate 0.6s ease;
+        }
+        
+        /* Indicador de estado con texto */
+        .estado-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 20px;
+            margin-left: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .estado-label.activo {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        
+        .estado-label.inactivo {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        /* Toggle Password Visibility */
+        .password-wrapper {
+            position: relative;
+        }
+        
+        .password-wrapper input {
+            padding-right: 45px;
+        }
+        
+        .btn-toggle-password {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            padding: 5px;
+            font-size: 1.1em;
+            transition: all 0.3s;
+        }
+        
+        .btn-toggle-password:hover {
+            color: #667eea;
+        }
+        
+        .password-info {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .password-info i {
+            color: #f59e0b;
+        }
 
         .acciones-cell {
             display: flex;
@@ -803,34 +886,34 @@ if ($res_admin->num_rows > 0) {
                     </div>
                 <?php endif; ?>
 
-                <form method="POST">
+                <form method="POST" id="formRegistro" onsubmit="return solicitarRegistro(event)">
                     <input type="hidden" name="registrar_nuevo" value="1">
 
                     <div class="form-group">
                         <label>Nombre de usuario</label>
-                        <input type="text" name="nombre" required placeholder="Ej: juan.perez">
+                        <input type="text" name="nombre" id="reg_nombre" required placeholder="Ej: juan.perez">
                     </div>
 
                     <div class="form-group">
                         <label>Apellido</label>
-                        <input type="text" name="apellido" required placeholder="Ej: Pérez García">
+                        <input type="text" name="apellido" id="reg_apellido" required placeholder="Ej: Pérez García">
                     </div>
 
                     <div class="form-group">
                         <label>Contraseña (mín. 6 caracteres)</label>
-                        <input type="password" name="password" required placeholder="••••••" pattern="[A-Za-z0-9]{6,}"
+                        <input type="password" name="password" id="reg_password" required placeholder="••••••" pattern="[A-Za-z0-9]{6,}"
                             title="Solo letras y números, mínimo 6 caracteres" autocomplete="new-password">
                     </div>
 
                     <div class="form-group">
                         <label>Confirmar contraseña</label>
-                        <input type="password" name="password_confirm" required placeholder="••••••" pattern="[A-Za-z0-9]{6,}"
+                        <input type="password" name="password_confirm" id="reg_password_confirm" required placeholder="••••••" pattern="[A-Za-z0-9]{6,}"
                             title="Debe coincidir y solo letras y números" autocomplete="new-password">
                     </div>
 
                     <div class="form-group">
                         <label>Rol</label>
-                        <select name="rol" required>
+                        <select name="rol" id="reg_rol" required>
                             <option value="empleado">Empleado</option>
                             <option value="admin">Administrador</option>
                         </select>
@@ -970,8 +1053,17 @@ if ($res_admin->num_rows > 0) {
 
                 <div class="form-group">
                     <label>Nueva contraseña (dejar vacío para no cambiar)</label>
-                    <input type="password" id="editar_password" placeholder="Dejar vacío para mantener" pattern="[A-Za-z0-9]{6,}"
-                        title="Solo letras y números, mínimo 6 caracteres" autocomplete="new-password">
+                    <div class="password-wrapper">
+                        <input type="password" id="editar_password" placeholder="Dejar vacío para mantener" pattern="[A-Za-z0-9]{6,}"
+                            title="Solo letras y números, mínimo 6 caracteres" autocomplete="new-password">
+                        <button type="button" class="btn-toggle-password" onclick="togglePasswordVisibility('editar_password', this)">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                    <div class="password-info">
+                        <i class="bi bi-shield-lock"></i>
+                        <span>La contraseña actual está encriptada y no puede mostrarse por seguridad</span>
+                    </div>
                 </div>
 
                 <div class="form-group" id="grupo_rol">
@@ -1004,6 +1096,20 @@ if ($res_admin->num_rows > 0) {
         // Ocultar error de seguridad
         function ocultarErrorSeguridad() {
             document.getElementById('errorSeguridad').style.display = 'none';
+        }
+
+        // Toggle password visibility
+        function togglePasswordVisibility(inputId, button) {
+            const input = document.getElementById(inputId);
+            const icon = button.querySelector('i');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'bi bi-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'bi bi-eye';
+            }
         }
 
         // Mostrar notificación flotante
@@ -1077,6 +1183,9 @@ if ($res_admin->num_rows > 0) {
                         realizarToggle(accion.id, accion.element);
                     } else if (accion.tipo === 'eliminar') {
                         realizarEliminacion(accion.id);
+                    } else if (accion.tipo === 'registro') {
+                        // Enviar el formulario de registro
+                        document.getElementById('formRegistro').submit();
                     }
                 }
             } else {
@@ -1087,15 +1196,32 @@ if ($res_admin->num_rows > 0) {
         }
 
         async function realizarToggle(id, checkbox) {
+             const slider = checkbox.parentElement.querySelector('.toggle-slider');
+             const wasChecked = !checkbox.checked;
+             
              const formData = new FormData();
              formData.append('ajax', 'toggle_estado');
              formData.append('id', id);
              const response = await fetch('', { method: 'POST', body: formData });
              const data = await response.json();
+             
              if (data.success) {
-                 location.reload();
+                 checkbox.checked = data.activo;
+                 
+                 if (data.activo) {
+                     slider.classList.add('activating');
+                     mostrarNotificacion('Usuario ACTIVADO correctamente', 'success');
+                 } else {
+                     slider.classList.add('deactivating');
+                     mostrarNotificacion('Usuario DESACTIVADO', 'error');
+                 }
+                 
+                 setTimeout(() => {
+                     slider.classList.remove('activating', 'deactivating');
+                 }, 600);
              } else {
                  mostrarNotificacion('Error: ' + data.message, 'error');
+                 checkbox.checked = wasChecked;
              }
         }
 
@@ -1195,6 +1321,42 @@ if ($res_admin->num_rows > 0) {
             }
             accionPendiente = { tipo: 'eliminar', id: id };
             mostrarModalSeguridad();
+        }
+
+        // Solicitar registro (pide contraseña primero)
+        function solicitarRegistro(event) {
+            event.preventDefault();
+            
+            // Validar campos del formulario
+            const nombre = document.getElementById('reg_nombre').value.trim();
+            const apellido = document.getElementById('reg_apellido').value.trim();
+            const password = document.getElementById('reg_password').value;
+            const passwordConfirm = document.getElementById('reg_password_confirm').value;
+            
+            if (!nombre || !apellido || !password || !passwordConfirm) {
+                mostrarNotificacion('Todos los campos son obligatorios', 'error');
+                return false;
+            }
+            
+            if (password !== passwordConfirm) {
+                mostrarNotificacion('Las contraseñas no coinciden', 'error');
+                return false;
+            }
+            
+            if (password.length < 6) {
+                mostrarNotificacion('La contraseña debe tener al menos 6 caracteres', 'error');
+                return false;
+            }
+            
+            if (!/^[A-Za-z0-9]+$/.test(password)) {
+                mostrarNotificacion('La contraseña solo puede contener letras y números', 'error');
+                return false;
+            }
+            
+            // Pedir contraseña de admin
+            accionPendiente = { tipo: 'registro' };
+            mostrarModalSeguridad();
+            return false;
         }
 
         // Cerrar modales con ESC

@@ -1,72 +1,251 @@
 /// <reference path="qz-tray.js" />
 // qz_interface.js
 // Manejo de impresión cliente con QZ Tray
+// Versión 2.0 - Con reconexión automática y verificación de estado real
 
 const QZ_CONFIG = {
-    host: 'localhost', // QZ Tray suele correr localmente
-    connected: false
+    host: 'localhost',
+    connected: false,
+    reconnectAttempts: 0,
+    maxReconnectAttempts: 5,
+    reconnectDelay: 1000, // ms inicial
+    isReconnecting: false,
+    lastError: null
 };
 
-// Inicializar QZ
-// Inicializar QZ
 // Configuración de Seguridad (Firma de mensajes) global
-// Esto permite "Remember this decision" y suprime advertencias
 qz.security.setCertificatePromise(function (resolve, reject) {
-    console.log("QZ: Solicitando cerfiticado...");
-    fetch('utils/qz_cert.pem')
-        .then(data => {
-            console.log("QZ: Certificado encontrado");
-            return data.text();
-        })
-        .then(resolve)
-        .catch(err => {
-            console.error("QZ: Error cargando certificado", err);
-            reject(err);
-        });
+    console.log("QZ: Solicitando certificado...");
+    // Intentar múltiples rutas para el certificado
+    const paths = ['utils/qz_cert.pem', '../vnt_interfaz/utils/qz_cert.pem', '../../vnt_interfaz/utils/qz_cert.pem'];
+
+    const tryPath = (index) => {
+        if (index >= paths.length) {
+            reject(new Error('No se pudo cargar el certificado QZ'));
+            return;
+        }
+
+        fetch(paths[index])
+            .then(response => {
+                if (!response.ok) throw new Error('Not found');
+                return response.text();
+            })
+            .then(text => {
+                console.log("QZ: Certificado encontrado en", paths[index]);
+                resolve(text);
+            })
+            .catch(() => tryPath(index + 1));
+    };
+
+    tryPath(0);
 });
 
 qz.security.setSignaturePromise(function (toSign) {
     return function (resolve, reject) {
-        console.log("QZ: Solicitando firma para:", toSign);
-        fetch('sign_message.php?request=' + toSign)
-            .then(data => data.text())
-            .then(signed => {
-                console.log("QZ: Firma recibida", signed.substring(0, 20) + "...");
-                resolve(signed);
-            })
-            .catch(err => {
-                console.error("QZ: Error firmando mensaje", err);
-                reject(err);
-            });
+        console.log("QZ: Solicitando firma...");
+        // Intentar múltiples rutas para el endpoint de firma
+        const paths = ['sign_message.php', '../vnt_interfaz/sign_message.php', '../../vnt_interfaz/sign_message.php'];
+
+        const tryPath = (index) => {
+            if (index >= paths.length) {
+                reject(new Error('No se pudo obtener la firma QZ'));
+                return;
+            }
+
+            fetch(paths[index] + '?request=' + encodeURIComponent(toSign))
+                .then(response => {
+                    if (!response.ok) throw new Error('Not found');
+                    return response.text();
+                })
+                .then(signed => {
+                    console.log("QZ: Firma obtenida correctamente");
+                    resolve(signed);
+                })
+                .catch(() => tryPath(index + 1));
+        };
+
+        tryPath(0);
     };
 });
 
-async function initQZ() {
-    if (QZ_CONFIG.connected) return true;
-
+// Verificar si la conexión WebSocket está REALMENTE activa
+function isQZReallyConnected() {
     try {
-        if (!qz.websocket.isActive()) {
-            await qz.websocket.connect();
-        }
-        QZ_CONFIG.connected = true;
-        console.log("QZ Tray conectado");
-        return true;
-    } catch (err) {
-        console.error("Error conectando a QZ Tray:", err);
+        return qz.websocket.isActive();
+    } catch (e) {
         return false;
     }
 }
 
-// Obtener lista de impresoras
-async function getPrinters() {
-    if (!await initQZ()) return [];
+// Configurar listener de desconexión
+function setupDisconnectListener() {
+    try {
+        qz.websocket.setClosedCallbacks(function (event) {
+            console.warn("QZ Tray: Conexión cerrada", event);
+            QZ_CONFIG.connected = false;
+            QZ_CONFIG.lastError = "Conexión cerrada";
+
+            // Intentar reconectar automáticamente si no estamos ya reconectando
+            if (!QZ_CONFIG.isReconnecting) {
+                console.log("QZ Tray: Iniciando reconexión automática...");
+                autoReconnect();
+            }
+        });
+
+        qz.websocket.setErrorCallbacks(function (error) {
+            console.error("QZ Tray: Error de WebSocket", error);
+            QZ_CONFIG.lastError = error.message || "Error de conexión";
+        });
+    } catch (e) {
+        console.warn("QZ: No se pudieron configurar callbacks de desconexión", e);
+    }
+}
+
+// Reconexión automática con backoff exponencial
+async function autoReconnect() {
+    if (QZ_CONFIG.isReconnecting) return;
+    if (QZ_CONFIG.reconnectAttempts >= QZ_CONFIG.maxReconnectAttempts) {
+        console.error("QZ Tray: Máximo de intentos de reconexión alcanzado");
+        QZ_CONFIG.isReconnecting = false;
+        return;
+    }
+
+    QZ_CONFIG.isReconnecting = true;
+    QZ_CONFIG.reconnectAttempts++;
+
+    const delay = QZ_CONFIG.reconnectDelay * Math.pow(2, QZ_CONFIG.reconnectAttempts - 1);
+    console.log(`QZ Tray: Reintentando conexión en ${delay}ms (intento ${QZ_CONFIG.reconnectAttempts}/${QZ_CONFIG.maxReconnectAttempts})`);
+
+    await new Promise(resolve => setTimeout(resolve, delay));
 
     try {
-        return await qz.printers.find();
+        // Forzar desconexión primero si hay conexión zombie
+        try {
+            if (qz.websocket.isActive()) {
+                await qz.websocket.disconnect();
+            }
+        } catch (e) { /* ignorar */ }
+
+        await qz.websocket.connect();
+        QZ_CONFIG.connected = true;
+        QZ_CONFIG.reconnectAttempts = 0;
+        QZ_CONFIG.isReconnecting = false;
+        QZ_CONFIG.lastError = null;
+        console.log("QZ Tray: Reconexión exitosa!");
+        setupDisconnectListener();
     } catch (err) {
-        console.error("Error obteniendo impresoras:", err);
+        console.error("QZ Tray: Fallo en reconexión", err);
+        QZ_CONFIG.connected = false;
+        QZ_CONFIG.isReconnecting = false;
+
+        // Intentar de nuevo si aún hay intentos disponibles
+        if (QZ_CONFIG.reconnectAttempts < QZ_CONFIG.maxReconnectAttempts) {
+            autoReconnect();
+        }
+    }
+}
+
+// Inicializar QZ con verificación robusta
+async function initQZ(forceReconnect = false) {
+    // Verificar el estado REAL de la conexión, no solo la variable
+    const reallyConnected = isQZReallyConnected();
+
+    // Si la variable dice conectado pero realmente no lo está, corregir
+    if (QZ_CONFIG.connected && !reallyConnected) {
+        console.warn("QZ Tray: Estado inconsistente detectado, reconectando...");
+        QZ_CONFIG.connected = false;
+    }
+
+    // Si ya está conectado y no forzamos reconexión, retornar éxito
+    if (reallyConnected && !forceReconnect) {
+        QZ_CONFIG.connected = true;
+        return true;
+    }
+
+    // Reiniciar contador de intentos si es una nueva conexión iniciada por el usuario
+    if (forceReconnect) {
+        QZ_CONFIG.reconnectAttempts = 0;
+    }
+
+    try {
+        // Si hay una conexión zombie, desconectar primero
+        try {
+            if (qz.websocket.isActive()) {
+                await qz.websocket.disconnect();
+            }
+        } catch (e) {
+            console.warn("QZ: Error al desconectar conexión previa", e);
+        }
+
+        await qz.websocket.connect();
+        QZ_CONFIG.connected = true;
+        QZ_CONFIG.reconnectAttempts = 0;
+        QZ_CONFIG.lastError = null;
+        console.log("QZ Tray: Conectado exitosamente");
+
+        // Configurar listener para detectar desconexiones futuras
+        setupDisconnectListener();
+
+        return true;
+    } catch (err) {
+        console.error("QZ Tray: Error conectando:", err);
+        QZ_CONFIG.connected = false;
+        QZ_CONFIG.lastError = err.message || "Error de conexión";
+        return false;
+    }
+}
+
+// Obtener lista de impresoras con manejo robusto
+async function getPrinters(retryOnFail = true) {
+    // Intentar inicializar/reconectar
+    if (!await initQZ()) {
+        // Si falló la primera vez, intentar una reconexión forzada
+        if (retryOnFail) {
+            console.log("QZ Tray: Reintentando conexión para obtener impresoras...");
+            await new Promise(resolve => setTimeout(resolve, 500));
+            return getPrinters(false); // Sin retry para evitar loop infinito
+        }
         return [];
     }
+
+    try {
+        const printers = await qz.printers.find();
+        console.log("QZ Tray: Impresoras encontradas:", printers);
+        return printers;
+    } catch (err) {
+        console.error("QZ Tray: Error obteniendo impresoras:", err);
+
+        // Si el error parece ser de conexión, intentar reconectar
+        if (retryOnFail && (err.message?.includes('connection') || err.message?.includes('socket'))) {
+            console.log("QZ Tray: Error de conexión detectado, reconectando...");
+            QZ_CONFIG.connected = false;
+            await new Promise(resolve => setTimeout(resolve, 500));
+            return getPrinters(false);
+        }
+
+        return [];
+    }
+}
+
+// Forzar reconexión manual (útil para botón de "Reconectar")
+async function forceQZReconnect() {
+    console.log("QZ Tray: Forzando reconexión...");
+    QZ_CONFIG.reconnectAttempts = 0;
+    QZ_CONFIG.isReconnecting = false;
+    QZ_CONFIG.connected = false;
+
+    return await initQZ(true);
+}
+
+// Obtener estado de conexión
+function getQZStatus() {
+    return {
+        connected: QZ_CONFIG.connected,
+        reallyConnected: isQZReallyConnected(),
+        reconnectAttempts: QZ_CONFIG.reconnectAttempts,
+        isReconnecting: QZ_CONFIG.isReconnecting,
+        lastError: QZ_CONFIG.lastError
+    };
 }
 
 // Generar HTML del boleto
@@ -177,9 +356,16 @@ function formatTicketHTML(boleto, cliente) {
     `;
 }
 
-// Imprimir lista de boletos
-async function printTicketsQZ(boletos, cliente, impresoraName) {
-    if (!await initQZ()) return { success: false, message: "No se pudo conectar con QZ Tray" };
+// Imprimir lista de boletos con manejo robusto de errores
+async function printTicketsQZ(boletos, cliente, impresoraName, isRetry = false) {
+    // Verificar conexión real, no solo la variable
+    if (!isQZReallyConnected()) {
+        console.log("QZ Tray: Conexión no activa, intentando conectar...");
+        const connected = await initQZ(true);
+        if (!connected) {
+            return { success: false, message: "No se pudo conectar con QZ Tray. Asegúrese de que QZ Tray esté ejecutándose." };
+        }
+    }
 
     try {
         // Configuración de impresora
@@ -192,6 +378,10 @@ async function printTicketsQZ(boletos, cliente, impresoraName) {
             // Preferir POS
             const posPrinter = printers.find(p => p.includes('POS') || p.includes('Epson') || p.includes('Thermal'));
             impresoraName = posPrinter || printers[0];
+
+            if (!impresoraName) {
+                return { success: false, message: "No se encontraron impresoras disponibles" };
+            }
         }
 
         // Crear configuración para HTML (rasterización)
@@ -217,7 +407,21 @@ async function printTicketsQZ(boletos, cliente, impresoraName) {
         await qz.print(config, printData);
         return { success: true, message: `Enviado a ${impresoraName}` };
     } catch (err) {
-        console.error("Error QZ Print:", err);
+        console.error("QZ Tray: Error al imprimir:", err);
+
+        // Si el error parece ser de conexión y no es un reintento, intentar reconectar e imprimir de nuevo
+        const isConnectionError = err.message?.includes('connection') ||
+            err.message?.includes('socket') ||
+            err.message?.includes('closed') ||
+            err.message?.includes('WebSocket');
+
+        if (isConnectionError && !isRetry) {
+            console.log("QZ Tray: Error de conexión detectado, reintentando...");
+            QZ_CONFIG.connected = false;
+            await new Promise(resolve => setTimeout(resolve, 500));
+            return printTicketsQZ(boletos, cliente, impresoraName, true);
+        }
+
         return { success: false, message: err.message || err };
     }
 }
@@ -226,3 +430,31 @@ async function printTicketsQZ(boletos, cliente, impresoraName) {
 window.initQZ = initQZ;
 window.getPrinters = getPrinters;
 window.printTicketsQZ = printTicketsQZ;
+window.forceQZReconnect = forceQZReconnect;
+window.getQZStatus = getQZStatus;
+window.isQZReallyConnected = isQZReallyConnected;
+
+// NOTA: Se eliminaron las conexiones automáticas para evitar que aparezca
+// la ventana de permisos de QZ Tray repetidamente.
+// La conexión ahora se realiza SOLO cuando el usuario solicita imprimir.
+
+// Función para conectar manualmente (usar desde un botón si se desea)
+async function connectQZManually() {
+    console.log("QZ Tray: Conexión manual solicitada...");
+    try {
+        const connected = await initQZ();
+        if (connected) {
+            console.log("QZ Tray: Conexión manual exitosa");
+            return true;
+        } else {
+            console.warn("QZ Tray: No se pudo conectar manualmente");
+            return false;
+        }
+    } catch (e) {
+        console.warn("QZ Tray: Error en conexión manual:", e);
+        return false;
+    }
+}
+
+// Exponer función de conexión manual
+window.connectQZManually = connectQZManually;

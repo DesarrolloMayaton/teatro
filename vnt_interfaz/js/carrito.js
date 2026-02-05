@@ -318,6 +318,13 @@ function agregarAlCarrito(asientoId, categoriaId) {
         return false;
     }
 
+    // Límite máximo de boletos por venta
+    const LIMITE_BOLETOS = 10;
+    if (carrito.length >= LIMITE_BOLETOS) {
+        notify.warning(`Límite alcanzado: Máximo ${LIMITE_BOLETOS} boletos por venta`);
+        return false;
+    }
+
     // Verificar si ya está en el carrito
     if (carrito.find(item => item.asiento === asientoId)) {
         notify.warning('Este asiento ya está en tu carrito');
@@ -420,13 +427,12 @@ function actualizarCarrito() {
         totalDescuento += descuentoItem;
 
         html += `
-            <div class="carrito-item">
-                <div class="asiento-info">
-                    <strong>${item.asiento}</strong>
-                    <small style="display: block;">${item.categoria}</small>
-                    <span class="text-success" style="font-size: 0.9rem;">$${precioMostrar.toFixed(2)}</span>
-                    ${descuentoItem > 0 ? `<small class="text-danger" style="display: block;">-$${descuentoItem.toFixed(2)}</small>` : ''}
-                    ${descuentoItem > 0 ? `<strong class="text-primary" style="font-size: 0.9rem;">$${precioFinal.toFixed(2)}</strong>` : ''}
+            <div class="carrito-item" style="background: #1e1e1e; border: 1px solid #444;">
+                <div class="asiento-info" style="color: #ffffff;">
+                    <span style="color: #ffffff; font-weight: 700; font-size: 0.95rem; margin-right: 6px;">${item.asiento}</span>
+                    <span style="color: #888888; font-size: 0.8rem; margin-right: 8px;">${item.categoria}</span>
+                    <span style="color: #32d74b; font-weight: 600; font-size: 0.9rem;">$${precioMostrar.toFixed(2)}</span>
+                    ${descuentoItem > 0 ? `<span style="color: #ff6b6b; font-size: 0.8rem; margin-left: 4px;">-$${descuentoItem.toFixed(2)}</span>` : ''}
                 </div>
                 <button class="btn-remove" onclick="removerDelCarrito('${item.asiento}')">
                     <i class="bi bi-x"></i>
@@ -1478,6 +1484,36 @@ function mostrarBoletosGenerados(boletos) {
                 background: #f1f5f9;
                 padding: 20px;
             }
+            #modalBoletosNuevo .boleto-qr-icon {
+                width: 80px;
+                height: 80px;
+                margin: 0 auto 8px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border-radius: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            }
+            #modalBoletosNuevo .boleto-qr-icon i {
+                font-size: 2.5rem;
+                color: #fff;
+            }
+            #modalBoletosNuevo .accion-btn.loading {
+                pointer-events: none;
+                opacity: 0.8;
+            }
+            #modalBoletosNuevo .accion-btn .spinner-border {
+                width: 1.5rem;
+                height: 1.5rem;
+            }
+            @keyframes pulse-loading {
+                0%, 100% { opacity: 0.8; }
+                50% { opacity: 1; }
+            }
+            #modalBoletosNuevo .accion-btn.loading {
+                animation: pulse-loading 1s ease-in-out infinite;
+            }
             @media (max-width: 768px) {
                 #modalBoletosNuevo .boletos-grid {
                     grid-template-columns: repeat(2, 1fr);
@@ -1513,7 +1549,9 @@ function mostrarBoletosGenerados(boletos) {
         html += `
             <div class="boleto-card">
                 <div class="boleto-asiento">${boleto.asiento}</div>
-                <img src="../boletos_qr/${boleto.codigo_unico}.png" alt="QR" class="boleto-qr">
+                <div class="boleto-qr-icon">
+                    <i class="bi bi-qr-code"></i>
+                </div>
                 <div class="boleto-precio">$${boleto.precio.toFixed(2)}</div>
                 <div class="boleto-codigo">${boleto.codigo_unico}</div>
             </div>
@@ -1588,19 +1626,19 @@ function mostrarBoletosGenerados(boletos) {
                 <!-- Acciones Rápidas -->
                 <div class="acciones-rapidas">
                     <div class="d-flex gap-3 justify-content-center flex-wrap">
-                        <button type="button" class="accion-btn btn btn-primary" onclick="descargarTodosBoletos()">
+                        <button type="button" class="accion-btn btn btn-primary" id="btnDescargarPDF" onclick="descargarConLoading()">
                             <i class="bi bi-download"></i>
                             <span>Descargar PDF</span>
                         </button>
-                        <button type="button" class="accion-btn btn btn-warning" onclick="imprimirTodosBoletos()">
+                        <button type="button" class="accion-btn btn btn-warning" id="btnImprimirTickets" onclick="imprimirConLoading()">
                             <i class="bi bi-printer"></i>
                             <span>Imprimir</span>
                         </button>
-                        <button type="button" class="accion-btn btn btn-success" onclick="enviarTodosBoletosPorWhatsApp()">
+                        <button type="button" class="accion-btn btn btn-success" id="btnWhatsApp" onclick="whatsAppConLoading()">
                             <i class="bi bi-whatsapp"></i>
                             <span>WhatsApp</span>
                         </button>
-                        <button type="button" class="accion-btn btn btn-danger" onclick="cancelarVentaDesdeModal()">
+                        <button type="button" class="accion-btn btn btn-danger" id="btnCancelarVenta" onclick="cancelarVentaDesdeModal()">
                             <i class="bi bi-x-circle"></i>
                             <span>Cancelar Venta</span>
                         </button>
@@ -1837,6 +1875,423 @@ function cambiarDeEventoDesdeModal() {
     }, 300);
 }
 
+// ==========================================
+// FUNCIONES CON ANIMACIÓN DE CARGA
+// ==========================================
+
+// Función helper para mostrar/ocultar loading en botones
+function setButtonLoading(btnId, isLoading, originalContent = null) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+
+    if (isLoading) {
+        btn.dataset.originalContent = btn.innerHTML;
+        btn.classList.add('loading');
+        btn.innerHTML = `
+            <div class="spinner-border spinner-border-sm text-light" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+            <span>Procesando...</span>
+        `;
+    } else {
+        btn.classList.remove('loading');
+        btn.innerHTML = btn.dataset.originalContent || originalContent;
+    }
+}
+
+// Descargar PDF con animación de carga
+async function descargarConLoading() {
+    setButtonLoading('btnDescargarPDF', true);
+    try {
+        await descargarTodosBoletos();
+    } finally {
+        setButtonLoading('btnDescargarPDF', false);
+    }
+}
+
+// Imprimir con animación de carga
+async function imprimirConLoading() {
+    setButtonLoading('btnImprimirTickets', true);
+    try {
+        await imprimirTodosBoletos();
+    } finally {
+        setButtonLoading('btnImprimirTickets', false);
+    }
+}
+
+// WhatsApp con animación de carga
+async function whatsAppConLoading() {
+    setButtonLoading('btnWhatsApp', true);
+    try {
+        await enviarTodosBoletosPorWhatsApp();
+    } finally {
+        setButtonLoading('btnWhatsApp', false);
+    }
+}
+
+// Modal Premium de Procesando (con animación de carga)
+function mostrarModalProcesando(titulo, mensaje) {
+    // Remover modal anterior si existe
+    const modalAnterior = document.getElementById('modalProcesando');
+    if (modalAnterior) modalAnterior.remove();
+
+    const modalHTML = `
+        <div class="modal fade" id="modalProcesando" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
+                <div class="modal-content processing-modal">
+                    <style>
+                        .processing-modal {
+                            background: linear-gradient(145deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+                            border: 1px solid rgba(102, 126, 234, 0.3);
+                            border-radius: 20px;
+                            overflow: hidden;
+                            box-shadow: 
+                                0 25px 80px rgba(102, 126, 234, 0.25),
+                                0 10px 40px rgba(0, 0, 0, 0.5),
+                                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+                            text-align: center;
+                            padding: 40px 30px;
+                        }
+                        .processing-spinner-container {
+                            width: 80px;
+                            height: 80px;
+                            margin: 0 auto 24px;
+                            position: relative;
+                        }
+                        .processing-spinner {
+                            width: 80px;
+                            height: 80px;
+                            border: 4px solid rgba(102, 126, 234, 0.2);
+                            border-top-color: #667eea;
+                            border-radius: 50%;
+                            animation: spin-processing 1s linear infinite;
+                        }
+                        @keyframes spin-processing {
+                            to { transform: rotate(360deg); }
+                        }
+                        .processing-icon {
+                            position: absolute;
+                            top: 50%;
+                            left: 50%;
+                            transform: translate(-50%, -50%);
+                            font-size: 1.8rem;
+                            color: #667eea;
+                            animation: pulse-icon 1.5s ease-in-out infinite;
+                        }
+                        @keyframes pulse-icon {
+                            0%, 100% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
+                            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+                        }
+                        .processing-title {
+                            color: #fff;
+                            font-size: 1.2rem;
+                            font-weight: 700;
+                            margin: 0 0 8px;
+                            letter-spacing: -0.5px;
+                        }
+                        .processing-message {
+                            color: rgba(255, 255, 255, 0.6);
+                            font-size: 0.9rem;
+                            margin: 0;
+                            line-height: 1.5;
+                        }
+                        .processing-dots {
+                            display: inline-flex;
+                            gap: 4px;
+                            margin-left: 4px;
+                        }
+                        .processing-dots span {
+                            width: 6px;
+                            height: 6px;
+                            background: rgba(255, 255, 255, 0.6);
+                            border-radius: 50%;
+                            animation: bounce-dot 1.4s ease-in-out infinite;
+                        }
+                        .processing-dots span:nth-child(2) { animation-delay: 0.2s; }
+                        .processing-dots span:nth-child(3) { animation-delay: 0.4s; }
+                        @keyframes bounce-dot {
+                            0%, 80%, 100% { transform: translateY(0); }
+                            40% { transform: translateY(-8px); }
+                        }
+                    </style>
+                    
+                    <div class="processing-spinner-container">
+                        <div class="processing-spinner"></div>
+                        <i class="bi bi-hourglass-split processing-icon"></i>
+                    </div>
+                    <h4 class="processing-title">${titulo}</h4>
+                    <p class="processing-message">
+                        ${mensaje}
+                        <span class="processing-dots">
+                            <span></span><span></span><span></span>
+                        </span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    const modalElement = document.getElementById('modalProcesando');
+    const modal = new bootstrap.Modal(modalElement);
+    modal.show();
+
+    return modal;
+}
+
+// Función para cerrar el modal de procesamiento
+function cerrarModalProcesando() {
+    const modalElement = document.getElementById('modalProcesando');
+    if (modalElement) {
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
+        modalElement.addEventListener('hidden.bs.modal', () => {
+            modalElement.remove();
+        }, { once: true });
+    }
+}
+
+// Modal Premium para Confirmar Cancelación
+function mostrarModalConfirmacionCancelacion() {
+    return new Promise((resolve) => {
+        const cantidadBoletos = window.boletosActuales?.length || 0;
+
+        // Remover modal anterior si existe
+        const modalAnterior = document.getElementById('modalConfirmCancelacion');
+        if (modalAnterior) modalAnterior.remove();
+
+        const modalHTML = `
+            <div class="modal fade" id="modalConfirmCancelacion" tabindex="-1" data-bs-backdrop="static">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content confirm-cancel-modal">
+                        <style>
+                            .confirm-cancel-modal {
+                                background: linear-gradient(145deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+                                border: 1px solid rgba(255, 69, 58, 0.3);
+                                border-radius: 20px;
+                                overflow: hidden;
+                                box-shadow: 
+                                    0 25px 80px rgba(255, 69, 58, 0.2),
+                                    0 10px 40px rgba(0, 0, 0, 0.5),
+                                    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+                            }
+                            .confirm-cancel-header {
+                                background: linear-gradient(135deg, rgba(255, 69, 58, 0.15) 0%, rgba(255, 69, 58, 0.05) 100%);
+                                padding: 24px 28px;
+                                border-bottom: 1px solid rgba(255, 69, 58, 0.2);
+                                display: flex;
+                                align-items: center;
+                                gap: 16px;
+                            }
+                            .cancel-icon-wrapper {
+                                width: 56px;
+                                height: 56px;
+                                background: linear-gradient(135deg, #ff453a 0%, #d63031 100%);
+                                border-radius: 16px;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                animation: pulse-cancel 2s ease-in-out infinite;
+                                box-shadow: 0 8px 25px rgba(255, 69, 58, 0.4);
+                            }
+                            @keyframes pulse-cancel {
+                                0%, 100% { transform: scale(1); box-shadow: 0 8px 25px rgba(255, 69, 58, 0.4); }
+                                50% { transform: scale(1.05); box-shadow: 0 12px 35px rgba(255, 69, 58, 0.6); }
+                            }
+                            .cancel-icon-wrapper i {
+                                font-size: 1.8rem;
+                                color: #fff;
+                            }
+                            .cancel-title {
+                                flex: 1;
+                            }
+                            .cancel-title h4 {
+                                margin: 0;
+                                font-size: 1.3rem;
+                                font-weight: 700;
+                                color: #fff;
+                                letter-spacing: -0.5px;
+                            }
+                            .cancel-title p {
+                                margin: 4px 0 0;
+                                font-size: 0.85rem;
+                                color: rgba(255, 255, 255, 0.6);
+                            }
+                            .confirm-cancel-body {
+                                padding: 28px;
+                                text-align: center;
+                            }
+                            .cancel-warning-box {
+                                background: linear-gradient(135deg, rgba(255, 159, 10, 0.15) 0%, rgba(255, 159, 10, 0.05) 100%);
+                                border: 1px solid rgba(255, 159, 10, 0.3);
+                                border-radius: 14px;
+                                padding: 20px;
+                                margin-bottom: 24px;
+                            }
+                            .warning-icon {
+                                font-size: 2.5rem;
+                                color: #ff9f0a;
+                                margin-bottom: 12px;
+                                display: block;
+                                animation: bounce-warning 1.5s ease-in-out infinite;
+                            }
+                            @keyframes bounce-warning {
+                                0%, 100% { transform: translateY(0); }
+                                50% { transform: translateY(-5px); }
+                            }
+                            .cancel-warning-box h5 {
+                                color: #fff;
+                                font-size: 1.1rem;
+                                font-weight: 600;
+                                margin: 0 0 8px;
+                            }
+                            .cancel-warning-box p {
+                                color: rgba(255, 255, 255, 0.7);
+                                font-size: 0.9rem;
+                                margin: 0;
+                                line-height: 1.5;
+                            }
+                            .tickets-count-display {
+                                display: inline-flex;
+                                align-items: center;
+                                gap: 12px;
+                                background: rgba(255, 69, 58, 0.1);
+                                border: 1px solid rgba(255, 69, 58, 0.3);
+                                border-radius: 12px;
+                                padding: 14px 24px;
+                                margin-bottom: 20px;
+                            }
+                            .tickets-count-display i {
+                                font-size: 1.4rem;
+                                color: #ff453a;
+                            }
+                            .tickets-count-display span {
+                                font-size: 1.1rem;
+                                font-weight: 600;
+                                color: #fff;
+                            }
+                            .tickets-count-display .count {
+                                color: #ff453a;
+                                font-weight: 700;
+                            }
+                            .confirm-cancel-footer {
+                                padding: 20px 28px 28px;
+                                display: flex;
+                                gap: 12px;
+                            }
+                            .btn-cancel-no {
+                                flex: 1;
+                                padding: 14px 20px;
+                                border: 1px solid rgba(255, 255, 255, 0.2);
+                                background: rgba(255, 255, 255, 0.05);
+                                color: #fff;
+                                font-size: 0.95rem;
+                                font-weight: 600;
+                                border-radius: 12px;
+                                cursor: pointer;
+                                transition: all 0.3s ease;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                gap: 8px;
+                            }
+                            .btn-cancel-no:hover {
+                                background: rgba(255, 255, 255, 0.1);
+                                border-color: rgba(255, 255, 255, 0.3);
+                                transform: translateY(-2px);
+                            }
+                            .btn-cancel-yes {
+                                flex: 1;
+                                padding: 14px 20px;
+                                border: none;
+                                background: linear-gradient(135deg, #ff453a 0%, #d63031 100%);
+                                color: #fff;
+                                font-size: 0.95rem;
+                                font-weight: 600;
+                                border-radius: 12px;
+                                cursor: pointer;
+                                transition: all 0.3s ease;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                gap: 8px;
+                                box-shadow: 0 8px 25px rgba(255, 69, 58, 0.35);
+                            }
+                            .btn-cancel-yes:hover {
+                                background: linear-gradient(135deg, #ff5a52 0%, #e84343 100%);
+                                transform: translateY(-2px);
+                                box-shadow: 0 12px 35px rgba(255, 69, 58, 0.45);
+                            }
+                            .btn-cancel-yes:active, .btn-cancel-no:active {
+                                transform: translateY(0);
+                            }
+                        </style>
+                        
+                        <div class="confirm-cancel-header">
+                            <div class="cancel-icon-wrapper">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                            </div>
+                            <div class="cancel-title">
+                                <h4>Confirmar Cancelación</h4>
+                                <p>Esta acción no se puede deshacer</p>
+                            </div>
+                        </div>
+                        
+                        <div class="confirm-cancel-body">
+                            <div class="cancel-warning-box">
+                                <i class="bi bi-shield-exclamation warning-icon"></i>
+                                <h5>¿Estás seguro de cancelar esta venta?</h5>
+                                <p>Se liberarán los asientos reservados y se anulará completamente la transacción. Los códigos QR generados quedarán invalidados.</p>
+                            </div>
+                            
+                            <div class="tickets-count-display">
+                                <i class="bi bi-ticket-perforated"></i>
+                                <span>Se cancelarán <span class="count">${cantidadBoletos}</span> boleto${cantidadBoletos > 1 ? 's' : ''}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="confirm-cancel-footer">
+                            <button type="button" class="btn-cancel-no" id="btnCancelNo">
+                                <i class="bi bi-arrow-left"></i>
+                                Regresar
+                            </button>
+                            <button type="button" class="btn-cancel-yes" id="btnCancelYes">
+                                <i class="bi bi-x-circle"></i>
+                                Sí, Cancelar Venta
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        const modalElement = document.getElementById('modalConfirmCancelacion');
+        const modal = new bootstrap.Modal(modalElement);
+
+        // Event listeners
+        document.getElementById('btnCancelNo').addEventListener('click', () => {
+            modal.hide();
+            modalElement.addEventListener('hidden.bs.modal', () => {
+                modalElement.remove();
+                resolve(false);
+            }, { once: true });
+        });
+
+        document.getElementById('btnCancelYes').addEventListener('click', () => {
+            modal.hide();
+            modalElement.addEventListener('hidden.bs.modal', () => {
+                modalElement.remove();
+                resolve(true);
+            }, { once: true });
+        });
+
+        modal.show();
+    });
+}
+
 // Función para cancelar la venta recién realizada desde el modal de boletos
 async function cancelarVentaDesdeModal() {
     if (!window.boletosActuales || window.boletosActuales.length === 0) {
@@ -1844,20 +2299,15 @@ async function cancelarVentaDesdeModal() {
         return;
     }
 
-    // Confirmar cancelación
-    const cantidadBoletos = window.boletosActuales.length;
-    const confirmar = confirm(`¿Estás seguro de que deseas CANCELAR ${cantidadBoletos} boleto(s)?\n\nEsta acción liberará los asientos y anulará la venta.`);
+    // Confirmar cancelación con modal premium
+    const confirmar = await mostrarModalConfirmacionCancelacion();
 
     if (!confirmar) {
         return;
     }
 
-    // Mostrar loading
-    const btnCancelar = document.querySelector('.accion-btn.btn-danger');
-    if (btnCancelar) {
-        btnCancelar.disabled = true;
-        btnCancelar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Cancelando...';
-    }
+    // Mostrar modal premium de procesamiento
+    mostrarModalProcesando('Cancelando Venta', 'Liberando asientos y anulando la transacción...');
 
     try {
         // Cancelar cada boleto
@@ -1925,12 +2375,9 @@ async function cancelarVentaDesdeModal() {
     } catch (error) {
         console.error('Error al cancelar venta:', error);
         notify.error('Error al cancelar la venta: ' + error.message);
-
-        // Restaurar botón
-        if (btnCancelar) {
-            btnCancelar.disabled = false;
-            btnCancelar.innerHTML = '<i class="bi bi-x-circle"></i><span>Cancelar Venta</span>';
-        }
+    } finally {
+        // Cerrar modal de procesamiento
+        cerrarModalProcesando();
     }
 }
 

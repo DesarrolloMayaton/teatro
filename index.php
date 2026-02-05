@@ -654,10 +654,7 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
                     <i class="bi bi-sliders"></i>
                     <span>Ajustes</span>
                 </a>
-                <a class="sidebar-menu-item" id="admin-link" data-target="frame-admin">
-                    <i class="bi bi-bar-chart-fill"></i>
-                    <span>Datos</span>
-                </a>
+
                 <?php if ($usuario_rol === 'admin'): ?>
                     <a class="sidebar-menu-item" data-target="frame-registro">
                         <i class="bi bi-person-plus-fill"></i>
@@ -695,7 +692,7 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
             <iframe id="frame-mapa" src="mp_interfaz/index.php" class="content-frame"></iframe>
             <iframe id="frame-transacciones" src="admin_interfaz/transacciones/index.php" class="content-frame"></iframe>
             <iframe id="frame-ajustes" src="admin_interfaz/Ajs_interfaz/index.php" class="content-frame"></iframe>
-            <iframe id="frame-admin" src="admin_interfaz/index.php" class="content-frame"></iframe>
+
             <?php if ($usuario_rol === 'admin'): ?>
                 <iframe id="frame-registro" src="auth/registrar_empleado.php" class="content-frame"></iframe>
             <?php endif; ?>
@@ -734,12 +731,7 @@ const INACTIVITY_LIMIT = 5 * 60 * 1000; // 5 minutos
 let inactivityTimer;
 
 function cambiarPestana(targetId) {
-<?php if ($usuario_rol === 'empleado' && (!isset($_SESSION['admin_verificado']) || !$_SESSION['admin_verificado'])): ?>
-if (targetId === 'frame-admin') {
-mostrarModalAdmin();
-return false;
-}
-<?php endif; ?>
+
 
 iframes.forEach(f => f.classList.remove('active'));
 menuItems.forEach(m => m.classList.remove('active'));
@@ -779,14 +771,8 @@ document.body.classList.add('sidebar-collapsed');
 
 // Restaurar pestaña activa
 const savedTab = localStorage.getItem(TAB_KEY);
-if (savedTab && savedTab !== 'frame-admin') {
+if (savedTab) {
 cambiarPestana(savedTab);
-} else if (savedTab === 'frame-admin') {
-<?php if ($usuario_rol === 'admin' || (isset($_SESSION['admin_verificado']) && $_SESSION['admin_verificado'])): ?>
-cambiarPestana(savedTab);
-<?php else: ?>
-cambiarPestana('frame-venta');
-<?php endif; ?>
 }
 
 menuItems.forEach(item => {

@@ -12,7 +12,7 @@ if ($id_evento > 0) {
     $res = $conn->query("SELECT titulo, tipo, mapa_json, imagen FROM evento WHERE id_evento = $id_evento");
     if ($res && $fila = $res->fetch_assoc()) {
         $evento_info = $fila;
-        $mapa_guardado = json_decode($fila['mapa_json'], true) ?: [];
+        $mapa_guardado = json_decode($fila['mapa_json'] ?? '', true) ?: [];
     }
     // Se permite vender hasta 2 horas después de iniciada la función O si es del día de hoy
     $fecha_limite = date('Y-m-d H:i:s', strtotime('-2 hours'));
@@ -97,6 +97,17 @@ if (!$evento_info) {
         }
     }
     $stmt->close();
+    
+    // Filtrar eventos sin funciones disponibles y ordenar
+    // Solo mostrar eventos que tienen al menos una función
+    $eventos_disponibles = array_filter($eventos_disponibles, function($evento) {
+        return count($evento['funciones']) > 0;
+    });
+    
+    // Ordenar por título alfabéticamente
+    uasort($eventos_disponibles, function($a, $b) {
+        return strcmp($a['titulo'], $b['titulo']);
+    });
 }
 
 $colores_categoria = [];
@@ -290,9 +301,17 @@ foreach ($categorias_evento as $cat) {
         /* ===== CARTELERA ===== */
         .view-cartelera {
             min-height: 100vh;
+            height: auto;
             background: linear-gradient(135deg, var(--bg-primary) 0%, #e2e8f0 100%);
             padding: 40px;
             overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        /* Permitir scroll cuando la cartelera está visible */
+        body:has(.view-cartelera) {
+            overflow-y: auto;
+            height: auto;
         }
 
         .header-cartelera {
