@@ -203,6 +203,7 @@ $conn->close();
 <link rel="stylesheet" href="css/menu-mejoras.css?v=2">
 <link rel="stylesheet" href="css/seleccion-multiple.css">
 <link rel="stylesheet" href="../assets/css/seat-map.css?v=1">
+<link rel="stylesheet" href="css/buscador_pos.css">
 <script src="js/qz-tray.js"></script>
 <script src="js/qz_interface.js"></script>
 <style>
@@ -1871,8 +1872,8 @@ if ($evento_info):
         
         <!-- Acciones Rápidas -->
         <div class="acciones-rapidas" style="display: flex; flex-direction: column; gap: 6px;">
-            <button class="btn btn-primary btn-sm w-100" onclick="abrirGestionBoletos('verificar')" style="font-size: 0.8rem; padding: 8px;">
-                <i class="bi bi-qr-code-scan"></i> Gestión de Boletos
+            <button class="btn btn-primary btn-sm w-100" onclick="abrirBuscadorBoletos()" style="font-size: 0.8rem; padding: 8px;">
+                <i class="bi bi-search"></i> Buscar Boletos
             </button>
             
             <button class="btn btn-warning btn-sm w-100" onclick="verCategorias()" style="font-size: 0.8rem; padding: 8px;">
@@ -1913,186 +1914,366 @@ if ($evento_info):
 </div>
 
 
-<div class="modal fade" id="modalAsientoInfo" tabindex="-1" aria-labelledby="modalInfoLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
+<!-- Modal Buscador de Boletos (NUEVO) -->
+<div class="modal fade" id="modalBuscador" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="modalInfoLabel">Detalles del Asiento</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <h3 id="info_asiento_nombre" class="text-center"></h3>
-        <p id="info_asiento_categoria" class="fs-5 text-center"></p>
-        <p id="info_asiento_precio" class="fs-4 fw-bold text-center text-success"></p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-primary w-100" data-bs-dismiss="modal">Aceptar</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal Escáner QR -->
-<div class="modal fade" id="modalEscanerQR" tabindex="-1" aria-labelledby="modalEscanerLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title" id="modalEscanerLabel">
-          <i class="bi bi-qr-code-scan"></i> Escanear Código QR
-        </h5>
+        <h5 class="modal-title"><i class="bi bi-search"></i> Buscador de Boletos</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <!-- Contenedor del lector QR con altura mínima -->
-        <div id="qr-reader" style="width: 100%; min-height: 350px; background: #1e293b; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
-          <div class="text-center text-white">
-            <i class="bi bi-camera-video fs-1"></i>
-            <p class="mt-2">Iniciando cámara...</p>
-          </div>
-        </div>
-        <div id="qr-reader-results" class="mt-3"></div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-primary" onclick="toggleEfectoEspejo()" id="btnEspejo">
-          <i class="bi bi-arrow-left-right"></i> Efecto Espejo
-        </button>
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal Información del Boleto -->
-<div class="modal fade" id="modalBoletoInfo" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header" id="boletoInfoHeader">
-        <h5 class="modal-title" id="boletoInfoTitle"></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body" id="boletoInfoBody">
-        <!-- Contenido dinámico -->
-      </div>
-      <div class="modal-footer" id="boletoInfoFooter">
-        <!-- Botones dinámicos -->
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal Ver Categorías -->
-<div class="modal fade" id="modalCategorias" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header bg-warning">
-        <h5 class="modal-title">
-          <i class="bi bi-palette"></i> Categorías de Precios
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div class="alert alert-info mb-3">
-          <i class="bi bi-info-circle"></i> 
-          Los colores en el mapa representan diferentes precios
-        </div>
-        <ul class="list-group">
-          <?php foreach ($categorias_palette as $c): ?>
-            <li class="list-group-item d-flex align-items-center gap-3">
-              <span class="palette-color d-inline-block" style="width: 24px; height: 24px; border-radius: 8px; background-color:<?= htmlspecialchars($c['color']) ?>; border: 2px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></span>
-              <span style="flex: 1; font-size: 1rem; font-weight: 500;"><?= htmlspecialchars($c['nombre_categoria']) ?></span>
-              <span class="badge bg-success fs-6">$<?= number_format($c['precio'],2) ?></span>
-            </li>
-          <?php endforeach; ?>
-        </ul>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal Ver Asientos Vendidos -->
-<div class="modal fade" id="modalAsientosVendidos" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header bg-info text-white">
-        <h5 class="modal-title">
-          <i class="bi bi-eye"></i> Asientos Vendidos
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div id="listaAsientosVendidos">
-          <div class="text-center py-4">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">Cargando...</span>
+        
+        <!-- Filtros -->
+        <div class="buscador-filtros">
+            <div class="buscador-search-bar">
+                <i class="bi bi-search"></i>
+                <input type="text" id="buscInput" class="buscador-input" placeholder="Buscar por código, asiento..." onkeyup="if(event.key === 'Enter') realizarBusqueda()">
             </div>
-            <p class="mt-2">Cargando asientos vendidos...</p>
-          </div>
+            
+            <div class="filtros-grid">
+                <div class="filtro-group">
+                    <label>Evento</label>
+                    <select id="buscEvento" class="filtro-select" onchange="actualizarFuncionesFiltro(); realizarBusqueda();">
+                        <option value="">Seleccione Evento...</option>
+                        <?php foreach ($eventos_lista as $ev): ?>
+                            <option value="<?= $ev['id_evento'] ?>" <?= ($id_evento_seleccionado == $ev['id_evento']) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($ev['titulo']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="filtro-group">
+                    <label>Función</label>
+                    <select id="buscFuncion" class="filtro-select" onchange="realizarBusqueda()">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="filtro-group" style="display: flex; align-items: end;">
+                     <button class="btn btn-primary w-100" onclick="iniciarEscanerSimple()">
+                        <i class="bi bi-qr-code-scan"></i> Escanear
+                     </button>
+                </div>
+            </div>
         </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+
+        <!-- Resultados -->
+        <div class="buscador-resultados" id="buscadorResultados">
+             <!-- Tabla dinámica -->
+             <div class="text-center py-5 text-muted">
+                 <i class="bi bi-search" style="font-size: 2rem;"></i>
+                 <p class="mt-2">Realice una búsqueda o escanee un boleto</p>
+             </div>
+        </div>
+        
+        <!-- Overlay Escáner -->
+        <div id="scannerOverlay" class="qr-scanner-overlay">
+             <div style="position: absolute; top: 20px; right: 20px; z-index: 60;">
+                 <button class="btn btn-danger btn-sm rounded-circle" onclick="detenerEscanerSimple()"><i class="bi bi-x-lg"></i></button>
+             </div>
+             <div id="qr-reader-simple" style="width: 100%; max-width: 500px;"></div>
+             <p class="text-white mt-3">Escanee el código QR del boleto</p>
+        </div>
+
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal Cancelar/Devolver Boleto -->
-<div class="modal fade" id="modalCancelarBoleto" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header bg-danger text-white">
-        <h5 class="modal-title">
-          <i class="bi bi-x-circle"></i> Cancelar/Devolver Boleto
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div class="alert alert-warning">
-          <i class="bi bi-exclamation-triangle"></i>
-          <strong>Atención:</strong> Esta acción cancelará el boleto y liberará el asiento para nueva venta.
-        </div>
-        
-        <div class="mb-3">
-          <label for="inputCodigoBoleto" class="form-label">
-            <i class="bi bi-ticket-perforated"></i> Código del Boleto
-          </label>
-          <input type="text" class="form-control" id="inputCodigoBoleto" placeholder="Ingrese el código del boleto" autocomplete="off">
-          <small class="text-muted">Puede escanear el código QR o ingresarlo manualmente</small>
-        </div>
-        
-        <button class="btn btn-outline-primary w-100 mb-3" onclick="escanearParaCancelar()">
-          <i class="bi bi-qr-code-scan"></i> Escanear Código QR
-        </button>
-        
-        <div id="infoBoletoACancelar" style="display: none;">
-          <hr>
-          <h6 class="mb-3">Información del Boleto:</h6>
-          <div class="card bg-light">
-            <div class="card-body">
-              <p class="mb-2"><strong>Asiento:</strong> <span id="cancelarAsiento"></span></p>
-              <p class="mb-2"><strong>Categoría:</strong> <span id="cancelarCategoria"></span></p>
-              <p class="mb-2"><strong>Precio:</strong> <span id="cancelarPrecio" class="text-success"></span></p>
-              <p class="mb-0"><strong>Fecha de compra:</strong> <span id="cancelarFecha"></span></p>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-        <button type="button" class="btn btn-danger" id="btnConfirmarCancelacion" onclick="confirmarCancelacion()" disabled>
-          <i class="bi bi-trash"></i> Confirmar Cancelación
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <script>
+    // --- LÓGICA DEL BUSCADOR DE BOLETOS (NUEVO) ---
+    
+    let buscadorModal;
+    let qrScannerSimple = null;
+    let funcionesPorEvento = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        buscadorModal = new bootstrap.Modal(document.getElementById('modalBuscador'));
+        
+        // Cargar funciones para el filtro cuando se carga la página (si hay evento seleccionado)
+        if (EVENTO_SELECCIONADO) {
+            cargarFuncionesParaFiltro(EVENTO_SELECCIONADO);
+        }
+    });
+
+    function abrirBuscadorBoletos() {
+        buscadorModal.show();
+        // Reset
+        document.getElementById('buscInput').value = '';
+        
+        // Si hay un evento seleccionado GLOBALMENTE en el POS
+        if (typeof EVENTO_SELECCIONADO !== 'undefined' && EVENTO_SELECCIONADO) {
+            const selectEvento = document.getElementById('buscEvento');
+            selectEvento.value = EVENTO_SELECCIONADO;
+            selectEvento.disabled = true; // Bloquear selección
+            
+            // Cargar funciones y buscar automáticamente
+            cargarFuncionesParaFiltro(EVENTO_SELECCIONADO);
+            // La búsqueda se hará dentro de cargarFuncionesParaFiltro al terminar o explícitamente aquí
+            // (Mejor esperar a que carguen funciones para no hacer race condition, 
+            // pero para rapidez en UI, podemos lanzar búsqueda de "todas las funciones" de ese evento ya)
+            realizarBusqueda();
+        } else {
+            // Si es un POS "libre" (no debería pasar según diseño actual pero por si acaso)
+            document.getElementById('buscEvento').disabled = false;
+        }
+    }
+
+    function cargarFuncionesParaFiltro(idEvento) {
+        fetch('obtener_funciones.php?id_evento=' + idEvento)
+            .then(res => res.json())
+            .then(data => {
+                const select = document.getElementById('buscFuncion');
+                select.innerHTML = '<option value="">Todas</option>';
+                
+                if(data.success && data.funciones) {
+                    data.funciones.forEach(f => {
+                         const opt = document.createElement('option');
+                         opt.value = f.id_funcion;
+                         opt.textContent = f.texto;
+                         select.appendChild(opt);
+                    });
+                }
+            });
+    }
+
+    function actualizarFuncionesFiltro() {
+        const idEvento = document.getElementById('buscEvento').value;
+        if(idEvento) {
+            cargarFuncionesParaFiltro(idEvento);
+        } else {
+             document.getElementById('buscFuncion').innerHTML = '<option value="">Todas</option>';
+        }
+    }
+
+    function realizarBusqueda() {
+        const idEvento = document.getElementById('buscEvento').value;
+        const idFuncion = document.getElementById('buscFuncion').value;
+        const query = document.getElementById('buscInput').value;
+        const container = document.getElementById('buscadorResultados');
+        
+        container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+        
+        const params = new URLSearchParams({
+            action: 'buscar',
+            id_evento: idEvento,
+            id_funcion: idFuncion,
+            q: query
+        });
+
+        fetch('api_buscador.php?' + params.toString())
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    renderizarResultados(data.data);
+                } else {
+                    container.innerHTML = `<div class="p-4 text-center text-danger">${data.error}</div>`;
+                }
+            })
+            .catch(err => {
+                container.innerHTML = `<div class="p-4 text-center text-danger">Error de conexión</div>`;
+            });
+    }
+
+    function renderizarResultados(boletos) {
+        const container = document.getElementById('buscadorResultados');
+        
+        if(boletos.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                    <p class="mt-2">No se encontraron boletos</p>
+                </div>`;
+            return;
+        }
+
+        let html = `
+            <table class="table-buscador">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Asiento</th>
+                        <th>Función</th>
+                        <th>Estado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        boletos.forEach(b => {
+             let badgeClass = 'activo';
+             if(b.estatus == 0) badgeClass = 'usado';
+             if(b.estatus == 2) badgeClass = 'cancelado';
+             
+             html += `
+                <tr>
+                    <td><strong class="text-white">${b.codigo_unico}</strong></td>
+                    <td>${b.codigo_asiento}</td>
+                    <td>${b.funcion_fecha_fmt}</td>
+                    <td><span class="badge-status ${badgeClass}">${b.estado_texto}</span></td>
+                    <td class="text-end">
+                        <button class="btn-action-sm btn-verify" onclick="accionReimprimir('${b.codigo_unico}')" title="Reimprimir Boleto" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24;">
+                            <i class="bi bi-printer"></i>
+                        </button>
+                        ${b.estatus == 1 ? `
+                        <button class="btn-action-sm btn-verify" onclick="accionVerificar('${b.codigo_unico}')" title="Verificar Entrada">
+                            <i class="bi bi-check-lg"></i>
+                        </button>
+                        <button class="btn-action-sm btn-cancel-ticket" onclick="accionCancelar('${b.codigo_unico}', '${b.codigo_asiento}')" title="Cancelar/Devolver">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                        ` : ''}
+                    </td>
+                </tr>
+             `;
+        });
+        
+        // Guardar datos actuales para uso local (reimpresión)
+        window.boletosResultados = boletos;
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    // --- ACCIONES DE VALIDACIÓN ---
+    function accionVerificar(codigo) {
+        if(!confirm('¿Confirmar entrada para el boleto ' + codigo + '?')) return;
+        
+        fetch('confirmar_entrada.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ codigo_unico: codigo })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.success) {
+                notify.success('Entrada confirmada');
+                realizarBusqueda(); // Recargar tabla
+            } else {
+                notify.error(data.message || 'Error al validar');
+            }
+        });
+    }
+
+    function accionReimprimir(codigo) {
+        if (!window.boletosResultados) return;
+        const boleto = window.boletosResultados.find(b => b.codigo_unico === codigo);
+        if (!boleto) return;
+        
+        // Construir objeto para QZ (Adaptador)
+        // Necesitamos generar el QR en base64 para QZ si no viene del backend (en api_buscador no viene la imagen)
+        // Usaremos el generador QR de la librería
+        
+        // 1. Generar QR dummy temporales o usar librería si es posible obtener DataURI
+        // Como 'html5-qrcode' es lector, usamos una librería de generación si existe, o un servicio. 
+        // PERO 'qz_interface.js' espera boleto.qr_image.
+        // Simularemos con una API de QR pública O mejor, un canvas invisible si tenemos una lib
+        // Simplificación: Usaremos una API publica de QR para el base64 o intentaremos que QZ lo maneje si modificamos
+        // Para robustez y dado que NO tengo librería de generación QR JS cargada (solo lector), usaré una API rápida
+        // OJO: qz_interface espera base64 completo. 
+        
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${boleto.codigo_unico}`;
+        
+        // Convertir URL a Base64 (fetch)
+        notify.info('Preparando impresión...');
+        
+        fetch(qrUrl)
+            .then(r => r.blob())
+            .then(blob => {
+                const reader = new FileReader();
+                reader.onloadend = function() {
+                    const base64data = reader.result;
+                    
+                    const boletoImprimir = {
+                        evento: boleto.evento_titulo,
+                        fecha: boleto.fecha_simple, // dd/mm/yyyy
+                        hora: boleto.hora_simple,   // HH:mm hrs
+                        asiento: boleto.codigo_asiento,
+                        categoria: boleto.nombre_categoria,
+                        precio: boleto.precio_final,
+                        codigo_unico: boleto.codigo_unico,
+                        vendedor: boleto.vendedor_nombre,
+                        qr_image: base64data,
+                        logo_image: null // Opcional, qz tiene fallback
+                    };
+                    
+                    printTicketsQZ([boletoImprimir], 'REIMPRESION', 'default')
+                        .then(res => {
+                            if(res.success) notify.success('Enviado a impresora');
+                            else notify.error(res.message);
+                        });
+                }
+                reader.readAsDataURL(blob);
+            })
+            .catch(e => {
+                console.error(e);
+                notify.error('Error generando QR para impresión');
+            });
+    }
+
+    function accionCancelar(codigo, asiento) {
+         if(!confirm('¿CANCELAR boleto ' + codigo + ' (Asiento: ' + asiento + ')? Estás seguro?')) return;
+
+         fetch('cancelar_boleto.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ codigo_unico: codigo })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.success) {
+                notify.success('Boleto cancelado');
+                realizarBusqueda(); // Recargar tabla
+                // Actualizar mapa si es el evento actual
+                if (typeof cargarAsientosVendidos === 'function') cargarAsientosVendidos();
+            } else {
+                notify.error(data.message || 'Error al cancelar');
+            }
+        });
+    }
+
+    // --- ESCÁNER ---
+    function iniciarEscanerSimple() {
+        const overlay = document.getElementById('scannerOverlay');
+        overlay.classList.add('active');
+        
+        qrScannerSimple = new Html5Qrcode("qr-reader-simple");
+        qrScannerSimple.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: 250 },
+            (decodedText) => {
+                // Success
+                detenerEscanerSimple();
+                document.getElementById('buscInput').value = decodedText;
+                realizarBusqueda();
+                notify.info('Código escaneado: ' + decodedText);
+            },
+            (errorMessage) => {
+                // Parsing error, ignore
+            }
+        ).catch(err => {
+            console.error("Error iniciando cámara", err);
+            notify.error("No se pudo acceder a la cámara");
+            overlay.classList.remove('active');
+        });
+    }
+
+    function detenerEscanerSimple() {
+        if(qrScannerSimple) {
+            qrScannerSimple.stop().then(() => {
+                qrScannerSimple.clear();
+                document.getElementById('scannerOverlay').classList.remove('active');
+            }).catch(err => console.error(err));
+        } else {
+            document.getElementById('scannerOverlay').classList.remove('active');
+        }
+    }
+
+    
     // --- MODIFICADO: Estos datos ahora vienen de la lógica de PHP ---
     const CATEGORIAS_INFO = <?= json_encode($categorias_js, JSON_NUMERIC_CHECK) ?>;
     
