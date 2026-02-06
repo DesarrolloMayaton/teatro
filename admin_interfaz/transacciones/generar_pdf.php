@@ -329,9 +329,9 @@ $ocupacion_real = ($capacidad_total > 0) ? round(($vendidos_total_global / $capa
 </head>
 <body>
 
-    <button onclick="window.print()" class="no-print btn-print">
+    <button onclick="downloadAndPrint()" class="no-print btn-print">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-        Descargar PDF
+        Descargar / Imprimir
     </button>
 
     <h1><?php echo htmlspecialchars($titulo_reporte); ?></h1>
@@ -478,12 +478,170 @@ $ocupacion_real = ($capacidad_total > 0) ? round(($vendidos_total_global / $capa
     </table>
 
     <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border-color); text-align: center; color: var(--text-muted); font-size: 10px;">
-        Teatro Management System - Reporte Confidencial - <?php echo date('Y'); ?>
+        Generado automáticamente por Sistema Teatro - <?php echo date('Y'); ?>
     </div>
 
+    <!-- html2pdf Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <!-- QZ Tray Libraries -->
+    <script src="../../vnt_interfaz/js/qz-tray.js"></script>
+    <script src="../../vnt_interfaz/js/qz_interface.js"></script>
+
     <script>
-        // Auto-print prompt
-        // window.onload = function() { setTimeout(function(){ window.print(); }, 500); }
+        // Data from PHP
+        const reportData = {
+            titulo: <?php echo json_encode($nombre_evento); ?>,
+            rango: "<?php echo $fecha_desde ? date('d/m/Y', strtotime($fecha_desde)) : 'Inicio'; ?> al <?php echo $fecha_hasta ? date('d/m/Y', strtotime($fecha_hasta)) : 'Hoy'; ?>",
+            generado: "<?php echo date('d/m/Y H:i'); ?>",
+            resumen: {
+                ingresos: "<?php echo number_format($resumen['total_ingresos'], 2); ?>",
+                boletos: "<?php echo number_format($resumen['total_boletos']); ?>",
+                capacidad: "<?php echo number_format($capacidad_total); ?>",
+                promedio: "<?php echo number_format($resumen['ticket_promedio'], 2); ?>",
+                ocupacion: "<?php echo $ocupacion_real; ?>%"
+            },
+            categorias: <?php echo json_encode($por_categoria); ?>,
+            tipos: <?php echo json_encode($por_tipo); ?>,
+            dias: <?php echo json_encode($por_dia); ?>,
+            vendedores: <?php echo json_encode(array_slice($top_vendedores, 0, 5)); ?>
+        };
+
+        async function printReportQZ() {
+             if (!await initQZ()) {
+                 alert("No se pudo conectar a QZ Tray.");
+                 return;
+             }
+             
+             // Construir HTML para ticket (80mm ~ 300-320px safe area)
+             // Ajustado a 260px para evitar cortes por márgenes de impresora
+             let html = `
+                <div style="font-family: Arial, Helvetica, sans-serif; width: 260px; margin: 0 auto; font-size: 10px; color: #000; font-weight: 900 !important; line-height: 1.1;">
+                    <!-- HEADER -->
+                    <div style="text-align: center; margin-bottom: 8px;">
+                        <div style="font-size: 14px; font-weight: 900; text-transform: uppercase;">REPORTE DE VENTAS</div>
+                        <div style="font-size: 12px; margin-top: 4px; overflow-wrap: break-word;">${reportData.titulo}</div>
+                        <div style="margin-top: 4px; font-size: 10px;">${reportData.rango}</div>
+                        <div style="font-size: 9px; margin-top: 2px;">Gen: ${reportData.generado}</div>
+                    </div>
+                    
+                    <div style="border-bottom: 2px solid #000; margin: 8px 0;"></div>
+                    
+                    <!-- RESUMEN -->
+                    <div style="font-size: 12px; margin-bottom: 4px; text-transform: uppercase; border-bottom: 1px dashed #000;">RESUMEN</div>
+                    <table style="width: 100%; border-collapse: collapse; font-weight: 900;">
+                        <tr><td style="padding: 1px 0;">Ingresos:</td><td align="right" style="padding: 1px 0;">$${reportData.resumen.ingresos}</td></tr>
+                        <tr><td style="padding: 1px 0;">Boletos:</td><td align="right" style="padding: 1px 0;">${reportData.resumen.boletos} / ${reportData.resumen.capacidad}</td></tr>
+                        <tr><td style="padding: 1px 0;">Promedio:</td><td align="right" style="padding: 1px 0;">$${reportData.resumen.promedio}</td></tr>
+                        <tr><td style="padding: 1px 0;">Ocupación:</td><td align="right" style="padding: 1px 0;">${reportData.resumen.ocupacion}</td></tr>
+                    </table>
+                    
+                    <div style="border-bottom: 2px solid #000; margin: 8px 0;"></div>
+                    
+                    <!-- CATEGORIAS -->
+                    <div style="font-size: 12px; margin-bottom: 4px; text-transform: uppercase; border-bottom: 1px dashed #000;">POR CATEGORÍA</div>
+                    <table style="width: 100%; font-size: 10px; font-weight: 900;">
+                        ${reportData.categorias.map(c => `
+                            <tr>
+                                <td style="padding: 1px 0; width: 40%; white-space: nowrap; overflow: hidden;">${c.nombre_categoria.substring(0, 13)}</td>
+                                <td align="right" style="padding: 1px 0; width: 20%;">${c.cantidad}</td>
+                                <td align="right" style="padding: 1px 0; width: 40%;">$${parseFloat(c.ingresos).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+
+                    <div style="border-bottom: 2px solid #000; margin: 8px 0;"></div>
+
+                    <!-- TIPOS DE BOLETO -->
+                    <div style="font-size: 12px; margin-bottom: 4px; text-transform: uppercase; border-bottom: 1px dashed #000;">POR TIPO</div>
+                    <table style="width: 100%; font-size: 10px; font-weight: 900;">
+                        ${reportData.tipos.map(t => `
+                            <tr>
+                                <td style="padding: 1px 0; width: 40%; white-space: nowrap; overflow: hidden;">${t.tipo.substring(0, 13)}</td>
+                                <td align="right" style="padding: 1px 0; width: 20%;">${t.cantidad}</td>
+                                <td align="right" style="padding: 1px 0; width: 40%;">$${parseFloat(t.ingresos).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+
+                    <div style="border-bottom: 2px solid #000; margin: 8px 0;"></div>
+
+                    <!-- POR DIA -->
+                    <div style="font-size: 12px; margin-bottom: 4px; text-transform: uppercase; border-bottom: 1px dashed #000;">POR DÍA</div>
+                    <table style="width: 100%; font-size: 10px; font-weight: 900;">
+                        ${reportData.dias.map(d => `
+                            <tr>
+                                <td style="padding: 1px 0;">${d.dia.substring(0, 3)}</td>
+                                <td align="right" style="padding: 1px 0;">${d.cantidad}</td>
+                                <td align="right" style="padding: 1px 0;">-</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+
+                     <div style="border-bottom: 2px solid #000; margin: 8px 0;"></div>
+                    
+                    <!-- VENDEDORES -->
+                    <div style="font-size: 12px; margin-bottom: 4px; text-transform: uppercase; border-bottom: 1px dashed #000;">VENDEDORES</div>
+                    <table style="width: 100%; font-size: 10px; font-weight: 900;">
+                        ${reportData.vendedores.map(v => `
+                            <tr>
+                                <td style="padding: 1px 0; width: 35%; white-space: nowrap; overflow: hidden;">${v.vendedor.substring(0, 10)}</td>
+                                <td align="right" style="padding: 1px 0; width: 20%;">${v.boletos}</td>
+                                <td align="right" style="padding: 1px 0; width: 45%;">$${parseFloat(v.ingresos).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                    
+                    <div style="margin-top: 15px; text-align: center; font-size: 9px; font-weight: 900;">
+                        *** FIN DE REPORTE ***
+                    </div>
+                     <div style="height: 30px;"></div>
+                </div>
+             `;
+             
+             // Enviar a QZ usando lógica similar a printTicketsQZ pero con nuestro HTML
+             try {
+                // Fallback printer logic reused from qz_interface.js or just calling qz directly
+                let printers = await qz.printers.find();
+                let printerName = printers.find(p => p.includes('POS') || p.includes('Epson') || p.includes('Thermal')) || printers[0];
+                
+                let config = qz.configs.create(printerName, { rasterize: true, altPrinting: true });
+                let data = [{ type: 'pixel', format: 'html', flavor: 'plain', data: html }];
+                
+                await qz.print(config, data);
+             } catch(e) {
+                 console.error(e);
+                 alert("Error imprimiendo: " + e);
+             }
+        }
+
+        function downloadAndPrint() {
+            const btn = document.querySelector('.btn-print');
+            btn.style.display = 'none'; 
+            
+            const element = document.body;
+            const opt = {
+                margin: 5,
+                filename: 'Reporte_Ventas_<?php echo date('Ymd_Hi'); ?>.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, backgroundColor: '#0f172a' },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            
+            html2pdf().set(opt).from(element).save().then(() => {
+                btn.style.display = 'flex';
+                
+                setTimeout(() => {
+                    // Preguntar por impresión en TICKET (QZ)
+                    if (confirm("¿Desea imprimir el reporte en TICKET (impresora térmica)?")) {
+                        printReportQZ();
+                    } 
+                    // Si dice NO, podríamos preguntar por impresión normal, o dejarlo así.
+                    // Usuario pidió "QUE NO IMPRIMA SOLO PREGUNTE" (anterior) y "HAZ QUE SI IMPRIMA USANDO QZ" (actual).
+                    // Asumimos que la opción de impresión ES la de QZ.
+                }, 1000);
+            });
+        }
     </script>
 </body>
 </html>
