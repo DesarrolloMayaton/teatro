@@ -21,6 +21,7 @@ try {
     // Parámetros
     $db_mode = $_GET['db'] ?? 'actual';
     $id_evento = isset($_GET['id_evento']) && $_GET['id_evento'] !== '' ? (int)$_GET['id_evento'] : null;
+    $id_funcion = isset($_GET['id_funcion']) && $_GET['id_funcion'] !== '' ? (int)$_GET['id_funcion'] : null;
     $fecha_desde = $_GET['fecha_desde'] ?? null;
     $fecha_hasta = $_GET['fecha_hasta'] ?? null;
 
@@ -54,9 +55,10 @@ try {
     }
 
     // HELPER: Construir WHERE clause para boletos
-    $buildWhere = function($prefix = 'b', $statusField = 'estatus', $statusValue = "1") use ($id_evento, $fecha_desde, $fecha_hasta) {
+    $buildWhere = function($prefix = 'b', $statusField = 'estatus', $statusValue = "1") use ($id_evento, $id_funcion, $fecha_desde, $fecha_hasta) {
         $where = ["{$prefix}.{$statusField} = {$statusValue}"];
         if ($id_evento) $where[] = "{$prefix}.id_evento = {$id_evento}";
+        if ($id_funcion) $where[] = "{$prefix}.id_funcion = {$id_funcion}";
         if ($fecha_desde) $where[] = "{$prefix}.fecha_compra >= '{$fecha_desde} 00:00:00'";
         if ($fecha_hasta) $where[] = "{$prefix}.fecha_compra <= '{$fecha_hasta} 23:59:59'";
         return implode(' AND ', $where);
@@ -89,12 +91,13 @@ try {
     $ocupacion_funcion = [];
     foreach ($databases as $db) {
         // En histórico no filtrar por estado ya que todas están finalizadas
-        $filtroEstado = ($db === $db_historico) ? "" : "WHERE f.estado = 1";
-        $filtroEvento = "";
-        if ($id_evento) {
-            $filtroEvento = ($db === $db_historico) ? "WHERE f.id_evento = {$id_evento}" : "AND f.id_evento = {$id_evento}";
-        }
+        $whereClause = "WHERE 1=1";
+        // if ($db !== $db_historico) $whereClause .= " AND f.estado = 1"; // DISABLED as per fix
         
+        if ($id_evento) $whereClause .= " AND f.id_evento = $id_evento";
+        if ($id_funcion) $whereClause .= " AND f.id_funcion = $id_funcion"; // Filter by Function
+
+        // CORRECCIÓN: Capacidad dinámica basada en tipo de evento (1=420, 2=540)
         $sql_ocupacion = "
             SELECT 
                 f.id_funcion,
@@ -102,17 +105,22 @@ try {
                 DATE_FORMAT(f.fecha_hora, '%d/%m/%Y') as fecha,
                 TIME_FORMAT(f.fecha_hora, '%H:%i') as hora,
                 (SELECT COUNT(*) FROM {$db}.boletos b WHERE b.id_funcion = f.id_funcion AND b.estatus = 1) as vendidos,
-                150 as capacidad
+                CASE 
+                    WHEN e.tipo = 2 THEN 540 
+                    ELSE 420 
+                END as capacidad
             FROM {$db}.funciones f
             JOIN {$db}.evento e ON f.id_evento = e.id_evento
-            {$filtroEstado} {$filtroEvento}
+            {$whereClause}
             ORDER BY f.fecha_hora DESC
             LIMIT 20
         ";
         $res = $conn->query($sql_ocupacion);
         if ($res) while ($row = $res->fetch_assoc()) {
-            $porcentaje = $row['capacidad'] > 0 ? ($row['vendidos'] / $row['capacidad']) * 100 : 0;
-            $row['porcentaje'] = round(min(100, $porcentaje), 1); // Máximo 100%
+            $capacidad = (int)$row['capacidad'];
+            $vendidos = (int)$row['vendidos'];
+            $porcentaje = $capacidad > 0 ? ($vendidos / $capacidad) * 100 : 0;
+            $row['porcentaje'] = round($porcentaje, 2); // 2 decimales solicitado
             $ocupacion_funcion[] = $row;
         }
     }
@@ -147,7 +155,7 @@ try {
     }
     $sql_horario = "SELECT 
         CASE 
-            WHEN hora >= 6 AND hora < 12 THEN 'Matiné (6-12h)'
+            WHEN hora >= 6 AND hora < 12 THEN 'Mañana (6-12h)'
             WHEN hora >= 12 AND hora < 18 THEN 'Tarde (12-18h)'
             ELSE 'Noche (18-6h)'
         END as franja,
@@ -266,29 +274,79 @@ try {
     if ($res) while ($row = $res->fetch_assoc()) $por_hora[] = $row;
 
     // ============================================
-    // 6. VENTAS DE BOLETOS - Ocupación general (PROMEDIO de todas las funciones)
+    // 6. VENTAS DE BOLETOS - Ocupación general (REAL)
     // ============================================
-    // Calcular el promedio de ocupación de todas las funciones
-    $suma_porcentajes = 0;
-    $num_funciones = count($ocupacion_funcion);
+    // Calcular capacidad TOTAL de TODAS las funciones (sin LIMIT) para el KPI global
+    $capacidad_total_real = 0;
     
-    foreach ($ocupacion_funcion as $func) {
-        // Limitar cada función a máximo 100%
-        $porcentaje_func = min(100, (float)$func['porcentaje']);
-        $suma_porcentajes += $porcentaje_func;
+    // ============================================
+    // 6. VENTAS DE BOLETOS - Ocupación general (REAL)
+    // ============================================
+    // Calcular capacidad TOTAL de TODAS las funciones (sin LIMIT) para el KPI global
+    $capacidad_total_real = 0;
+    
+    // ============================================
+    // 6. VENTAS DE BOLETOS - Ocupación general (REAL)
+    // ============================================
+    // Calcular capacidad TOTAL de TODAS las funciones (sin LIMIT, sin Filtro Fecha) para el KPI global
+    $capacidad_total_real = 0;
+    
+    // ============================================
+    // 6. VENTAS DE BOLETOS - Ocupación general (REAL)
+    // ============================================
+    // Calcular capacidad TOTAL de TODAS las funciones (sin LIMIT, sin Filtro Fecha) para el KPI global
+    $capacidad_total_real = 0;
+    
+    // Calcular Total Vendidos GLOBAL (sin Filtro Fecha) para que coincida con la capacidad
+    $vendidos_total_global = 0;
+
+    foreach ($databases as $db) {
+        $qryEvento = "";
+        $qryEventoBol = "";
+        
+        // Filtro por Evento
+        if ($id_evento) {
+            $qryEvento .= " AND f.id_evento = {$id_evento}";
+            $qryEventoBol .= " AND b.id_evento = {$id_evento}";
+        }
+        // Filtro por Funcion
+        if ($id_funcion) {
+            $qryEvento .= " AND f.id_funcion = {$id_funcion}";
+            $qryEventoBol .= " AND b.id_funcion = {$id_funcion}";
+        }
+        
+        // 1. Capacidad Global
+        $sql_cap_global = "
+            SELECT SUM(CASE WHEN e.tipo = 2 THEN 540 ELSE 420 END) as cap_total
+            FROM {$db}.funciones f
+            JOIN {$db}.evento e ON f.id_evento = e.id_evento
+            WHERE 1=1 {$qryEvento}
+        ";
+        $res_cap = $conn->query($sql_cap_global);
+        if ($res_cap && $row_cap = $res_cap->fetch_assoc()) {
+             $capacidad_total_real += (int)$row_cap['cap_total'];
+        }
+
+        // 2. Vendidos Global
+        $sql_vend_global = "SELECT COUNT(*) as total_vend FROM {$db}.boletos b WHERE estatus = 1 {$qryEventoBol}";
+        $res_vend = $conn->query($sql_vend_global);
+        if ($res_vend && $row_vend = $res_vend->fetch_assoc()) {
+            $vendidos_total_global += (int)$row_vend['total_vend'];
+        }
     }
     
-    // Promedio de ocupación (si hay funciones)
-    $promedio_ocupacion = $num_funciones > 0 ? round($suma_porcentajes / $num_funciones, 1) : 0;
+    // FÓRMULA: (100 / Total_Asientos) * Vendidos Globales
+    $porcentaje_ocupacion_global = 0;
+    if ($capacidad_total_real > 0) {
+        $porcentaje_ocupacion_global = ($vendidos_total_global / $capacidad_total_real) * 100;
+    }
     
-    // Total vendidos y capacidad total
-    $vendidos_total = (int)$resumen['total_boletos'];
-    $capacidad_total = $num_funciones * 150;
+    $porcentaje_ocupacion_global = round($porcentaje_ocupacion_global, 2);
 
     $ventas_resumen = [
-        'vendidos' => $vendidos_total,
-        'capacidad' => $capacidad_total,
-        'porcentaje_ocupacion' => $promedio_ocupacion // Promedio, no puede superar 100%
+        'vendidos' => (int)$resumen['total_boletos'], // Este respeta filtros de fecha (KPI Boletos)
+        'capacidad' => $capacidad_total_real,
+        'porcentaje_ocupacion' => $porcentaje_ocupacion_global
     ];
 
     // ============================================

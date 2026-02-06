@@ -207,11 +207,24 @@ if ($check_hist && $check_hist->num_rows > 0) {
                             <i class="bi bi-film" style="color: #a855f7;"></i>
                             Evento
                         </label>
-                        <select id="statsEvento" class="filter-select" onchange="cargarEstadisticas()">
+                        <select id="statsEvento" class="filter-select" onchange="onEventoChange()">
                             <option value="">🎭 Todos los Eventos</option>
                             <?php foreach($eventos_actual as $ev): ?>
                                 <option value="<?= $ev['id_evento'] ?>"><?= htmlspecialchars($ev['titulo']) ?></option>
                             <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Función (NUEVO) -->
+                <div class="col-lg-3 col-md-4">
+                    <div class="filter-group">
+                        <label class="filter-label">
+                            <i class="bi bi-clock" style="color: #f43f5e;"></i>
+                            Función
+                        </label>
+                        <select id="statsFuncion" class="filter-select" onchange="cargarEstadisticas()">
+                            <option value="">🕒 Todas las Funciones</option>
                         </select>
                     </div>
                 </div>
@@ -495,6 +508,7 @@ if ($check_hist && $check_hist->num_rows > 0) {
             
             // Limpiar y repoblar el dropdown de eventos
             select.innerHTML = '<option value="">🎭 Todos los Eventos</option>';
+            document.getElementById('statsFuncion').innerHTML = '<option value="">🕒 Todas las Funciones</option>';
             
             let eventos = [];
             if (db === 'actual') {
@@ -534,6 +548,33 @@ if ($check_hist && $check_hist->num_rows > 0) {
         }
         
         // Mostrar estado de carga
+        async function onEventoChange() {
+            const idEvento = document.getElementById('statsEvento').value;
+            const dbRef = document.getElementById('statsDB').value;
+            const comboFunc = document.getElementById('statsFuncion');
+            
+            // Limpiar combo funciones
+            comboFunc.innerHTML = '<option value="">🕒 Todas las Funciones</option>';
+            
+            if (idEvento) {
+                // Cargar funciones via AJAX
+                try {
+                    const res = await fetch(`api_get_funciones.php?id_evento=${idEvento}&db=${dbRef}`);
+                    const funcs = await res.json();
+                    
+                    if (funcs && funcs.length > 0) {
+                        funcs.forEach(f => {
+                            comboFunc.innerHTML += `<option value="${f.id}">${f.label}</option>`;
+                        });
+                    }
+                } catch(e) {
+                    console.error("Error cargando funciones", e);
+                }
+            }
+            
+            cargarEstadisticas();
+        }
+
         function mostrarCargando(cargando) {
             const status = document.getElementById('filterStatus');
             if (cargando) {
@@ -551,6 +592,7 @@ if ($check_hist && $check_hist->num_rows > 0) {
             const params = new URLSearchParams({
                 db: document.getElementById('statsDB').value,
                 id_evento: document.getElementById('statsEvento').value,
+                id_funcion: document.getElementById('statsFuncion').value,
                 fecha_desde: document.getElementById('statsDesde').value,
                 fecha_hasta: document.getElementById('statsHasta').value
             });
@@ -569,7 +611,17 @@ if ($check_hist && $check_hist->num_rows > 0) {
                 
                 // KPIs
                 animateKPI('kpiIngresos', d.resumen.total_ingresos, '$');
-                animateKPI('kpiBoletos', d.resumen.total_boletos);
+                
+                // BOLETOS VENDIDOS: Mostrar formato "Vendidos / Capacidad"
+                // Usamos d.ocupacion.general.vendidos y d.ocupacion.general.capacidad (o d.resumen para vendidos si preferimos filtro fecha)
+                // Usuario pidió "120/420". Usaremos los datos globales de ocupación para la capacidad.
+                // Nota: d.resumen.total_boletos tiene filtro de fecha. d.ocupacion.general.vendidos es global.
+                // Si el usuario quiere ver "vendidos en rango / capacidad total del evento", usamos resumen vs general.capacidad.
+                // Generalmente "120/420" implica contexto global de ocupación. Si hay filtro de fecha, "10/420" es correcto.
+                
+                const boletosTexto = `${d.resumen.total_boletos.toLocaleString()} / ${d.ocupacion.general.capacidad.toLocaleString()}`;
+                document.getElementById('kpiBoletos').textContent = boletosTexto;
+                
                 animateKPI('kpiPromedio', d.resumen.ticket_promedio, '$');
                 animateKPI('kpiOcupacion', d.ocupacion.general.porcentaje_ocupacion, '', '%');
                 animateKPI('kpiEventos', d.resumen.total_eventos);
@@ -803,18 +855,27 @@ if ($check_hist && $check_hist->num_rows > 0) {
                 return;
             }
             container.innerHTML = data.slice(0, 8).map(f => {
-                const color = f.porcentaje >= 70 ? 'bg-success' : f.porcentaje >= 40 ? 'bg-warning' : 'bg-danger';
+                // Determinar color y valor exacto
+                const pct = parseFloat(f.porcentaje);
+                const color = pct >= 80 ? '#10b981' : pct >= 40 ? '#f59e0b' : '#ef4444';
+                
                 return `
                     <div class="col-md-3">
-                        <div class="p-3 rounded-3" style="background: rgba(0,0,0,0.3);">
+                        <div class="p-3 rounded-3" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05);">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span class="fw-semibold text-white small text-truncate" style="max-width: 70%;">${f.evento}</span>
-                                <span class="badge ${color}">${f.porcentaje}%</span>
+                                <span class="fw-semibold text-white small text-truncate" title="${f.evento}" style="max-width: 70%;">${f.evento}</span>
+                                <span class="badge" style="background-color: ${color}">${pct}%</span>
                             </div>
                             <div class="text-muted mb-2" style="font-size: 0.7rem;">${f.fecha} - ${f.hora}</div>
-                            <div class="progress-premium">
-                                <div class="progress-bar ${color}" style="width: ${f.porcentaje}%"></div>
+                            
+                            <div class="progress" style="height: 14px; background-color: rgba(255,255,255,0.1); border-radius: 10px;">
+                                <div class="progress-bar" role="progressbar" 
+                                     style="width: ${pct}%; background-color: ${color}; font-size: 9px; line-height: 14px; font-weight: bold;"
+                                     aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
+                                     ${pct > 12 ? pct + '%' : ''}
+                                </div>
                             </div>
+                            
                             <div class="d-flex justify-content-between mt-2" style="font-size: 0.7rem;">
                                 <span class="text-muted">${f.vendidos} vendidos</span>
                                 <span class="text-muted">${f.capacidad} total</span>
@@ -829,6 +890,7 @@ if ($check_hist && $check_hist->num_rows > 0) {
             const params = new URLSearchParams({
                 db: document.getElementById('statsDB').value,
                 id_evento: document.getElementById('statsEvento').value,
+                id_funcion: document.getElementById('statsFuncion').value,
                 fecha_desde: document.getElementById('statsDesde').value,
                 fecha_hasta: document.getElementById('statsHasta').value
             });
