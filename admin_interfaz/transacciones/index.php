@@ -286,6 +286,60 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
         .btn-lg:active {
             transform: translateY(0);
         }
+        
+        /* ========= DATE INPUT CON BOTÓN CALENDARIO ========= */
+        .date-picker-group {
+            display: flex;
+            align-items: stretch;
+        }
+        
+        .date-picker-group input[type="date"] {
+            color-scheme: dark;
+            border-top-right-radius: 0 !important;
+            border-bottom-right-radius: 0 !important;
+        }
+        
+        .date-picker-group input[type="date"]::-webkit-calendar-picker-indicator {
+            display: none;
+        }
+        
+        .date-picker-group input[type="date"]::-webkit-datetime-edit,
+        .date-picker-group input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+        .date-picker-group input[type="date"]::-webkit-datetime-edit-text,
+        .date-picker-group input[type="date"]::-webkit-datetime-edit-month-field,
+        .date-picker-group input[type="date"]::-webkit-datetime-edit-day-field,
+        .date-picker-group input[type="date"]::-webkit-datetime-edit-year-field {
+            color: #fff !important;
+        }
+        
+        .date-picker-group input[type="date"]:not(:valid)::-webkit-datetime-edit {
+            color: #666 !important;
+        }
+        
+        .btn-calendar {
+            background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+            border: 1px solid #f59e0b !important;
+            color: #000 !important;
+            font-size: 1.2rem;
+            padding: 0 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-top-left-radius: 0 !important;
+            border-bottom-left-radius: 0 !important;
+        }
+        
+        .btn-calendar:hover {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b) !important;
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+        }
+        
+        .btn-calendar:active {
+            transform: scale(0.98);
+        }
     </style>
 </head>
 <body class="p-3">
@@ -337,7 +391,12 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
                                 <label class="form-label text-light fw-bold mb-2">
                                     <i class="bi bi-calendar-event me-1" style="color: #f59e0b;"></i> Desde
                                 </label>
-                                <input type="date" id="filterDesde" class="form-control form-control-lg bg-black text-white border-secondary">
+                                <div class="date-picker-group">
+                                    <input type="date" id="filterDesde" class="form-control form-control-lg bg-black text-white border-secondary">
+                                    <button type="button" class="btn btn-calendar" onclick="document.getElementById('filterDesde').showPicker()" title="Abrir calendario">
+                                        📅
+                                    </button>
+                                </div>
                             </div>
                             
                             <!-- Fecha Hasta -->
@@ -345,7 +404,12 @@ while ($r = $res_ev->fetch_assoc()) $eventos_filtro[] = $r;
                                 <label class="form-label text-light fw-bold mb-2">
                                     <i class="bi bi-calendar-check me-1" style="color: #f59e0b;"></i> Hasta
                                 </label>
-                                <input type="date" id="filterHasta" class="form-control form-control-lg bg-black text-white border-secondary">
+                                <div class="date-picker-group">
+                                    <input type="date" id="filterHasta" class="form-control form-control-lg bg-black text-white border-secondary">
+                                    <button type="button" class="btn btn-calendar" onclick="document.getElementById('filterHasta').showPicker()" title="Abrir calendario">
+                                        📅
+                                    </button>
+                                </div>
                             </div>
                             
                             <!-- Botones de Acción -->

@@ -522,6 +522,44 @@ body {
     color: var(--text-muted) !important;
 }
 
+/* ============ DATE INPUT FIX ============ */
+/* Asegurar que el icono del calendario y texto sean visibles en tema oscuro */
+input[type="date"] {
+    color-scheme: dark;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(1.2);
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
+
+/* Fix para que el texto de la fecha sea visible */
+input[type="date"]::-webkit-datetime-edit {
+    color: #f8fafc !important;
+}
+
+input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+    color: #f8fafc !important;
+}
+
+input[type="date"]::-webkit-datetime-edit-text,
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-year-field {
+    color: #f8fafc !important;
+}
+
+/* Placeholder cuando no hay fecha seleccionada */
+input[type="date"]:not(:valid)::-webkit-datetime-edit {
+    color: #64748b !important;
+}
+
 /* ============ BUTTON PREMIUM ============ */
 .btn-premium {
     padding: 12px 20px;

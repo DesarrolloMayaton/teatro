@@ -4,20 +4,6 @@ if (!isset($_SESSION['usuario_id'])) {
     header('Location: ../../login.php');
     exit();
 }
-require_once '../../evt_interfaz/conexion.php';
-
-// Obtener TODOS los eventos de la base actual (trt_25)
-$eventos_actual = [];
-$res = $conn->query("SELECT id_evento, titulo FROM evento ORDER BY id_evento DESC");
-if ($res) while ($r = $res->fetch_assoc()) $eventos_actual[] = $r;
-
-// Intentar obtener eventos de la base histórica
-$eventos_historico = [];
-$check_hist = $conn->query("SHOW DATABASES LIKE 'trt_historico_evento'");
-if ($check_hist && $check_hist->num_rows > 0) {
-    $res_hist = $conn->query("SELECT id_evento, titulo FROM trt_historico_evento.evento ORDER BY id_evento DESC");
-    if ($res_hist) while ($r = $res_hist->fetch_assoc()) $eventos_historico[] = $r;
-}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -104,6 +90,60 @@ if ($check_hist && $check_hist->num_rows > 0) {
             width: 1rem;
             height: 1rem;
         }
+        
+        /* ========= DATE INPUT CON BOTÓN CALENDARIO ========= */
+        .date-picker-group {
+            display: flex;
+            align-items: stretch;
+        }
+        
+        .date-picker-group input[type="date"] {
+            color-scheme: dark;
+            border-top-right-radius: 0 !important;
+            border-bottom-right-radius: 0 !important;
+        }
+        
+        .date-picker-group input[type="date"]::-webkit-calendar-picker-indicator {
+            display: none;
+        }
+        
+        .date-picker-group input[type="date"]::-webkit-datetime-edit,
+        .date-picker-group input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+        .date-picker-group input[type="date"]::-webkit-datetime-edit-text,
+        .date-picker-group input[type="date"]::-webkit-datetime-edit-month-field,
+        .date-picker-group input[type="date"]::-webkit-datetime-edit-day-field,
+        .date-picker-group input[type="date"]::-webkit-datetime-edit-year-field {
+            color: #fff !important;
+        }
+        
+        .date-picker-group input[type="date"]:not(:valid)::-webkit-datetime-edit {
+            color: #64748b !important;
+        }
+        
+        .btn-calendar {
+            background: linear-gradient(135deg, #22d3ee, #0891b2) !important;
+            border: 1px solid #22d3ee !important;
+            color: #000 !important;
+            font-size: 1.2rem;
+            padding: 0 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-top-left-radius: 0 !important;
+            border-bottom-left-radius: 0 !important;
+        }
+        
+        .btn-calendar:hover {
+            background: linear-gradient(135deg, #67e8f9, #22d3ee) !important;
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(34, 211, 238, 0.5);
+        }
+        
+        .btn-calendar:active {
+            transform: scale(0.98);
+        }
     </style>
 </head>
 <body class="p-4">
@@ -155,9 +195,7 @@ if ($check_hist && $check_hist->num_rows > 0) {
                         </label>
                         <select id="statsEvento" class="filter-select" onchange="cargarEstadisticas()">
                             <option value="">🎭 Todos los Eventos</option>
-                            <?php foreach($eventos_actual as $ev): ?>
-                                <option value="<?= $ev['id_evento'] ?>"><?= htmlspecialchars($ev['titulo']) ?></option>
-                            <?php endforeach; ?>
+                            <!-- Los eventos se cargan dinámicamente desde el API -->
                         </select>
                     </div>
                 </div>
@@ -169,7 +207,12 @@ if ($check_hist && $check_hist->num_rows > 0) {
                             <i class="bi bi-calendar-event" style="color: #22d3ee;"></i>
                             Desde
                         </label>
-                        <input type="date" id="statsDesde" class="filter-input" onchange="cargarEstadisticas()">
+                        <div class="date-picker-group">
+                            <input type="date" id="statsDesde" class="filter-input" onchange="cargarEstadisticas()">
+                            <button type="button" class="btn btn-calendar" onclick="document.getElementById('statsDesde').showPicker()" title="Abrir calendario">
+                                📅
+                            </button>
+                        </div>
                     </div>
                 </div>
                 
@@ -180,7 +223,12 @@ if ($check_hist && $check_hist->num_rows > 0) {
                             <i class="bi bi-calendar-check" style="color: #22d3ee;"></i>
                             Hasta
                         </label>
-                        <input type="date" id="statsHasta" class="filter-input" onchange="cargarEstadisticas()">
+                        <div class="date-picker-group">
+                            <input type="date" id="statsHasta" class="filter-input" onchange="cargarEstadisticas()">
+                            <button type="button" class="btn btn-calendar" onclick="document.getElementById('statsHasta').showPicker()" title="Abrir calendario">
+                                📅
+                            </button>
+                        </div>
                     </div>
                 </div>
                 
@@ -413,60 +461,115 @@ if ($check_hist && $check_hist->num_rows > 0) {
             rose: '#f43f5e', blue: '#3b82f6'
         };
 
-        let debounceTimer;
-        
-        // Cargar estadísticas al iniciar
+        // Cargar al iniciar
         document.addEventListener('DOMContentLoaded', () => {
-            cargarEstadisticas();
+            cargarTodo();
             // Actualizar automáticamente cada 2 minutos
-            setInterval(cargarEstadisticas, 120000);
+            setInterval(cargarTodo, 120000);
         });
         
-        // Función para cambiar la base de datos
-        function onCambioBaseDatos() {
+        // Función principal que carga eventos y estadísticas
+        async function cargarTodo() {
+            mostrarCargando(true);
+            
             const db = document.getElementById('statsDB').value;
+            const eventoId = document.getElementById('statsEvento').value;
+            const desde = document.getElementById('statsDesde').value;
+            const hasta = document.getElementById('statsHasta').value;
+            
+            const params = new URLSearchParams({
+                db: db,
+                id_evento: eventoId,
+                fecha_desde: desde,
+                fecha_hasta: hasta
+            });
+            
+            try {
+                const res = await fetch('api_stats_premium.php?' + params.toString());
+                const data = await res.json();
+                
+                if (!data.success) {
+                    console.error('Error:', data.error);
+                    mostrarCargando(false);
+                    return;
+                }
+                
+                // Actualizar dropdown de eventos con los del API
+                actualizarEventos(data.data.eventos_filtro || []);
+                
+                // Renderizar estadísticas
+                renderizarEstadisticas(data.data);
+                
+                mostrarCargando(false);
+                
+            } catch (e) {
+                console.error('Error cargando:', e);
+                mostrarCargando(false);
+            }
+        }
+        
+        // Actualizar dropdown de eventos
+        function actualizarEventos(eventos) {
             const select = document.getElementById('statsEvento');
+            const valorActual = select.value;
             
-            console.log('Cambiando a base de datos:', db);
-            
-            // Limpiar y repoblar el dropdown de eventos
+            // Guardar valor actual
             select.innerHTML = '<option value="">🎭 Todos los Eventos</option>';
             
-            let eventos = [];
-            if (db === 'actual') {
-                eventos = eventosActual || [];
-            } else if (db === 'historico') {
-                eventos = eventosHistorico || [];
-                if (eventos.length === 0) {
-                    select.innerHTML += '<option disabled>-- No hay eventos históricos --</option>';
-                }
-            } else { // ambas
-                eventos = [...(eventosActual || [])];
-                // Agregar históricos que no estén ya
-                (eventosHistorico || []).forEach(evH => {
-                    const existe = eventos.some(e => e.id_evento == evH.id_evento && e.titulo == evH.titulo);
-                    if (!existe) eventos.push({...evH, esHistorico: true});
-                });
-            }
-            
-            console.log('Eventos disponibles:', eventos.length);
-            
-            // Agregar opciones al select
             eventos.forEach(ev => {
-                const sufijo = ev.esHistorico ? ' (Hist.)' : '';
+                const sufijo = ev.fuente === 'historico' ? ' (Hist.)' : '';
                 select.innerHTML += `<option value="${ev.id_evento}">${ev.titulo}${sufijo}</option>`;
             });
             
-            // Cargar estadísticas con el nuevo filtro
-            cargarEstadisticas();
+            // Restaurar valor si aún existe
+            if (valorActual && select.querySelector(`option[value="${valorActual}"]`)) {
+                select.value = valorActual;
+            }
         }
         
-        // Función para limpiar todos los filtros
+        // Renderizar todas las estadísticas
+        function renderizarEstadisticas(d) {
+            // KPIs
+            animateKPI('kpiIngresos', d.resumen.total_ingresos, '$');
+            animateKPI('kpiBoletos', d.resumen.total_boletos);
+            animateKPI('kpiPromedio', d.resumen.ticket_promedio, '$');
+            animateKPI('kpiOcupacion', d.ocupacion.general.porcentaje_ocupacion, '', '%');
+            animateKPI('kpiEventos', d.resumen.total_eventos);
+            animateKPI('kpiFunciones', d.resumen.total_funciones);
+            
+            // Charts
+            renderChartHora(d.tendencias.por_hora);
+            renderChartDia(d.ocupacion.por_dia);
+            renderChartHorario(d.ocupacion.por_horario);
+            renderChartCategoria(d.ingresos.por_categoria);
+            renderChartTipo(d.ingresos.por_tipo);
+            renderChartTendencia(d.ingresos.mensuales);
+            
+            // Tables
+            renderRanking(d.rendimiento.ranking);
+            renderVendedores(d.vendedores);
+            renderAlertas(d.rendimiento.alertas);
+            renderOcupacion(d.ocupacion.por_funcion);
+        }
+        
+        // Callbacks de los filtros
+        function onCambioBaseDatos() {
+            // Limpiar evento seleccionado al cambiar BD
+            document.getElementById('statsEvento').value = '';
+            cargarTodo();
+        }
+        
+        function cargarEstadisticas() {
+            cargarTodo();
+        }
+        
+        // Limpiar todos los filtros
         function limpiarFiltros() {
             document.getElementById('statsDB').value = 'actual';
+            document.getElementById('statsEvento').value = '';
             document.getElementById('statsDesde').value = '';
             document.getElementById('statsHasta').value = '';
-            onCambioBaseDatos(); // Esto recarga el dropdown de eventos y llama a cargarEstadisticas
+            cargarTodo();
         }
         
         // Mostrar estado de carga
@@ -478,58 +581,6 @@ if ($check_hist && $check_hist->num_rows > 0) {
             } else {
                 status.innerHTML = '<i class="bi bi-check-circle-fill"></i> Listo';
                 status.style.color = '#10b981';
-            }
-        }
-
-        async function cargarEstadisticas() {
-            mostrarCargando(true);
-            
-            const params = new URLSearchParams({
-                db: document.getElementById('statsDB').value,
-                id_evento: document.getElementById('statsEvento').value,
-                fecha_desde: document.getElementById('statsDesde').value,
-                fecha_hasta: document.getElementById('statsHasta').value
-            });
-
-            try {
-                const res = await fetch(`api_stats_premium.php?${params}`);
-                const r = await res.json();
-                
-                if (!r.success) {
-                    console.error('Error API:', r.error);
-                    mostrarCargando(false);
-                    return;
-                }
-                
-                const d = r.data;
-                
-                // KPIs
-                animateKPI('kpiIngresos', d.resumen.total_ingresos, '$');
-                animateKPI('kpiBoletos', d.resumen.total_boletos);
-                animateKPI('kpiPromedio', d.resumen.ticket_promedio, '$');
-                animateKPI('kpiOcupacion', d.ocupacion.general.porcentaje_ocupacion, '', '%');
-                animateKPI('kpiEventos', d.resumen.total_eventos);
-                animateKPI('kpiFunciones', d.resumen.total_funciones);
-                
-                // Charts
-                renderChartHora(d.tendencias.por_hora);
-                renderChartDia(d.ocupacion.por_dia);
-                renderChartHorario(d.ocupacion.por_horario);
-                renderChartCategoria(d.ingresos.por_categoria);
-                renderChartTipo(d.ingresos.por_tipo);
-                renderChartTendencia(d.ingresos.mensuales);
-                
-                // Tables
-                renderRanking(d.rendimiento.ranking);
-                renderVendedores(d.vendedores);
-                renderAlertas(d.rendimiento.alertas);
-                renderOcupacion(d.ocupacion.por_funcion);
-                
-                mostrarCargando(false);
-                
-            } catch (e) {
-                console.error('Error:', e);
-                mostrarCargando(false);
             }
         }
 

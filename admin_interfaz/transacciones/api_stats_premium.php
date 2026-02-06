@@ -20,17 +20,65 @@ try {
     $fecha_desde = $_GET['fecha_desde'] ?? null;
     $fecha_hasta = $_GET['fecha_hasta'] ?? null;
 
+    // Configuración de base de datos actual
     $db_actual = 'trt_25';
-    $db_historico = 'trt_historico_evento';
+    
+    // Detectar automáticamente el nombre correcto de la base de datos histórica
+    $db_historico_candidates = ['trt_historial_evento', 'trt_historico_evento'];
+    $db_historico = null; // Se llenará con la que encontremos
+    $historico_existe = false;
+
+    foreach ($db_historico_candidates as $candidate) {
+        $check_db = $conn->query("SHOW DATABASES LIKE '{$candidate}'");
+        if ($check_db && $check_db->num_rows > 0) {
+            // Verificar que tenga la tabla boletos
+            $check_table = $conn->query("SHOW TABLES FROM {$candidate} LIKE 'boletos'");
+            if ($check_table && $check_table->num_rows > 0) {
+                $db_historico = $candidate;
+                $historico_existe = true;
+                break; // Encontramos una válida
+            }
+        }
+    }
 
     // Determinar qué bases de datos usar
     $databases = [];
+    $debug_info = []; // Para informar al frontend qué está pasando
+
     if ($db_mode === 'ambas') {
-        $databases = [$db_actual, $db_historico];
+        $databases[] = $db_actual;
+        if ($historico_existe) {
+            $databases[] = $db_historico;
+            $debug_info[] = "Se incluyó histórico: $db_historico";
+        } else {
+            $debug_info[] = "No se encontró base de datos histórica válida (buscamos: " . implode(', ', $db_historico_candidates) . ")";
+        }
     } elseif ($db_mode === 'historico') {
-        $databases = [$db_historico];
+        if ($historico_existe) {
+            $databases[] = $db_historico;
+            $debug_info[] = "Usando exclusivo histórico: $db_historico";
+        } else {
+            // Error controlado si pidieron histórico y no hay
+            echo json_encode([
+                'success' => true, // Respondemos true para no romper el front, pero con datos vacíos
+                'data' => [
+                    'resumen' => ['total_ingresos' => 0, 'total_boletos' => 0, 'ticket_promedio' => 0, 'total_eventos' => 0, 'total_funciones' => 0],
+                    'ocupacion' => ['por_funcion' => [], 'por_dia' => [], 'por_horario' => [], 'general' => ['vendidos' => 0, 'capacidad' => 0, 'porcentaje_ocupacion' => 0]],
+                    'ingresos' => ['mensuales' => [], 'por_tipo' => [], 'por_categoria' => []],
+                    'rendimiento' => ['ranking' => [], 'alertas' => []],
+                    'tendencias' => ['por_hora' => []],
+                    'ventas' => ['resumen' => ['vendidos' => 0, 'capacidad' => 0, 'porcentaje_ocupacion' => 0]],
+                    'vendedores' => [],
+                    'eventos_filtro' => []
+                ],
+                'message' => 'No se encontró una base de datos histórica válida (' . implode(' o ', $db_historico_candidates) . '). Verifica el nombre en MySQL.',
+                'debug' => "No existe histórico"
+            ]);
+            exit;
+        }
     } else {
-        $databases = [$db_actual];
+        $databases[] = $db_actual;
+        $debug_info[] = "Usando solo actual: $db_actual";
     }
 
     // HELPER: Construir WHERE clause para boletos
@@ -325,11 +373,9 @@ try {
         }
     }
 
-    // ============================================
-    // RESPUESTA FINAL
-    // ============================================
     echo json_encode([
         'success' => true,
+        'debug' => $debug_info,
         'data' => [
             'resumen' => [
                 'total_ingresos' => (float)$resumen['total_ingresos'],
