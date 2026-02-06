@@ -866,13 +866,15 @@ if ($check_hist && $check_hist->num_rows > 0) {
                                 <span class="fw-semibold text-white small text-truncate" title="${f.evento}" style="max-width: 70%;">${f.evento}</span>
                                 <span class="badge" style="background-color: ${color}">${pct}%</span>
                             </div>
-                            <div class="text-muted mb-2" style="font-size: 0.7rem;">${f.fecha} - ${f.hora}</div>
                             
-                            <div class="progress" style="height: 14px; background-color: rgba(255,255,255,0.1); border-radius: 10px;">
+                            <div class="progress position-relative" style="height: 18px; background-color: rgba(255,255,255,0.1); border-radius: 10px;">
                                 <div class="progress-bar" role="progressbar" 
-                                     style="width: ${pct}%; background-color: ${color}; font-size: 9px; line-height: 14px; font-weight: bold;"
+                                     style="width: ${pct}%; background-color: ${color};"
                                      aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
-                                     ${pct > 12 ? pct + '%' : ''}
+                                </div>
+                                <div class="position-absolute start-0 top-0 w-100 h-100 d-flex align-items-center justify-content-center text-white" 
+                                     style="font-size: 0.7rem; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.8); pointer-events: none;">
+                                     <i class="bi bi-calendar3 me-1" style="font-size: 0.65rem;"></i> ${f.fecha} - ${f.hora}
                                 </div>
                             </div>
                             
