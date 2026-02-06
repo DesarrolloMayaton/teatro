@@ -719,6 +719,20 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
 </div>
 </div>
 
+<div class="modal-overlay" id="inactivityModal">
+<div class="modal-box">
+<div class="modal-header">
+<h3><i class="bi bi-exclamation-triangle-fill"></i> Sesión inactiva</h3>
+</div>
+<div class="modal-body">
+<p class="modal-text">Por inactividad, la sesión se cerrará en <span id="inactivityCountdown">30</span> segundos.</p>
+</div>
+<div class="modal-footer">
+<button class="btn-confirm" id="inactivityStayButton">Continuar en el sistema</button>
+</div>
+</div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 const sidebar = document.getElementById('sidebar');
@@ -728,11 +742,12 @@ const iframes = document.querySelectorAll('.content-frame');
 const TAB_KEY = 'teatro_tab';
 const SIDEBAR_KEY = 'teatro_sidebar';
 const INACTIVITY_LIMIT = 5 * 60 * 1000; // 5 minutos
+const WARNING_TIME = 30 * 1000;
 let inactivityTimer;
+let warningTimer;
+let countdownInterval;
 
 function cambiarPestana(targetId) {
-
-
 iframes.forEach(f => f.classList.remove('active'));
 menuItems.forEach(m => m.classList.remove('active'));
 
@@ -756,8 +771,60 @@ localStorage.setItem(SIDEBAR_KEY, collapsed ? 'c' : 'e');
 sidebarToggle.querySelector('span').textContent = collapsed ? '' : 'Minimizar';
 }
 
+function clearInactividadAviso() {
+if (countdownInterval) {
+clearInterval(countdownInterval);
+countdownInterval = null;
+}
+const modal = document.getElementById('inactivityModal');
+if (modal) {
+modal.classList.remove('active');
+}
+}
+
+function mostrarInactividadAviso() {
+const modal = document.getElementById('inactivityModal');
+const countdownSpan = document.getElementById('inactivityCountdown');
+const stayButton = document.getElementById('inactivityStayButton');
+
+if (!modal || !countdownSpan || !stayButton) {
+return;
+}
+
+let remaining = WARNING_TIME / 1000;
+countdownSpan.textContent = remaining;
+modal.classList.add('active');
+
+if (countdownInterval) {
+clearInterval(countdownInterval);
+}
+
+countdownInterval = setInterval(() => {
+remaining -= 1;
+if (remaining <= 0) {
+clearInterval(countdownInterval);
+countdownInterval = null;
+window.location.href = 'logout.php?motivo=inactividad';
+return;
+}
+countdownSpan.textContent = remaining;
+}, 1000);
+
+stayButton.onclick = () => {
+clearInactividadAviso();
+resetInactividad();
+};
+}
+
 function resetInactividad() {
 clearTimeout(inactivityTimer);
+clearTimeout(warningTimer);
+clearInactividadAviso();
+
+warningTimer = setTimeout(() => {
+mostrarInactividadAviso();
+}, INACTIVITY_LIMIT - WARNING_TIME);
+
 inactivityTimer = setTimeout(() => {
 window.location.href = 'logout.php?motivo=inactividad';
 }, INACTIVITY_LIMIT);
