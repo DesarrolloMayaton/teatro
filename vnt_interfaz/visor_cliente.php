@@ -126,16 +126,19 @@ foreach ($categorias_evento as $cat) {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         :root {
-            --primary-color: #2563eb;
-            --primary-dark: #1e40af;
-            --success-color: #10b981;
-            --danger-color: #ef4444;
-            --warning-color: #f59e0b;
-            --bg-primary: #f8fafc;
-            --bg-secondary: #ffffff;
-            --text-primary: #0f172a;
-            --text-secondary: #64748b;
-            --border-color: #e2e8f0;
+            --primary-color: #1561f0;
+            --primary-dark: #0d4fc4;
+            --success-color: #32d74b;
+            --danger-color: #ff453a;
+            --warning-color: #ff9f0a;
+            --bg-primary: #131313;
+            --bg-secondary: #1c1c1e;
+            --text-primary: #ffffff;
+            --text-secondary: #86868b;
+            --border-color: #3a3a3c;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
         }
 
         * {
@@ -302,7 +305,7 @@ foreach ($categorias_evento as $cat) {
         .view-cartelera {
             min-height: 100vh;
             height: auto;
-            background: linear-gradient(135deg, var(--bg-primary) 0%, #e2e8f0 100%);
+            background: linear-gradient(135deg, var(--bg-primary) 0%, #2d2d2d 100%);
             padding: 40px;
             overflow-y: auto;
             overflow-x: hidden;
@@ -412,7 +415,7 @@ foreach ($categorias_evento as $cat) {
         .evento-poster-placeholder {
             width: 100%;
             aspect-ratio: 2/3;
-            background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+            background: linear-gradient(135deg, #3a3a3c 0%, #2b2b2b 100%);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -516,7 +519,7 @@ foreach ($categorias_evento as $cat) {
             min-height: 100vh;
             display: flex;
             flex-direction: column;
-            background: linear-gradient(135deg, var(--bg-primary) 0%, #e2e8f0 100%);
+            background: linear-gradient(135deg, var(--bg-primary) 0%, #2d2d2d 100%);
         }
 
         .horarios-header {
@@ -639,7 +642,7 @@ foreach ($categorias_evento as $cat) {
         /* ===== MAPA ===== */
         .view-mapa {
             display: grid;
-            grid-template-columns: 1fr 400px;
+            grid-template-columns: 1fr 200px;
             height: 100vh;
             background: var(--bg-primary);
         }
@@ -653,7 +656,7 @@ foreach ($categorias_evento as $cat) {
         .mapa-header {
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
             color: white;
-            padding: 16px 24px;
+            padding: 8px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -673,7 +676,7 @@ foreach ($categorias_evento as $cat) {
             align-items: center;
             justify-content: center;
             overflow: hidden;
-            padding: 20px;
+            padding: 0;
             background: var(--bg-secondary);
         }
 
@@ -683,14 +686,14 @@ foreach ($categorias_evento as $cat) {
         }
 
         .seat {
-            width: 48px;
-            height: 48px;
-            border-radius: 8px;
-            margin: 3px;
+            width: 72px;
+            height: 72px;
+            border-radius: 12px;
+            margin: 5px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 13px;
+            font-size: 20px;
             font-weight: 800;
             color: #000;
             text-shadow:
@@ -707,9 +710,9 @@ foreach ($categorias_evento as $cat) {
 
         .row-label {
             display: inline-block;
-            width: 36px;
+            width: 48px;
             text-align: center;
-            color: #000;
+            color: var(--text-secondary);
             font-weight: 800;
             font-size: 1.1rem;
         }
@@ -718,11 +721,11 @@ foreach ($categorias_evento as $cat) {
             display: flex;
             justify-content: center;
             align-items: center;
-            margin-bottom: 3px;
+            margin-bottom: 8px;
         }
 
         .pasillo {
-            width: 20px;
+            width: 34px;
         }
 
         .seat.client-selected {
@@ -745,11 +748,13 @@ foreach ($categorias_evento as $cat) {
         }
 
         .seat.vendido {
-            background: #dc2626 !important;
-            color: #fff !important;
+            background: #1c1c1e !important;
+            color: #666 !important;
+            cursor: not-allowed !important;
+            opacity: 0.6;
             text-shadow: none !important;
-            border: 3px solid #991b1b !important;
-            opacity: 0.85;
+            border: none !important;
+            box-shadow: none !important;
         }
 
         .categorias-leyenda {
@@ -768,7 +773,7 @@ foreach ($categorias_evento as $cat) {
             gap: 8px;
             font-size: 0.8rem;
             color: var(--text-secondary);
-            background: white;
+            background: var(--bg-secondary);
             padding: 8px 14px;
             border-radius: 20px;
             box-shadow: var(--shadow-sm);
@@ -804,22 +809,22 @@ foreach ($categorias_evento as $cat) {
         }
 
         .evento-header-info {
-            padding: 30px;
+            padding: 15px;
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
             color: white;
         }
 
         .evento-nombre {
-            font-size: 1.4rem;
+            font-size: 1rem;
             font-weight: 700;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
 
         .evento-funcion {
             display: flex;
             align-items: center;
             gap: 10px;
-            font-size: 1rem;
+            font-size: 0.8rem;
             opacity: 0.9;
         }
 
@@ -827,23 +832,23 @@ foreach ($categorias_evento as $cat) {
         .screen {
             background: linear-gradient(135deg, var(--text-primary) 0%, #334155 100%);
             color: white;
-            padding: 10px 40px;
+            padding: 5px 20px;
             text-align: center;
-            font-size: 1.1rem;
+            font-size: 0.9rem;
             font-weight: 700;
-            margin-bottom: 30px;
+            margin-bottom: 5px;
             border-radius: 50% 50% 10px 10px / 10px 10px 0 0;
-            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.2);
-            letter-spacing: 4px;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-            width: 80%;
+            box-shadow: 0 5px 10px -2px rgba(0, 0, 0, 0.2);
+            letter-spacing: 2px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            width: 60%;
             margin-left: auto;
             margin-right: auto;
         }
 
         .carrito-section {
             flex: 1;
-            padding: 24px;
+            padding: 10px;
             overflow-y: hidden;
             display: flex;
             flex-direction: column;
@@ -923,9 +928,10 @@ foreach ($categorias_evento as $cat) {
         }
 
         .carrito-item {
-            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-            border-radius: 12px;
-            padding: 14px 16px;
+            background: linear-gradient(135deg, #262626 0%, #171717 100%);
+            border: 1px solid #404040;
+            border-radius: 8px;
+            padding: 8px 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -945,37 +951,37 @@ foreach ($categorias_evento as $cat) {
         }
 
         .item-asiento {
-            font-size: 1.2rem;
+            font-size: 1rem;
             font-weight: 800;
             color: var(--text-primary);
         }
 
         .item-categoria {
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             color: var(--text-secondary);
             margin-top: 2px;
         }
 
         .item-precio {
-            font-size: 1.3rem;
+            font-size: 1.1rem;
             font-weight: 800;
             color: var(--success-color);
         }
 
         .carrito-vacio {
             text-align: center;
-            padding: 50px 20px;
+            padding: 20px 10px;
             color: var(--text-secondary);
         }
 
         .carrito-vacio i {
-            font-size: 3rem;
-            margin-bottom: 16px;
+            font-size: 2rem;
+            margin-bottom: 10px;
             opacity: 0.3;
         }
 
         .total-section {
-            padding: 28px;
+            padding: 15px;
             background: var(--text-primary);
             color: white;
         }
@@ -989,7 +995,7 @@ foreach ($categorias_evento as $cat) {
         }
 
         .total-amount {
-            font-size: 3rem;
+            font-size: 2rem;
             font-weight: 800;
             line-height: 1;
             display: flex;
@@ -1048,23 +1054,23 @@ foreach ($categorias_evento as $cat) {
 
         /* Item con descuento */
         .carrito-item.con-descuento {
-            background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+            background: linear-gradient(135deg, #422006 0%, #2e1503 100%);
             border-left-color: #f59e0b;
         }
 
         .carrito-item.cortesia {
-            background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%);
+            background: linear-gradient(135deg, #500724 0%, #380519 100%);
             border-left-color: #ec4899;
         }
 
         .item-precio.tachado {
             text-decoration: line-through;
             color: #9ca3af;
-            font-size: 1rem;
+            font-size: 0.8rem;
         }
 
         .item-precio-final {
-            font-size: 1.3rem;
+            font-size: 1.1rem;
             font-weight: 800;
             color: #10b981;
         }
@@ -1583,9 +1589,9 @@ foreach ($categorias_evento as $cat) {
                     </div>
                 <?php endforeach; ?>
                 <div class="cat-item">
-                    <div class="cat-color"
-                        style="background:repeating-linear-gradient(45deg,#ef4444,#ef4444 4px,#dc2626 4px,#dc2626 8px)">
+                    <div class="cat-color" style="background:#1c1c1e; border: 1px solid #333">
                     </div>
+
                     <span>Vendido</span>
                 </div>
             </div>
@@ -2075,7 +2081,7 @@ foreach ($categorias_evento as $cat) {
                 const scale = Math.min(
                     container.clientWidth / mapa.scrollWidth,
                     container.clientHeight / mapa.scrollHeight
-                ) * 0.88;
+                ) * 0.98;
                 mapa.style.transform = `scale(${Math.max(scale, 0.35)})`;
             }
         }
