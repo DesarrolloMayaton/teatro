@@ -30,7 +30,12 @@ if ($id_evento > 0) {
     
     if ($row = $res->fetch_assoc()) {
         $evento = $row;
-        $mapa_guardado = json_decode($row['mapa_json'], true) ?? [];
+        if (!empty($row['mapa_json'])) {
+            $tmp_mapa = json_decode($row['mapa_json'], true);
+            $mapa_guardado = is_array($tmp_mapa) ? $tmp_mapa : [];
+        } else {
+            $mapa_guardado = [];
+        }
     }
     $stmt->close();
 
