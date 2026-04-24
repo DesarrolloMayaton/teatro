@@ -17,8 +17,8 @@ if (isset($_POST['id_evento']) && isset($_POST['nombre']) && isset($_POST['preci
     $precio = (float)$_POST['precio'];
     $color = $_POST['color'];
 
-    if (empty($nombre) || $precio < 0 || $id_evento == 0) {
-        $response['message'] = 'Datos no válidos.';
+    if (empty($nombre) || $precio <= 0 || $id_evento == 0) {
+        $response['message'] = 'Datos no válidos. El precio debe ser mayor a 0.';
     } else {
         
         // 3. INSERTAR EN LA BASE DE DATOS (Tabla 'categorias')

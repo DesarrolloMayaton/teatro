@@ -143,7 +143,9 @@ function formatTicketHTML(boleto, cliente) {
             <div style="margin: 5px 0;">
                 <div style="font-size: 18px; font-weight: 900; border: 2px solid #000; padding: 5px 8px; display: inline-block; border-radius: 5px;">ASIENTO: ${boleto.asiento}</div>
                 <div style="font-size: 14px; margin-top: 5px;">${boleto.categoria}</div>
-                <div style="font-size: 18px; font-weight: 900; margin-top: 5px;">$${Number(boleto.precio).toFixed(2)}</div>
+                <div style="font-size: 18px; font-weight: 900; margin-top: 5px;">
+                    ${Number(boleto.precio) === 0 ? 'GRATUITO' : '$' + Number(boleto.precio).toFixed(2)}
+                </div>
             </div>
 
             <!-- Cliente -->

@@ -1,6 +1,7 @@
 <?php
 // Acción para manejar precios por tipo de boleto
 include "../../evt_interfaz/conexion.php";
+require_once __DIR__ . '/../../api/registrar_cambio.php';
 
 // Obtener datos del formulario
 $id_evento = isset($_POST['id_evento']) && $_POST['id_evento'] !== '' ? (int)$_POST['id_evento'] : null;
@@ -36,6 +37,21 @@ if ($check_col && $check_col->num_rows == 0) {
 }
 
 try {
+    // Validar que los precios sean mayores a 0 (excepto cortesía) si se están guardando manual
+    if ($accion === 'guardar' || $accion === 'aplicar_todos') {
+        foreach ($precios as $tipo => $precio) {
+            if ($tipo !== 'cortesia' && $precio < 0) { // Cambiado a < 0 para permitir eventos gratis
+                $redirect = ($id_evento ? "index.php?id_evento=$id_evento" : "index.php") . "&status=error&msg=" . urlencode("El precio de '$tipo' no puede ser negativo.");
+                header("Location: $redirect");
+                exit;
+            }
+        }
+    }
+
+    // Verificar si hay boletos vendidos antes de cambiar precios
+    // Verificar si hay boletos vendidos antes de cambiar precios (CANDADO ELIMINADO PARA PERMITIR CAMBIOS DINÁMICOS)
+    // El sistema POS y de contabilidad ya protege el precio histórico de los boletos individuales.
+
     switch ($accion) {
         case 'guardar':
             // Guardar precios (globales o para un evento específico)
@@ -133,6 +149,121 @@ try {
                                    : "index.php?status=success&msg=" . urlencode($msg);
             break;
             
+        case 'hacer_gratis':
+            $precios_gratis = ['general' => 0, 'nino' => 0, 'adulto_mayor' => 0, 'discapacitado' => 0, 'cortesia' => 0];
+            foreach ($precios_gratis as $tipo => $precio) {
+                if ($id_evento === null) {
+                    $stmt = $conn->prepare("INSERT INTO precios_tipo_boleto (id_evento, tipo_boleto, precio, usa_diferenciados) VALUES (NULL, ?, ?, 0) ON DUPLICATE KEY UPDATE precio = VALUES(precio), usa_diferenciados = VALUES(usa_diferenciados)");
+                    $stmt->bind_param("sd", $tipo, $precio);
+                } else {
+                    $stmt = $conn->prepare("INSERT INTO precios_tipo_boleto (id_evento, tipo_boleto, precio, usa_diferenciados) VALUES (?, ?, ?, 0) ON DUPLICATE KEY UPDATE precio = VALUES(precio), usa_diferenciados = VALUES(usa_diferenciados)");
+                    $stmt->bind_param("isd", $id_evento, $tipo, $precio);
+                }
+                $stmt->execute();
+                $stmt->close();
+            }
+            
+            // Adulto compatibility
+            if ($id_evento === null) {
+                $stmt = $conn->prepare("INSERT INTO precios_tipo_boleto (id_evento, tipo_boleto, precio, usa_diferenciados) VALUES (NULL, 'adulto', 0, 0) ON DUPLICATE KEY UPDATE precio = VALUES(precio), usa_diferenciados = VALUES(usa_diferenciados)");
+                $stmt->execute();
+                $stmt->close();
+            } else {
+                $stmt = $conn->prepare("INSERT INTO precios_tipo_boleto (id_evento, tipo_boleto, precio, usa_diferenciados) VALUES (?, 'adulto', 0, 0) ON DUPLICATE KEY UPDATE precio = VALUES(precio), usa_diferenciados = VALUES(usa_diferenciados)");
+                $stmt->bind_param("i", $id_evento);
+                $stmt->execute();
+                $stmt->close();
+            }
+
+            // Sync categorías a $0
+            $mapa_nombres = ['general' => 'General', 'nino' => 'Niño', 'adulto_mayor' => '3ra Edad', 'discapacitado' => 'Discapacitado'];
+            foreach ($mapa_nombres as $key => $nombre_cat) {
+                 if ($id_evento) {
+                     $stmt = $conn->prepare("UPDATE categorias SET precio = 0 WHERE id_evento = ? AND nombre_categoria = ?");
+                     $stmt->bind_param("is", $id_evento, $nombre_cat);
+                     $stmt->execute();
+                     $stmt->close();
+                     if ($key == 'adulto_mayor') {
+                         $stmt = $conn->prepare("UPDATE categorias SET precio = 0 WHERE id_evento = ? AND nombre_categoria = 'Adulto Mayor'");
+                         $stmt->bind_param("i", $id_evento);
+                         $stmt->execute();
+                         $stmt->close();
+                     }
+                 } else {
+                     $stmt = $conn->prepare("UPDATE categorias SET precio = 0 WHERE nombre_categoria = ?");
+                     $stmt->bind_param("s", $nombre_cat);
+                     $stmt->execute();
+                     $stmt->close();
+                     if ($key == 'adulto_mayor') {
+                         $stmt = $conn->prepare("UPDATE categorias SET precio = 0 WHERE nombre_categoria = 'Adulto Mayor'");
+                         $stmt->execute();
+                         $stmt->close();
+                     }
+                 }
+            }
+            
+            $msg = $id_evento ? 'El evento ahora es COMPLETAMENTE GRATIS' : 'Precios globales establecidos en GRAUÍTO';
+            $redirect = $id_evento ? "index.php?id_evento=$id_evento&status=success&msg=" . urlencode($msg) : "index.php?status=success&msg=" . urlencode($msg);
+            break;
+
+        case 'hacer_pago':
+            $precios_pago = ['general' => 80, 'nino' => 50, 'adulto_mayor' => 60, 'discapacitado' => 40, 'cortesia' => 0];
+            foreach ($precios_pago as $tipo => $precio) {
+                if ($id_evento === null) {
+                    $stmt = $conn->prepare("INSERT INTO precios_tipo_boleto (id_evento, tipo_boleto, precio, usa_diferenciados) VALUES (NULL, ?, ?, 0) ON DUPLICATE KEY UPDATE precio = VALUES(precio), usa_diferenciados = VALUES(usa_diferenciados)");
+                    $stmt->bind_param("sd", $tipo, $precio);
+                } else {
+                    $stmt = $conn->prepare("INSERT INTO precios_tipo_boleto (id_evento, tipo_boleto, precio, usa_diferenciados) VALUES (?, ?, ?, 0) ON DUPLICATE KEY UPDATE precio = VALUES(precio), usa_diferenciados = VALUES(usa_diferenciados)");
+                    $stmt->bind_param("isd", $id_evento, $tipo, $precio);
+                }
+                $stmt->execute();
+                $stmt->close();
+            }
+            
+            if ($id_evento === null) {
+                $stmt = $conn->prepare("INSERT INTO precios_tipo_boleto (id_evento, tipo_boleto, precio, usa_diferenciados) VALUES (NULL, 'adulto', 80, 0) ON DUPLICATE KEY UPDATE precio = VALUES(precio), usa_diferenciados = VALUES(usa_diferenciados)");
+                $stmt->execute();
+                $stmt->close();
+            } else {
+                $stmt = $conn->prepare("INSERT INTO precios_tipo_boleto (id_evento, tipo_boleto, precio, usa_diferenciados) VALUES (?, 'adulto', 80, 0) ON DUPLICATE KEY UPDATE precio = VALUES(precio), usa_diferenciados = VALUES(usa_diferenciados)");
+                $stmt->bind_param("i", $id_evento);
+                $stmt->execute();
+                $stmt->close();
+            }
+
+            // Sync categorías
+            $mapa_nombres = ['general' => 'General', 'nino' => 'Niño', 'adulto_mayor' => '3ra Edad', 'discapacitado' => 'Discapacitado'];
+            foreach ($mapa_nombres as $key => $nombre_cat) {
+                 $p = $precios_pago[$key];
+                 if ($id_evento) {
+                     $stmt = $conn->prepare("UPDATE categorias SET precio = ? WHERE id_evento = ? AND nombre_categoria = ?");
+                     $stmt->bind_param("dis", $p, $id_evento, $nombre_cat);
+                     $stmt->execute();
+                     $stmt->close();
+                     if ($key == 'adulto_mayor') {
+                         $stmt = $conn->prepare("UPDATE categorias SET precio = ? WHERE id_evento = ? AND nombre_categoria = 'Adulto Mayor'");
+                         $stmt->bind_param("di", $p, $id_evento);
+                         $stmt->execute();
+                         $stmt->close();
+                     }
+                 } else {
+                     $stmt = $conn->prepare("UPDATE categorias SET precio = ? WHERE nombre_categoria = ?");
+                     $stmt->bind_param("ds", $p, $nombre_cat);
+                     $stmt->execute();
+                     $stmt->close();
+                     if ($key == 'adulto_mayor') {
+                         $stmt = $conn->prepare("UPDATE categorias SET precio = ? WHERE nombre_categoria = 'Adulto Mayor'");
+                         $stmt->bind_param("d", $p);
+                         $stmt->execute();
+                         $stmt->close();
+                     }
+                 }
+            }
+            
+            $msg = $id_evento ? 'El evento ahora es DE PAGO ($80 base)' : 'Precios globales restablecidos ($80 base)';
+            $redirect = $id_evento ? "index.php?id_evento=$id_evento&status=success&msg=" . urlencode($msg) : "index.php?status=success&msg=" . urlencode($msg);
+            break;
+            
         case 'usar_global':
             // Eliminar precios específicos del evento
             if ($id_evento) {
@@ -218,6 +349,15 @@ try {
             
         default:
             $redirect = "index.php?status=error&msg=" . urlencode('Acción no válida');
+    }
+    
+    // Si la acción fue exitosa, notificamos el cambio para que los puntos de venta se actualicen en tiempo real
+    if (isset($redirect) && strpos($redirect, 'status=success') !== false) {
+        if (function_exists('registrar_cambio')) {
+            $evtIdStr = $id_evento ? $id_evento : 'global';
+            // Registramos un cambio tipo 'categoria' para que el index.php recargue sus variables/precios.
+            registrar_cambio('categoria', $id_evento, null, ['mensaje' => "Precios actualizados ($evtIdStr)"]);
+        }
     }
     
 } catch (Exception $e) {

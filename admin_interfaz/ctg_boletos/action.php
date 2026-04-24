@@ -62,7 +62,33 @@ if ($accion === 'actualizar_todos' || $accion === 'actualizar_seleccionado') {
     $precio_discapacitado = (!empty($_POST['precio_discapacitado'])) ? (float)$_POST['precio_discapacitado'] : null;
     $id_evento_especifico = ($accion === 'actualizar_seleccionado' && !empty($_POST['id_evento'])) ? (int)$_POST['id_evento'] : null;
     
-    // (Validación de precios vacíos eliminada según tu solicitud)
+    // Validar que los precios sean mayores a 0
+    if ($precio_general !== null && $precio_general <= 0) {
+        redirigir($redirect_url, 'error', 'El precio General debe ser mayor a $0.');
+    }
+    if ($precio_discapacitado !== null && $precio_discapacitado <= 0) {
+        redirigir($redirect_url, 'error', 'El precio Discapacitado debe ser mayor a $0.');
+    }
+    
+    // Si es actualización de un evento específico, verificar si tiene boletos vendidos
+    if ($id_evento_especifico) {
+        $stmt_check = $conn->prepare("SELECT COUNT(*) as total FROM boletos WHERE id_evento = ? AND estatus = 1");
+        $stmt_check->bind_param("i", $id_evento_especifico);
+        $stmt_check->execute();
+        $boletos_vendidos = $stmt_check->get_result()->fetch_assoc()['total'];
+        $stmt_check->close();
+        
+        if ($boletos_vendidos > 0) {
+            redirigir($redirect_url, 'error', "No se puede cambiar el precio: este evento tiene $boletos_vendidos boleto(s) vendido(s). Archiva el evento primero o cancela los boletos.");
+        }
+    } else {
+        // Actualización masiva: verificar si ALGÚN evento activo tiene boletos vendidos
+        $check_any = $conn->query("SELECT e.id_evento, e.titulo, COUNT(b.id_boleto) as vendidos FROM evento e INNER JOIN boletos b ON e.id_evento = b.id_evento AND b.estatus = 1 WHERE e.finalizado = 0 GROUP BY e.id_evento HAVING vendidos > 0 LIMIT 1");
+        if ($check_any && $check_any->num_rows > 0) {
+            $evt_con_ventas = $check_any->fetch_assoc();
+            redirigir($redirect_url, 'error', "No se puede actualizar masivamente: el evento \"{$evt_con_ventas['titulo']}\" tiene {$evt_con_ventas['vendidos']} boleto(s) vendido(s). Cambia los precios individualmente para eventos sin ventas.");
+        }
+    }
 
     try {
         if ($precio_general !== null) {
@@ -102,7 +128,11 @@ else {
             case 'crear':
                 $nombre_categoria = $_POST['nombre_categoria'] ?? '';
                 if (empty($nombre_categoria)) throw new Exception("El nombre es obligatorio.");
-                $precio = $_POST['precio'] ?? 0.00; $color = $_POST['color'] ?? '#E0E0E0';
+                $precio = isset($_POST['precio']) ? (float)$_POST['precio'] : 0.00; 
+                $color = $_POST['color'] ?? '#E0E0E0';
+                
+                // Validar precio > 0
+                if ($precio <= 0) throw new Exception("El precio debe ser mayor a $0.");
                 
                 $check = $conn->prepare("SELECT id_categoria FROM categorias WHERE id_evento = ? AND nombre_categoria = ?");
                 $check->bind_param("is", $id_evento_redirect, $nombre_categoria);
@@ -121,7 +151,32 @@ else {
                 $id_categoria = $_POST['id_categoria'] ?? null;
                 $nombre_categoria = $_POST['nombre_categoria'] ?? '';
                 if (empty($id_categoria)) throw new Exception("Datos incompletos.");
-                $precio = $_POST['precio'] ?? 0.00; $color = $_POST['color'] ?? '#E0E0E0';
+                $precio = isset($_POST['precio']) ? (float)$_POST['precio'] : 0.00; 
+                $color = $_POST['color'] ?? '#E0E0E0';
+                
+                // Validar precio > 0
+                if ($precio <= 0) throw new Exception("El precio debe ser mayor a $0.");
+                
+                // Verificar si el evento tiene boletos vendidos con esta categoría
+                $stmt_boletos = $conn->prepare("
+                    SELECT COUNT(*) as total FROM boletos 
+                    WHERE id_evento = ? AND id_categoria = ? AND estatus = 1
+                ");
+                $stmt_boletos->bind_param("ii", $id_evento_redirect, $id_categoria);
+                $stmt_boletos->execute();
+                $boletos_con_cat = $stmt_boletos->get_result()->fetch_assoc()['total'];
+                $stmt_boletos->close();
+                
+                // Obtener el precio actual para ver si realmente cambió
+                $stmt_precio_actual = $conn->prepare("SELECT precio FROM categorias WHERE id_categoria = ? AND id_evento = ?");
+                $stmt_precio_actual->bind_param("ii", $id_categoria, $id_evento_redirect);
+                $stmt_precio_actual->execute();
+                $precio_actual = $stmt_precio_actual->get_result()->fetch_assoc()['precio'];
+                $stmt_precio_actual->close();
+                
+                if ($boletos_con_cat > 0 && (float)$precio_actual != (float)$precio) {
+                    throw new Exception("No se puede cambiar el precio: hay $boletos_con_cat boleto(s) vendido(s) con esta categoría. Los boletos ya cobrados quedarían con precio inconsistente.");
+                }
                 
                 $check = $conn->prepare("SELECT id_categoria FROM categorias WHERE id_evento = ? AND nombre_categoria = ? AND id_categoria != ?");
                 $check->bind_param("isi", $id_evento_redirect, $nombre_categoria, $id_categoria);

@@ -29,13 +29,13 @@ $colores_por_id = [];
 $categorias_js = []; 
 
 // 2. Cargar todos los eventos (incluyendo imagen para el póster)
-// Solo eventos con funciones disponibles
+// Solo eventos con funciones disponibles (no más de 2 horas después de iniciada la función)
 $fecha_limite_eventos = date('Y-m-d H:i:s', strtotime('-2 hours'));
 $sql_eventos = "SELECT e.id_evento, e.titulo, e.tipo, e.mapa_json, e.imagen,
                        (SELECT COUNT(*) FROM funciones f 
                         WHERE f.id_evento = e.id_evento 
                         AND f.estado = 0 
-                        AND (f.fecha_hora > '$fecha_limite_eventos' OR DATE(f.fecha_hora) = CURDATE())) as tiene_funciones
+                        AND f.fecha_hora > '$fecha_limite_eventos') as tiene_funciones
                 FROM evento e 
                 WHERE e.finalizado = 0 
                 HAVING tiene_funciones > 0
@@ -108,9 +108,9 @@ if (isset($_GET['id_evento']) && is_numeric($_GET['id_evento'])) {
         // --- FIN: MODIFICADO ---
 
         // 5. Cargar funciones disponibles para el evento
-        // Se permite vender hasta 2 horas después de iniciada la función O si es del día de hoy
+        // Se permite vender estrictamente hasta 2 horas después de iniciada la función
         $fecha_limite = date('Y-m-d H:i:s', strtotime('-2 hours'));
-        $stmt_fun = $conn->prepare("SELECT id_funcion, fecha_hora, estado FROM funciones WHERE id_evento = ? AND (fecha_hora > ? OR DATE(fecha_hora) = CURDATE()) ORDER BY fecha_hora ASC");
+        $stmt_fun = $conn->prepare("SELECT id_funcion, fecha_hora, estado FROM funciones WHERE id_evento = ? AND fecha_hora > ? ORDER BY fecha_hora ASC");
         $stmt_fun->bind_param("is", $id_evento_seleccionado, $fecha_limite);
         $stmt_fun->execute();
         $res_funciones = $stmt_fun->get_result();

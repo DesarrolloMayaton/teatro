@@ -54,6 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     break;
                 }
             }
+            // FORZAMOS (y validamos) que el cierre de la venta sea SIEMPRE y exactamene 2 horas después de la última función programada.
+            // Ignoramos lo que venga del lado del cliente.
             $ultimaFuncion = max(array_map('strtotime', $_POST['funciones']));
             $fin = date('Y-m-d H:i:s', $ultimaFuncion + 7200);
         }

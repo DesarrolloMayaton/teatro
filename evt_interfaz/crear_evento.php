@@ -56,6 +56,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             }
         }
+        
+        // FORZAMOS (y validamos) que el cierre de la venta sea SIEMPRE y exactamene 2 horas después de la última función programada.
+        // Ignoramos lo que venga del lado del cliente.
         $ultimaFuncion = max(array_map('strtotime', $_POST['funciones']));
         $fin = date('Y-m-d H:i:s', $ultimaFuncion + 7200);
     }
@@ -93,16 +96,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt_f->close();
 
+            // Determinar si el evento es gratuito
+            $es_gratuito = isset($_POST['es_gratuito']) && $_POST['es_gratuito'] == '1';
+            $precio_default = $es_gratuito ? 0 : 80;
+
             $stmt_c = $conn->prepare("INSERT INTO categorias (id_evento, nombre_categoria, precio, color) VALUES (?, ?, ?, ?)");
             $nom = 'General';
-            $prec = 80;
+            $prec = $precio_default;
             $col = '#cbd5e1';
             $stmt_c->bind_param("isds", $id_nuevo, $nom, $prec, $col);
             $stmt_c->execute();
             $id_cat_gen = $conn->insert_id;
 
             $nom = 'Discapacitado';
-            $prec = 80;
+            $prec = $precio_default;
             $col = '#2563eb';
             $stmt_c->bind_param("isds", $id_nuevo, $nom, $prec, $col);
             $stmt_c->execute();
@@ -133,7 +140,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $conn->commit();
             if (function_exists('registrar_transaccion'))
-                registrar_transaccion('evento_crear', "Creó evento: $titulo");
+                registrar_transaccion('evento_crear', "Creó evento: $titulo" . ($es_gratuito ? ' (GRATUITO)' : ''));
+
+            // Determinar destino: si es de pago, ir a categorías
+            $destino_url = $es_gratuito ? 'act_evento.php' : '../admin_interfaz/ctg_boletos/index.php?id_evento=' . $id_nuevo;
+            $mensaje_tipo = $es_gratuito ? 'Evento Gratuito creado. Los boletos serán gratis.' : 'Evento creado. Ahora configura los precios.';
+            $icono_tipo = $es_gratuito ? 'bi-gift-fill' : 'bi-cash-coin';
+            $color_gradiente = $es_gratuito ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, var(--accent-blue) 0%, #4f46e5 100%)';
 
             ?>
             <!DOCTYPE html>
@@ -145,101 +158,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
                 <link rel="stylesheet" href="../assets/css/teatro-style.css">
                 <style>
-                    body {
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        height: 100vh;
-                        margin: 0;
-                        overflow: hidden;
-                    }
-
-                    .success-card {
-                        background: var(--bg-secondary);
-                        border-radius: 24px;
-                        padding: 40px;
-                        text-align: center;
-                        box-shadow: var(--shadow-xl);
-                        max-width: 380px;
-                        width: 90%;
-                        border: 1px solid var(--border-color);
-                        opacity: 0;
-                        transform: scale(0.9);
-                        animation: popIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-                    }
-
-                    .icon-circle {
-                        width: 80px;
-                        height: 80px;
-                        background: var(--success-bg);
-                        color: var(--success);
-                        border-radius: 50%;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        font-size: 40px;
-                        margin: 0 auto 20px;
-                        box-shadow: 0 0 0 8px rgba(50, 215, 75, 0.1);
-                    }
-
-                    .progress-track {
-                        height: 6px;
-                        background: var(--bg-tertiary);
-                        border-radius: 3px;
-                        margin-top: 30px;
-                        overflow: hidden;
-                    }
-
-                    .progress-fill {
-                        height: 100%;
-                        background: var(--success);
-                        width: 0;
-                        border-radius: 3px;
-                        transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1);
-                    }
-
-                    @keyframes popIn {
-                        to {
-                            opacity: 1;
-                            transform: scale(1);
-                        }
-                    }
-
-                    body.exiting {
-                        animation: fadeOut 0.4s ease-in forwards;
-                    }
-
-                    @keyframes fadeOut {
-                        to {
-                            opacity: 0;
-                            transform: translateY(10px);
-                        }
-                    }
-
-                    h4 {
-                        color: var(--text-primary);
-                    }
-
-                    p {
-                        color: var(--text-muted);
-                    }
+                    body { display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
+                    .success-card { background: var(--bg-secondary); border-radius: 24px; padding: 40px; text-align: center; box-shadow: var(--shadow-xl); max-width: 420px; width: 92%; border: 1px solid var(--border-color); opacity: 0; transform: scale(0.9); animation: popIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+                    .icon-circle { width: 90px; height: 90px; background: <?= $es_gratuito ? 'rgba(16,185,129,0.15)' : 'rgba(21,97,240,0.15)' ?>; color: <?= $es_gratuito ? '#10b981' : 'var(--accent-blue)' ?>; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 44px; margin: 0 auto 20px; box-shadow: 0 0 0 8px <?= $es_gratuito ? 'rgba(16,185,129,0.08)' : 'rgba(21,97,240,0.08)' ?>; }
+                    .progress-track { height: 6px; background: var(--bg-tertiary); border-radius: 3px; margin-top: 30px; overflow: hidden; }
+                    .progress-fill { height: 100%; background: <?= $es_gratuito ? '#10b981' : 'var(--accent-blue)' ?>; width: 0; border-radius: 3px; transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1); }
+                    @keyframes popIn { to { opacity: 1; transform: scale(1); } }
+                    body.exiting { animation: fadeOut 0.4s ease-in forwards; }
+                    @keyframes fadeOut { to { opacity: 0; transform: translateY(10px); } }
+                    h4 { color: var(--text-primary); } p { color: var(--text-muted); }
+                    .tipo-badge { display: inline-block; padding: 6px 18px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; margin-top: 12px; background: <?= $es_gratuito ? 'rgba(16,185,129,0.15)' : 'rgba(21,97,240,0.15)' ?>; color: <?= $es_gratuito ? '#10b981' : 'var(--accent-blue)' ?>; }
                 </style>
             </head>
 
             <body>
                 <div class="success-card">
-                    <div class="icon-circle"><i class="bi bi-check-lg"></i></div>
-                    <h4 class="fw-bold mb-2">¡Evento Creado!</h4>
-                    <p class="small mb-0">El evento ya está disponible en cartelera.</p>
-                    <div class="progress-track">
-                        <div class="progress-fill" id="pBar"></div>
-                    </div>
-                    <p class="mt-2" style="font-size: 0.75rem; font-weight: 600;">VOLVIENDO A ACTIVOS...</p>
+                    <div class="icon-circle"><i class="bi <?= $icono_tipo ?>"></i></div>
+                    <h4 style="font-weight: 800; margin-bottom: 8px;">¡Evento Creado!</h4>
+                    <p style="font-size: 0.95rem; margin-bottom: 0;"><?= htmlspecialchars($mensaje_tipo) ?></p>
+                    <div class="tipo-badge"><?= $es_gratuito ? '🎁 EVENTO GRATUITO' : '💰 EVENTO DE PAGO' ?></div>
+                    <div class="progress-track"><div class="progress-fill" id="pBar"></div></div>
+                    <p style="font-size: 0.75rem; font-weight: 600; margin-top: 12px;"><?= $es_gratuito ? 'VOLVIENDO A ACTIVOS...' : 'ABRIENDO CONFIGURACIÓN DE PRECIOS...' ?></p>
                 </div>
                 <script>
                     setTimeout(() => document.getElementById('pBar').style.width = '100%', 100);
                     localStorage.setItem("evt_upd", Date.now());
-                    setTimeout(() => { document.body.classList.add('exiting'); setTimeout(() => { window.location.href = "act_evento.php"; }, 350); }, 1300);
+                    setTimeout(() => { document.body.classList.add('exiting'); setTimeout(() => { window.location.href = "<?= $destino_url ?>"; }, 350); }, 1800);
                 </script>
             </body>
 
@@ -701,6 +645,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             <?php endif; ?>
             <form id="fCreate" method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="es_gratuito" id="esGratuito" value="0">
                 <div class="row">
                     <div class="col-12">
                         <label class="form-label">Título del Evento</label>
@@ -769,13 +714,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
                 <hr>
-                <button type="submit" id="bSub" class="btn btn-primary"
-                    style="width: 100%; padding: 16px; font-size: 1.1rem;" disabled><i class="bi bi-check2-circle"></i>
-                    Crear Evento</button>
+                <button type="button" id="bSub" class="btn btn-primary"
+                    style="width: 100%; padding: 16px; font-size: 1.1rem;" disabled onclick="abrirConfirmacion()"><i class="bi bi-eye-fill"></i>
+                    Revisar y Crear Evento</button>
             </form>
         </div>
     </div>
 
+    <!-- MODAL: Cancelar/Salir -->
     <div class="modal-overlay" id="modalCancelar">
         <div class="modal-content">
             <div class="modal-icon-container"><i class="bi bi-exclamation-triangle-fill modal-icon"></i></div>
@@ -787,6 +733,109 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <button class="btn btn-leave" onclick="goBack()"><i class="bi bi-box-arrow-left"></i> Salir</button>
                 <button class="btn btn-stay" onclick="cerrarModal()"><i class="bi bi-pencil-fill"></i> Seguir
                     Editando</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Confirmación Final de Datos del Evento -->
+    <div class="modal-overlay" id="modalConfirmacion" style="overflow-y:auto;padding:20px 0;">
+        <div style="background: linear-gradient(160deg, #1e1e22 0%, #141416 50%, #1a1a1e 100%); border-radius: 24px; max-width: 520px; width: 94%; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 25px 80px rgba(0,0,0,0.7); animation: modalPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); overflow: hidden; margin: auto;">
+            <!-- Header con gradiente -->
+            <div style="background: linear-gradient(135deg, #1561f0 0%, #4f46e5 50%, #7c3aed 100%); padding: 35px 30px; text-align: center; position: relative;">
+                <div style="font-size: 3rem; margin-bottom: 8px;">🎭</div>
+                <h3 style="color: white; font-weight: 800; font-size: 1.4rem; margin: 0;">Confirma tu Evento</h3>
+                <p style="color: rgba(255,255,255,0.7); font-size: 0.85rem; margin: 8px 0 0;">Revisa que todos los datos sean correctos</p>
+                <div style="position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);border-left:25px solid transparent;border-right:25px solid transparent;border-top:20px solid #7c3aed;"></div>
+            </div>
+
+            <!-- Datos del evento -->
+            <div style="padding: 40px 30px 20px;">
+                <!-- Título -->
+                <div style="text-align: center; margin-bottom: 25px;">
+                    <div style="color: rgba(255,255,255,0.5); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px;">TÍTULO DEL EVENTO</div>
+                    <div id="confTitulo" style="color: #fff; font-size: 1.6rem; font-weight: 800; line-height: 1.3;"></div>
+                </div>
+
+                <!-- Info Grid -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px;">
+                    <!-- Escenario -->
+                    <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; text-align: center;">
+                        <div style="color: rgba(255,255,255,0.5); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">ESCENARIO</div>
+                        <div id="confTipo" style="color: #fff; font-size: 1rem; font-weight: 700;"></div>
+                    </div>
+                    <!-- Inicio Venta -->
+                    <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; text-align: center;">
+                        <div style="color: rgba(255,255,255,0.5); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">INICIO DE VENTA</div>
+                        <div id="confIniVenta" style="color: #fff; font-size: 1rem; font-weight: 700;"></div>
+                    </div>
+                </div>
+
+                <!-- Funciones -->
+                <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; margin-bottom: 20px;">
+                    <div style="color: rgba(255,255,255,0.5); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; text-align: center;"><i class="bi bi-calendar-event" style="margin-right: 6px;"></i>FUNCIONES PROGRAMADAS</div>
+                    <div id="confFunciones" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;"></div>
+                </div>
+
+                <!-- Descripción -->
+                <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; margin-bottom: 20px;">
+                    <div style="color: rgba(255,255,255,0.5); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">DESCRIPCIÓN</div>
+                    <div id="confDesc" style="color: rgba(255,255,255,0.8); font-size: 0.85rem; line-height: 1.6; max-height: 80px; overflow-y: auto;"></div>
+                </div>
+
+                <!-- Timer / Countdown -->
+                <div style="text-align: center; margin-bottom: 10px;">
+                    <div id="confTimer" style="color: var(--warning); font-size: 0.85rem; font-weight: 700;"><i class="bi bi-hourglass-split" style="margin-right: 5px;"></i>Puedes continuar en <span id="confCountdown">5</span>s...</div>
+                </div>
+            </div>
+
+            <!-- Botones -->
+            <div style="display: flex; gap: 14px; padding: 10px 30px 30px; justify-content: center;">
+                <button onclick="cerrarConfirmacion()" class="btn" style="flex:1; padding: 16px; border-radius: 14px; font-weight: 700; background: rgba(255,69,58,0.1); color: var(--danger); border: 2px solid rgba(255,69,58,0.5);">
+                    <i class="bi bi-arrow-left"></i> Corregir
+                </button>
+                <button id="btnSiguiente" onclick="abrirTipoPrecio()" class="btn" disabled style="flex:1; padding: 16px; border-radius: 14px; font-weight: 700; background: linear-gradient(135deg, var(--accent-blue) 0%, #4f46e5 100%); color: white; border: none; opacity: 0.4; cursor: not-allowed; transition: all 0.4s ease;">
+                    <i class="bi bi-arrow-right"></i> Siguiente
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ¿Gratuito o De Pago? -->
+    <div class="modal-overlay" id="modalTipoPrecio">
+        <div style="background: linear-gradient(160deg, #1e1e22 0%, #141416 50%, #1a1a1e 100%); border-radius: 24px; max-width: 480px; width: 92%; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 25px 80px rgba(0,0,0,0.7); animation: modalPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); overflow: hidden;">
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 35px 30px; text-align: center; position: relative;">
+                <div style="font-size: 3rem; margin-bottom: 8px;">💰</div>
+                <h3 style="color: white; font-weight: 800; font-size: 1.4rem; margin: 0;">¿Tipo de Evento?</h3>
+                <p style="color: rgba(255,255,255,0.8); font-size: 0.85rem; margin: 8px 0 0;">Elige cómo se cobrarán los boletos</p>
+                <div style="position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);border-left:25px solid transparent;border-right:25px solid transparent;border-top:20px solid #d97706;"></div>
+            </div>
+
+            <div style="padding: 45px 30px 30px;">
+                <!-- Opción Gratuito -->
+                <button onclick="seleccionarTipo(true)" style="width: 100%; background: rgba(16,185,129,0.08); border: 2px solid rgba(16,185,129,0.3); border-radius: 16px; padding: 22px 24px; margin-bottom: 14px; cursor: pointer; display: flex; align-items: center; gap: 18px; transition: all 0.3s ease; text-align: left;" onmouseover="this.style.background='rgba(16,185,129,0.15)';this.style.borderColor='#10b981';this.style.transform='translateY(-2px) scale(1.01)'" onmouseout="this.style.background='rgba(16,185,129,0.08)';this.style.borderColor='rgba(16,185,129,0.3)';this.style.transform='none'">
+                    <div style="width: 56px; height: 56px; background: rgba(16,185,129,0.2); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; flex-shrink: 0;">🎁</div>
+                    <div>
+                        <div style="color: #10b981; font-weight: 800; font-size: 1.15rem; margin-bottom: 4px;">Evento Gratuito</div>
+                        <div style="color: rgba(255,255,255,0.5); font-size: 0.8rem; line-height: 1.4;">Todos los boletos serán gratis ($0). En el ticket aparecerá <strong style="color:#10b981">"EVENTO GRATIS"</strong></div>
+                    </div>
+                </button>
+
+                <!-- Opción De Pago -->
+                <button onclick="seleccionarTipo(false)" style="width: 100%; background: rgba(21,97,240,0.08); border: 2px solid rgba(21,97,240,0.3); border-radius: 16px; padding: 22px 24px; cursor: pointer; display: flex; align-items: center; gap: 18px; transition: all 0.3s ease; text-align: left;" onmouseover="this.style.background='rgba(21,97,240,0.15)';this.style.borderColor='var(--accent-blue)';this.style.transform='translateY(-2px) scale(1.01)'" onmouseout="this.style.background='rgba(21,97,240,0.08)';this.style.borderColor='rgba(21,97,240,0.3)';this.style.transform='none'">
+                    <div style="width: 56px; height: 56px; background: rgba(21,97,240,0.2); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; flex-shrink: 0;">💵</div>
+                    <div>
+                        <div style="color: var(--accent-blue); font-weight: 800; font-size: 1.15rem; margin-bottom: 4px;">Evento de Pago</div>
+                        <div style="color: rgba(255,255,255,0.5); font-size: 0.8rem; line-height: 1.4;">Se te redirigirá a <strong style="color:var(--accent-blue)">configurar los precios</strong> por categoría</div>
+                    </div>
+                </button>
+
+                <!-- Botón Regresar -->
+                <div style="text-align: center; margin-top: 20px;">
+                    <button onclick="volverAConfirmacion()" style="background: none; border: none; color: rgba(255,255,255,0.4); font-size: 0.85rem; cursor: pointer; font-weight: 600;">
+                        <i class="bi bi-arrow-left"></i> Volver atrás
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -832,7 +881,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 else { els.lockBtn.innerHTML = '<i class="bi bi-unlock-fill"></i>'; els.lockBtn.classList.add('unlocked'); fpE.set('clickOpens', true); }
             };
 
-            function recalcularCierre() { if (funcs.length) { const funcionMayor = funcs.reduce((max, f) => f > max ? f : max, funcs[0]); fpE.setDate(new Date(funcionMayor.getTime() + 7200000), true); } }
+            function recalcularCierre() {
+                if (funcs.length) {
+                    const funcionMayor = funcs.reduce((max, f) => f > max ? f : max, funcs[0]);
+                    // Se suma 7200000ms (2 horas) a la ÚLTIMA función
+                    fpE.setDate(new Date(funcionMayor.getTime() + 7200000), true);
+                } 
+            }
             function check() { els.add.disabled = !(fpD.selectedDates.length && fpT.selectedDates.length); }
 
             els.add.onclick = () => {
@@ -881,13 +936,114 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.getElementById('ini').addEventListener('change', () => formModificado = true);
             document.getElementById('fin').addEventListener('change', () => formModificado = true);
             window.addEventListener('beforeunload', function (e) { if (formModificado) { e.preventDefault(); e.returnValue = ''; return ''; } });
-            document.getElementById('fCreate').addEventListener('submit', e => { if (!val()) { e.preventDefault(); alert('Por favor, completa todos los campos.'); } else { formModificado = false; } });
+            // Ya no se hace submit directo, se usa el botón de "Revisar"
         });
 
+        // ====== FUNCIONES DE LOS MODALES ======
         let urlDestino = null;
+        let countdownInterval = null;
+
         function confirmarSalida(destino = null) { urlDestino = destino; if (typeof formModificado !== 'undefined' && formModificado) { document.getElementById('modalCancelar').classList.add('active'); } else { goBack(); } }
         function cerrarModal() { document.getElementById('modalCancelar').classList.remove('active'); urlDestino = null; }
         function goBack() { window.onbeforeunload = null; formModificado = false; document.body.classList.remove('loaded'); document.body.classList.add('exiting'); setTimeout(() => window.location.href = urlDestino || 'act_evento.php', 350); }
+
+        // Formato AM/PM
+        function formatoAMPM(dateObj) {
+            let h = dateObj.getHours();
+            let m = dateObj.getMinutes();
+            let ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12; if (h === 0) h = 12;
+            return String(h) + ':' + String(m).padStart(2, '0') + ' ' + ampm;
+        }
+
+        function formatoFechaAMPM(dateObj) {
+            const dias = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+            const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+            return dias[dateObj.getDay()] + ' ' + dateObj.getDate() + ' ' + meses[dateObj.getMonth()] + ' ' + dateObj.getFullYear() + ' · ' + formatoAMPM(dateObj);
+        }
+
+        // ====== MODAL 1: Confirmación de datos ======
+        function abrirConfirmacion() {
+            // Llenar datos
+            document.getElementById('confTitulo').textContent = document.getElementById('tit').value;
+            
+            const tipoSel = document.getElementById('tipo');
+            document.getElementById('confTipo').textContent = tipoSel.options[tipoSel.selectedIndex].text;
+
+            // Inicio venta en AM/PM
+            const iniVal = document.getElementById('ini').value;
+            if (iniVal) {
+                const iniDate = new Date(iniVal.replace(' ', 'T'));
+                document.getElementById('confIniVenta').textContent = formatoFechaAMPM(iniDate);
+            }
+
+            // Funciones en AM/PM
+            const funcContainer = document.getElementById('confFunciones');
+            funcContainer.innerHTML = '';
+            const hiddenInputs = document.querySelectorAll('input[name="funciones[]"]');
+            hiddenInputs.forEach(input => {
+                const dt = new Date(input.value.replace(' ', 'T'));
+                const pill = document.createElement('span');
+                pill.style.cssText = 'background:rgba(21,97,240,0.15); color:var(--accent-blue); padding:8px 16px; border-radius:20px; font-size:0.85rem; font-weight:700; border:1px solid rgba(21,97,240,0.3);';
+                pill.innerHTML = '<i class="bi bi-clock" style="margin-right:5px"></i>' + formatoFechaAMPM(dt);
+                funcContainer.appendChild(pill);
+            });
+
+            // Descripción
+            document.getElementById('confDesc').textContent = document.getElementById('desc').value;
+
+            // Mostrar modal
+            document.getElementById('modalConfirmacion').classList.add('active');
+
+            // Countdown 5 segundos
+            const btnSig = document.getElementById('btnSiguiente');
+            const countdownEl = document.getElementById('confCountdown');
+            const timerEl = document.getElementById('confTimer');
+            btnSig.disabled = true;
+            btnSig.style.opacity = '0.4';
+            btnSig.style.cursor = 'not-allowed';
+            let sec = 5;
+            countdownEl.textContent = sec;
+            timerEl.style.display = 'block';
+
+            if (countdownInterval) clearInterval(countdownInterval);
+            countdownInterval = setInterval(() => {
+                sec--;
+                countdownEl.textContent = sec;
+                if (sec <= 0) {
+                    clearInterval(countdownInterval);
+                    btnSig.disabled = false;
+                    btnSig.style.opacity = '1';
+                    btnSig.style.cursor = 'pointer';
+                    timerEl.innerHTML = '<i class="bi bi-check-circle-fill" style="margin-right:5px;color:var(--success)"></i><span style="color:var(--success)">¡Listo! Puedes continuar</span>';
+                }
+            }, 1000);
+        }
+
+        function cerrarConfirmacion() {
+            document.getElementById('modalConfirmacion').classList.remove('active');
+            if (countdownInterval) clearInterval(countdownInterval);
+        }
+
+        // ====== MODAL 2: Tipo de precio ======
+        function abrirTipoPrecio() {
+            document.getElementById('modalConfirmacion').classList.remove('active');
+            if (countdownInterval) clearInterval(countdownInterval);
+            document.getElementById('modalTipoPrecio').classList.add('active');
+        }
+
+        function volverAConfirmacion() {
+            document.getElementById('modalTipoPrecio').classList.remove('active');
+            abrirConfirmacion();
+        }
+
+        function seleccionarTipo(esGratis) {
+            document.getElementById('esGratuito').value = esGratis ? '1' : '0';
+            document.getElementById('modalTipoPrecio').classList.remove('active');
+            formModificado = false;
+            window.onbeforeunload = null;
+            document.getElementById('fCreate').submit();
+        }
     </script>
 </body>
 
