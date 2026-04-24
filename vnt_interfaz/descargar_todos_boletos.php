@@ -151,7 +151,11 @@ foreach ($boletos as $index => $boleto) {
     $pdf->Cell(45, 7, 'Precio:', 0, 0);
     $pdf->SetFont('Arial', '', 11);
     $pdf->SetTextColor(0, 128, 0);
-    $pdf->Cell(0, 7, '$' . number_format($boleto['precio_final'], 2), 0, 1);
+    if ((float)$boleto['precio_final'] == 0) {
+        $pdf->Cell(0, 7, 'GRATUITO', 0, 1);
+    } else {
+        $pdf->Cell(0, 7, '$' . number_format($boleto['precio_final'], 2), 0, 1);
+    }
     $pdf->SetTextColor(0, 0, 0);
 
     $pdf->SetFont('Arial', 'B', 11);

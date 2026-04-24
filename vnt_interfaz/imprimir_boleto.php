@@ -110,7 +110,11 @@ $pdf->Cell(0, 5, convertirTexto($boleto['nombre_categoria']), 0, 1);
 $pdf->SetFont('Arial', 'B', 10);
 $pdf->Cell(25, 5, 'Precio:', 0, 0);
 $pdf->SetFont('Arial', 'B', 12);
-$pdf->Cell(0, 5, '$' . number_format($boleto['precio_final'], 2), 0, 1);
+if ((float)$boleto['precio_final'] == 0) {
+    $pdf->Cell(0, 5, 'GRATUITO', 0, 1);
+} else {
+    $pdf->Cell(0, 5, '$' . number_format($boleto['precio_final'], 2), 0, 1);
+}
 
 // Cliente (Si existe)
 if (isset($_GET['cliente']) && !empty($_GET['cliente'])) {

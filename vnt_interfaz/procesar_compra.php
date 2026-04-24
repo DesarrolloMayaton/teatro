@@ -57,7 +57,12 @@ if (!isset($conn) || !$conn) {
     exit;
 }
 
-// Librería de QR eliminada - ya no es necesaria
+// Importar clases de Endroid QR Code
+use Endroid\QrCode\QrCode;
+use Endroid\QrCode\Writer\PngWriter;
+use Endroid\QrCode\Encoding\Encoding;
+use Endroid\QrCode\ErrorCorrectionLevel\ErrorCorrectionLevelLow;
+use Endroid\QrCode\RoundBlockSizeMode\RoundBlockSizeModeMargin;
 
 // Leer datos JSON del request
 $input = file_get_contents('php://input');
@@ -286,7 +291,29 @@ try {
             $stmt->close();
         }
 
-        // QR eliminado - ya no es necesario
+        // Generar y guardar el código QR físico
+        try {
+            $qrDir = __DIR__ . '/../boletos_qr/';
+            if (!is_dir($qrDir)) {
+                mkdir($qrDir, 0777, true);
+            }
+            
+            $qrPath = $qrDir . $codigo_unico . '.png';
+            
+            $qrCode = QrCode::create($codigo_unico)
+                ->setEncoding(new Encoding('UTF-8'))
+                ->setErrorCorrectionLevel(new ErrorCorrectionLevelLow())
+                ->setSize(300)
+                ->setMargin(10)
+                ->setRoundBlockSizeMode(new RoundBlockSizeModeMargin());
+                
+            $writer = new PngWriter();
+            $resultQR = $writer->write($qrCode);
+            $resultQR->saveToFile($qrPath);
+            
+        } catch (\Exception $e) {
+            error_log("No se pudo generar el QR para $codigo_unico: " . $e->getMessage());
+        }
 
         $boletos_generados[] = [
             'asiento' => $codigo_asiento,

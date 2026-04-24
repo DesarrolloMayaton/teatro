@@ -682,14 +682,28 @@ $conn->close();
                 <button type="submit" name="accion" value="guardar" class="btn btn-success flex-grow-1">
                     <i class="bi bi-check-circle"></i> Guardar Precios
                 </button>
+                
+                <!-- Botón Toggle de Gratuito/Paga (Solo para eventos específicos) -->
+                <?php if ($id_evento_seleccionado): ?>
+                    <?php if ($precios_tipo['general'] == 0): ?>
+                         <button type="submit" name="accion" value="hacer_pago" class="btn btn-warning text-dark flex-grow-1" onclick="return confirm('¿Hacer DE PAGA? Se establecerán precios base en $80 de la plantilla. Los boletos previos vendidos no cambian pero a partir de ahora se cobrará.');">
+                             <i class="bi bi-cash-coin"></i> Hacer Evento DE PAGA
+                         </button>
+                    <?php else: ?>
+                         <button type="submit" name="accion" value="hacer_gratis" class="btn flex-grow-1" style="border: 2px solid var(--success); color: var(--success); background: rgba(50,215,75,0.1);" onclick="return confirm('¿Hacer GRATUITO? Se establecerán todos los precios básicos y de categorías en $0. Los boletos previos vendidos no cambian.');">
+                             <i class="bi bi-gift"></i> Hacer Evento GRATIS
+                         </button>
+                    <?php endif; ?>
+                <?php endif; ?>
+
                 <?php if ($id_evento_seleccionado): ?>
                     <?php if ($tiene_precios_propios): ?>
-                        <button type="submit" name="accion" value="usar_global" class="btn btn-secondary">
+                        <button type="submit" name="accion" value="usar_global" class="btn btn-secondary flex-grow-1">
                             <i class="bi bi-globe"></i> Usar Precios Globales
                         </button>
                     <?php endif; ?>
                 <?php else: ?>
-                    <button type="submit" name="accion" value="aplicar_todos" class="btn btn-primary">
+                    <button type="submit" name="accion" value="aplicar_todos" class="btn btn-primary flex-grow-1">
                         <i class="bi bi-broadcast"></i> Aplicar a Todos los Eventos
                     </button>
                 <?php endif; ?>
