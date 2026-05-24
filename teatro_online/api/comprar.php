@@ -233,7 +233,125 @@ try {
     }
     
     $conn_online->commit();
-    
+
+    // ========================================================================
+    // REPLICAR LA VENTA A LA BASE DE DATOS LOCAL (trt_25) Y AL BACKUP
+    // ========================================================================
+    // Esto garantiza que cuando alguien compra ONLINE, los boletos también
+    // aparezcan vendidos en el sistema LOCAL (vnt_interfaz) en tiempo real.
+    $boletos_locales_ids = [];
+    try {
+        $conn_local = @new mysqli('localhost', 'root', '', 'trt_25');
+        if (!$conn_local->connect_error) {
+            $conn_local->set_charset('utf8mb4');
+
+            // Obtener id_evento_local desde id_evento online
+            $stmt = $conn_online->prepare("SELECT id_evento_local FROM evento WHERE id_evento = ? LIMIT 1");
+            $stmt->bind_param('i', $id_evento);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            $id_evento_local = $row && $row['id_evento_local'] ? (int)$row['id_evento_local'] : null;
+
+            $id_funcion_local = null;
+            if ($id_funcion) {
+                $stmt = $conn_online->prepare("SELECT id_funcion_local FROM funciones WHERE id_funcion = ? LIMIT 1");
+                $stmt->bind_param('i', $id_funcion);
+                $stmt->execute();
+                $row = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                $id_funcion_local = $row && $row['id_funcion_local'] ? (int)$row['id_funcion_local'] : null;
+            }
+
+            if ($id_evento_local) {
+                foreach ($boletos_generados as $bg) {
+                    // Asegurar asiento en local
+                    $st = $conn_local->prepare("SELECT id_asiento FROM asientos WHERE codigo_asiento = ? LIMIT 1");
+                    $st->bind_param('s', $bg['asiento']);
+                    $st->execute();
+                    $row = $st->get_result()->fetch_assoc();
+                    $st->close();
+                    if (!$row) {
+                        $st = $conn_local->prepare("INSERT INTO asientos (codigo_asiento, id_evento, id_categoria) VALUES (?, ?, 1)");
+                        // Algunas BD locales tienen schemas distintos; intentar versión mínima
+                        @$st->bind_param('si', $bg['asiento'], $id_evento_local);
+                        @$st->execute();
+                        $id_asiento_local = $st->insert_id;
+                        $st->close();
+                    } else {
+                        $id_asiento_local = (int)$row['id_asiento'];
+                    }
+
+                    // Categoría local: tomar la primera del evento
+                    $st = $conn_local->prepare("SELECT id_categoria FROM categorias WHERE id_evento = ? LIMIT 1");
+                    $st->bind_param('i', $id_evento_local);
+                    $st->execute();
+                    $rcat = $st->get_result()->fetch_assoc();
+                    $st->close();
+                    $id_cat_local = $rcat ? (int)$rcat['id_categoria'] : 1;
+
+                    // Insertar boleto en local
+                    $st = $conn_local->prepare("
+                        INSERT INTO boletos (id_evento, id_funcion, id_asiento, id_categoria, codigo_unico, precio_base, precio_final, tipo_boleto, fecha_compra, estatus)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 'adulto', NOW(), 1)
+                    ");
+                    $precio_b = (float)$bg['precio'];
+                    $precio_f = (float)$bg['precio'];
+                    $st->bind_param('iiiisdd',
+                        $id_evento_local, $id_funcion_local, $id_asiento_local, $id_cat_local,
+                        $bg['codigo_unico'], $precio_b, $precio_f
+                    );
+                    if (@$st->execute()) {
+                        $boletos_locales_ids[] = $st->insert_id;
+                    }
+                    $st->close();
+                }
+
+                // Registrar cambio en cambios_log local para que vnt_interfaz lo detecte en tiempo real
+                $datos_json = $conn_local->real_escape_string(json_encode([
+                    'asientos' => array_column($boletos_generados, 'asiento'),
+                    'cantidad' => count($boletos_generados),
+                    'origen' => 'online',
+                    'cliente' => $nombre_cliente,
+                ]));
+                $idf_sql = $id_funcion_local ? (int)$id_funcion_local : 'NULL';
+                @$conn_local->query("
+                    INSERT INTO cambios_log (tipo_cambio, id_evento, id_funcion, datos)
+                    VALUES ('venta', $id_evento_local, $idf_sql, '$datos_json')
+                ");
+
+                // ===== BACKUP INMUTABLE =====
+                if (file_exists(__DIR__ . '/../../teatro_local/sync/backup_helper.php')) {
+                    require_once __DIR__ . '/../../teatro_local/sync/backup_helper.php';
+                    @respaldarEvento($conn_local, $id_evento_local, 'online');
+                    foreach ($boletos_locales_ids as $idb) {
+                        @respaldarBoleto($conn_local, $idb, 'online');
+                    }
+                    $total_venta = array_sum(array_column($boletos_generados, 'precio'));
+                    @registrarVentaDetallada([
+                        'origen' => 'online',
+                        'id_evento' => $id_evento_local,
+                        'id_funcion' => $id_funcion_local,
+                        'cliente_nombre' => $nombre_cliente,
+                        'cliente_email' => $data['email_cliente'] ?? null,
+                        'cliente_telefono' => $data['telefono_cliente'] ?? null,
+                        'lugar_venta' => 'Online',
+                        'metodo_pago' => 'online',
+                        'cantidad_boletos' => count($boletos_generados),
+                        'subtotal' => (float)$total_venta,
+                        'total' => (float)$total_venta,
+                        'asientos' => array_column($boletos_generados, 'asiento'),
+                        'codigos_boletos' => array_column($boletos_generados, 'codigo_unico'),
+                        'boletos_ids' => $boletos_locales_ids,
+                    ]);
+                }
+            }
+            $conn_local->close();
+        }
+    } catch (Throwable $eSync) {
+        error_log('[OnlineSync→Local] ' . $eSync->getMessage());
+    }
+
     ob_clean();
     echo json_encode([
         'success' => true,

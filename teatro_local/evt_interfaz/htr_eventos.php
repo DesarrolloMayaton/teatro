@@ -43,6 +43,22 @@ if (isset($_POST['accion']) && $_POST['accion'] === 'borrar_permanente') {
     }
     $stmt->close();
     
+    // ===== RESPALDO INMUTABLE PREVIO ANTES DE BORRAR DEFINITIVAMENTE =====
+    if (file_exists(__DIR__ . '/../sync/backup_helper.php')) {
+        require_once __DIR__ . '/../sync/backup_helper.php';
+        // Respaldar evento y boletos vendidos (lectura desde BD histórica)
+        $conn_hist_select = $conn;
+        $conn_hist_select->query("USE trt_historico_evento");
+        @respaldarEvento($conn_hist_select, $id, 'local');
+        $rs = $conn_hist_select->query("SELECT id_boleto FROM boletos WHERE id_evento = $id AND estatus IN (1,2)");
+        if ($rs) {
+            while ($r = $rs->fetch_assoc()) {
+                @respaldarBoleto($conn_hist_select, (int)$r['id_boleto'], 'local');
+            }
+        }
+        $conn_hist_select->query("USE trt_25"); // Volver a la BD principal
+    }
+
     $conn->begin_transaction();
     try {
         // Borrar todo de las tablas HISTÓRICAS

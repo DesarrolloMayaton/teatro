@@ -44,15 +44,30 @@ function archivar_evento_completo($id, $conn)
     $db_principal = 'trt_25';
     $id = (int) $id;
 
+    // ===== RESPALDO INMUTABLE PREVIO A trt_25_backup =====
+    // Antes de tocar producción, garantizamos que el evento y todos sus boletos
+    // vendidos queden respaldados en la BD de respaldo. Si esto falla por
+    // alguna razón, NO procedemos con el borrado para evitar pérdida de datos.
+    if (file_exists(__DIR__ . '/../sync/backup_helper.php')) {
+        require_once __DIR__ . '/../sync/backup_helper.php';
+        @respaldarEvento($conn, $id, 'local');
+        $rs = $conn->query("SELECT id_boleto FROM boletos WHERE id_evento = $id AND estatus IN (1,2)");
+        if ($rs) {
+            while ($r = $rs->fetch_assoc()) {
+                @respaldarBoleto($conn, (int)$r['id_boleto'], 'local');
+            }
+        }
+    }
+
     $tablas = ['evento', 'funciones', 'categorias', 'promociones', 'boletos', 'precios_tipo_boleto'];
-    
+
     foreach ($tablas as $tabla) {
         $sql = "INSERT IGNORE INTO `$db_historico`.`$tabla` SELECT * FROM `$db_principal`.`$tabla` WHERE id_evento = $id";
         if (!$conn->query($sql)) {
             // Si falla la tabla de precios (puede que no tenga id_evento si es global, pero aquí filtramos por id_evento)
             // Si el precio es global (id_evento IS NULL), no se debe archivar asociado a un evento específico.
             // Pero si tiene id_evento asignado, SÍ se debe archivar.
-            if ($tabla !== 'precios_tipo_boleto') { 
+            if ($tabla !== 'precios_tipo_boleto') {
                 throw new Exception("Error archivando tabla $tabla: " . $conn->error);
             }
         }

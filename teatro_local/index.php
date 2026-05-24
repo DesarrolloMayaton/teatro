@@ -660,6 +660,14 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
                         <i class="bi bi-person-plus-fill"></i>
                         <span>Usuarios</span>
                     </a>
+                    <a class="sidebar-menu-item" data-target="frame-ventas-detalle">
+                        <i class="bi bi-clipboard-data"></i>
+                        <span>Registro Ventas</span>
+                    </a>
+                    <a class="sidebar-menu-item" data-target="frame-sync">
+                        <i class="bi bi-arrow-repeat"></i>
+                        <span>Sincronización</span>
+                    </a>
                 <?php endif; ?>
             </nav>
 
@@ -695,6 +703,8 @@ $nombre_completo = $usuario_nombre . ' ' . $usuario_apellido;
 
             <?php if ($usuario_rol === 'admin'): ?>
                 <iframe id="frame-registro" src="auth/registrar_empleado.php" class="content-frame"></iframe>
+                <iframe id="frame-ventas-detalle" src="ventas/registro_ventas.php" class="content-frame"></iframe>
+                <iframe id="frame-sync" src="ventas/panel_sync.php" class="content-frame"></iframe>
             <?php endif; ?>
         </main>
 

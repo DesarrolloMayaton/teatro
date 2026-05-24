@@ -354,19 +354,60 @@ try {
     // Confirmar transacción
     $conn->commit();
 
-    // ===== REPLICAR EVENTO Y BOLETOS A BASE DE DATOS ONLINE (no bloqueante) =====
+    // ===== REPLICAR EVENTO Y BOLETOS A BD ONLINE Y BACKUP (no bloqueante) =====
+    $boletos_ids_array = [];
     if (file_exists(__DIR__ . '/../sync/online_sync_helper.php')) {
         require_once __DIR__ . '/../sync/online_sync_helper.php';
         @replicarEventoAOnline($conn, $id_evento);
-        // Replicar cada boleto generado por su codigo_unico
         foreach ($boletos_generados as $bg) {
             $stmt_b = $conn->prepare("SELECT id_boleto FROM boletos WHERE codigo_unico = ? LIMIT 1");
             $stmt_b->bind_param('s', $bg['codigo_unico']);
             $stmt_b->execute();
             $row_b = $stmt_b->get_result()->fetch_assoc();
             $stmt_b->close();
-            if ($row_b) @replicarBoletoAOnline($conn, (int)$row_b['id_boleto']);
+            if ($row_b) {
+                $boletos_ids_array[] = (int)$row_b['id_boleto'];
+                @replicarBoletoAOnline($conn, (int)$row_b['id_boleto']);
+            }
         }
+    }
+
+    // ===== RESPALDO INMUTABLE A trt_25_backup =====
+    if (file_exists(__DIR__ . '/../sync/backup_helper.php')) {
+        require_once __DIR__ . '/../sync/backup_helper.php';
+        @respaldarEvento($conn, $id_evento, 'local');
+        foreach ($boletos_ids_array as $id_b) {
+            @respaldarBoleto($conn, $id_b, 'local');
+        }
+        // Registrar venta detallada con metadatos extra (lugar, método pago, tarjeta, etc.)
+        $datos_venta_extra = [
+            'origen' => 'local',
+            'id_evento' => (int)$id_evento,
+            'id_funcion' => $id_funcion ? (int)$id_funcion : null,
+            'titulo_evento' => $evento_info['titulo'] ?? null,
+            'fecha_funcion' => $funcion_info['fecha_hora'] ?? null,
+            'cliente_nombre' => $nombre_cliente,
+            'cliente_email' => $data['email_cliente'] ?? null,
+            'cliente_telefono' => $data['telefono_cliente'] ?? null,
+            'id_usuario_vendedor' => $id_usuario_vendedor,
+            'nombre_vendedor' => isset($_SESSION['usuario_nombre'])
+                ? $_SESSION['usuario_nombre'] . ' ' . ($_SESSION['usuario_apellido'] ?? '')
+                : null,
+            'lugar_venta' => $data['lugar_venta'] ?? 'Taquilla',
+            'metodo_pago' => $data['metodo_pago'] ?? 'efectivo',
+            'tarjeta_terminacion' => $data['tarjeta_terminacion'] ?? null,
+            'referencia_pago' => $data['referencia_pago'] ?? null,
+            'cuenta_destino' => $data['cuenta_destino'] ?? null,
+            'cantidad_boletos' => $cantidad_boletos,
+            'subtotal' => (float)$total_venta,
+            'descuento_aplicado' => 0,
+            'total' => (float)$total_venta,
+            'asientos' => array_column($boletos_generados, 'asiento'),
+            'codigos_boletos' => array_column($boletos_generados, 'codigo_unico'),
+            'boletos_ids' => $boletos_ids_array,
+            'notas' => $data['notas'] ?? null,
+        ];
+        @registrarVentaDetallada($datos_venta_extra);
     }
 
     // Descripción clara para la lista
