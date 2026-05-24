@@ -97,6 +97,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if(function_exists('registrar_transaccion')) registrar_transaccion('evento_crear', "Creó evento: $titulo");
 
+            // ===== REPLICAR A BASE DE DATOS ONLINE (no bloqueante) =====
+            if (file_exists(__DIR__ . '/../sync/online_sync_helper.php')) {
+                require_once __DIR__ . '/../sync/online_sync_helper.php';
+                @replicarEventoAOnline($conn, $id_nuevo);
+            }
+
             // ==================================================================
             // PANTALLA DE ÉXITO CON ANIMACIÓN (Igual a Editar)
             // ==================================================================

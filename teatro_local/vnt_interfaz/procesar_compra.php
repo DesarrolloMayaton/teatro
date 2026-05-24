@@ -354,6 +354,21 @@ try {
     // Confirmar transacción
     $conn->commit();
 
+    // ===== REPLICAR EVENTO Y BOLETOS A BASE DE DATOS ONLINE (no bloqueante) =====
+    if (file_exists(__DIR__ . '/../sync/online_sync_helper.php')) {
+        require_once __DIR__ . '/../sync/online_sync_helper.php';
+        @replicarEventoAOnline($conn, $id_evento);
+        // Replicar cada boleto generado por su codigo_unico
+        foreach ($boletos_generados as $bg) {
+            $stmt_b = $conn->prepare("SELECT id_boleto FROM boletos WHERE codigo_unico = ? LIMIT 1");
+            $stmt_b->bind_param('s', $bg['codigo_unico']);
+            $stmt_b->execute();
+            $row_b = $stmt_b->get_result()->fetch_assoc();
+            $stmt_b->close();
+            if ($row_b) @replicarBoletoAOnline($conn, (int)$row_b['id_boleto']);
+        }
+    }
+
     // Descripción clara para la lista
     $descripcion = "Venta de $cantidad_boletos boleto(s) - Evento: " . ($evento_info['titulo'] ?? 'N/A') .
         " - Asientos: " . implode(', ', array_column($boletos_generados, 'asiento')) .

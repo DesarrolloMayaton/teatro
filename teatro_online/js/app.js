@@ -1,540 +1,616 @@
 /**
  * Teatro Online - JavaScript Principal
  * ====================================
- * Con sincronización en tiempo real con vnt_interfaz
+ * Interfaz intuitiva con progress steps, zoom y sincronización en tiempo real
  */
 
-// Estado global
+// ============================================
+// ESTADO GLOBAL
+// ============================================
 const estado = {
     eventoSeleccionado: null,
+    eventoTipo: 1,
+    eventoTitulo: '',
     funcionSeleccionada: null,
+    funcionTexto: '',
     asientosSeleccionados: [],
     categorias: [],
     asientosVendidos: [],
     lastChangeId: 0,
-    eventSource: null
+    eventSource: null,
+    pasoActual: 1,
+    zoom: 1.0,
 };
 
-// Elementos DOM
-const elementos = {
-    eventosContainer: document.getElementById('eventos-container'),
-    funcionesContainer: document.getElementById('funciones-container'),
-    asientosGrid: document.getElementById('asientos-grid'),
-    carritoItems: document.getElementById('carrito-items'),
-    totalPrecio: document.getElementById('total-precio'),
-    btnContinuarDatos: document.getElementById('btn-continuar-datos'),
-    resumenCompra: document.getElementById('resumen-compra'),
-    totalPagar: document.getElementById('total-pagar'),
-    modalCarga: new bootstrap.Modal(document.getElementById('modal-carga')),
-    mensajeCarga: document.getElementById('mensaje-carga')
-};
-
-// Inicialización
+// ============================================
+// INICIALIZACIÓN
+// ============================================
 document.addEventListener('DOMContentLoaded', () => {
     cargarEventos();
-    configurarFormularioDatos();
+    document.getElementById('form-datos').addEventListener('submit', procesarCompra);
 });
 
-// Cargar eventos
+// ============================================
+// PROGRESS STEPS
+// ============================================
+function actualizarProgreso(paso) {
+    estado.pasoActual = paso;
+    const steps = document.querySelectorAll('.progress-step');
+    steps.forEach((s) => {
+        const n = parseInt(s.dataset.step);
+        s.classList.remove('active', 'completed');
+        if (n < paso) s.classList.add('completed');
+        else if (n === paso) s.classList.add('active');
+    });
+    const line = document.getElementById('progressLine');
+    const total = steps.length - 1;
+    const pct = ((paso - 1) / total) * 100;
+    line.style.width = pct + '%';
+}
+
+function irAPaso(numero) {
+    const mapa = {
+        1: 'paso-evento',
+        2: 'paso-funcion',
+        3: 'paso-asientos',
+        4: 'paso-datos',
+        5: 'paso-confirmacion',
+    };
+    document.querySelectorAll('.paso').forEach((p) => p.classList.remove('activo'));
+    document.getElementById(mapa[numero]).classList.add('activo');
+    actualizarProgreso(numero);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    if (numero < 3 && estado.eventSource) {
+        estado.eventSource.close();
+        estado.eventSource = null;
+    }
+}
+
+// ============================================
+// PASO 1: CARGAR EVENTOS
+// ============================================
 async function cargarEventos() {
     try {
-        const response = await fetch('api/eventos.php');
-        const data = await response.json();
-        
-        if (data.success) {
-            renderizarEventos(data.eventos);
-        } else {
-            mostrarError('Error al cargar eventos');
-        }
-    } catch (error) {
-        mostrarError('Error de conexión');
+        const res = await fetch('api/eventos.php');
+        const data = await res.json();
+        if (data.success) renderizarEventos(data.eventos);
+        else mostrarError('Error al cargar eventos');
+    } catch (err) {
+        mostrarError('No pudimos cargar los eventos. Verifica tu conexión.');
     }
 }
 
-// Renderizar eventos
 function renderizarEventos(eventos) {
-    if (eventos.length === 0) {
-        elementos.eventosContainer.innerHTML = '<p class="text-center text-muted">No hay eventos disponibles</p>';
+    const grid = document.getElementById('eventos-grid');
+    if (!eventos || eventos.length === 0) {
+        grid.innerHTML = `
+            <div class="loading-container" style="grid-column:1/-1;">
+                <i class="bi bi-calendar-x" style="font-size:4rem;color:#3a3a3c;"></i>
+                <p>No hay eventos disponibles en este momento.<br>Vuelve pronto.</p>
+            </div>`;
         return;
     }
-    
-    elementos.eventosContainer.innerHTML = eventos.map(evento => `
-        <div class="col-md-6 col-lg-4">
-            <div class="teatro-card evento-card" onclick="seleccionarEvento(${evento.id_evento})" style="cursor: pointer; transition: var(--transition-normal);">
-                <div class="position-relative">
-                    ${evento.imagen ? 
-                        `<img src="${evento.imagen}" class="w-100 rounded" style="height: 180px; object-fit: cover;" alt="${evento.titulo}">` :
-                        `<div class="w-100 rounded d-flex align-items-center justify-content-center bg-secondary text-white" style="height: 180px;">
-                            <i class="bi bi-image display-4"></i>
-                        </div>`
-                    }
-                    <span class="badge bg-primary position-absolute top-0 end-0 m-2">${evento.tipo_texto}</span>
-                </div>
-                <div class="card-body pt-3">
-                    <h5 class="card-title text-primary">${evento.titulo}</h5>
-                    <p class="card-text text-muted small">${evento.descripcion || 'Sin descripción'}</p>
-                    <p class="card-text text-muted">
-                        <i class="bi bi-calendar-check me-1"></i>
-                        ${evento.funciones_disponibles} función(es) disponible(s)
-                    </p>
-                </div>
+
+    grid.innerHTML = eventos
+        .map(
+            (e) => `
+        <article class="evento-card" onclick="seleccionarEvento(${e.id_evento}, '${escapeHtml(e.titulo)}', ${e.tipo})">
+            <div class="evento-imagen-wrapper">
+                ${
+                    e.imagen
+                        ? `<img src="${e.imagen}" alt="${escapeHtml(e.titulo)}" loading="lazy">`
+                        : `<div class="evento-imagen-placeholder"><i class="bi bi-image"></i></div>`
+                }
+                <span class="evento-tipo-badge">${e.tipo_texto || 'Teatro'}</span>
             </div>
-        </div>
-    `).join('');
+            <div class="evento-body">
+                <h3 class="evento-titulo">${escapeHtml(e.titulo)}</h3>
+                <p class="evento-desc">${escapeHtml(e.descripcion || 'Una experiencia única te espera.')}</p>
+                <div class="evento-funciones">
+                    <i class="bi bi-calendar-event-fill"></i>
+                    ${e.funciones_disponibles} ${e.funciones_disponibles === 1 ? 'función disponible' : 'funciones disponibles'}
+                </div>
+                <button class="evento-btn-comprar">
+                    Ver funciones <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </article>
+        `
+        )
+        .join('');
 }
 
-// Seleccionar evento
-async function seleccionarEvento(idEvento) {
+// ============================================
+// PASO 2: SELECCIONAR EVENTO Y CARGAR FUNCIONES
+// ============================================
+async function seleccionarEvento(idEvento, titulo, tipo) {
     estado.eventoSeleccionado = idEvento;
-    mostrarCarga('Cargando funciones...');
-    
+    estado.eventoTitulo = titulo;
+    estado.eventoTipo = parseInt(tipo) || 1;
+    document.getElementById('evento-titulo-funcion').textContent = titulo;
+
+    mostrarCarga('Cargando funciones disponibles...');
     try {
-        // Cargar categorías
-        const catResponse = await fetch(`api/categorias.php?id_evento=${idEvento}`);
-        const catData = await catResponse.json();
-        
-        if (catData.success) {
-            estado.categorias = catData.categorias;
-        }
-        
-        // Cargar funciones
-        const funcResponse = await fetch(`api/funciones.php?id_evento=${idEvento}`);
-        const funcData = await funcResponse.json();
-        
-        elementos.modalCarga.hide();
-        
+        const [catRes, funcRes] = await Promise.all([
+            fetch(`api/categorias.php?id_evento=${idEvento}`),
+            fetch(`api/funciones.php?id_evento=${idEvento}`),
+        ]);
+        const catData = await catRes.json();
+        const funcData = await funcRes.json();
+        ocultarCarga();
+
+        if (catData.success) estado.categorias = catData.categorias;
         if (funcData.success) {
             renderizarFunciones(funcData.funciones);
-            cambiarPaso('paso-funcion');
+            irAPaso(2);
         } else {
             mostrarError('Error al cargar funciones');
         }
-    } catch (error) {
-        elementos.modalCarga.hide();
+    } catch (err) {
+        ocultarCarga();
         mostrarError('Error de conexión');
     }
 }
 
-// Renderizar funciones
 function renderizarFunciones(funciones) {
-    if (funciones.length === 0) {
-        elementos.funcionesContainer.innerHTML = '<p class="text-center text-muted">No hay funciones disponibles</p>';
+    const grid = document.getElementById('funciones-grid');
+    if (!funciones || funciones.length === 0) {
+        grid.innerHTML = `
+            <div class="loading-container" style="grid-column:1/-1;">
+                <i class="bi bi-clock-history" style="font-size:4rem;color:#3a3a3c;"></i>
+                <p>No hay funciones disponibles para este evento.</p>
+            </div>`;
         return;
     }
-    
-    elementos.funcionesContainer.innerHTML = funciones.map(funcion => `
-        <div class="col-md-4">
-            <div class="teatro-card funcion-card" onclick="seleccionarFuncion(${funcion.id_funcion}, this)" style="cursor: pointer; border: 2px solid var(--border-color); transition: var(--transition-normal);">
-                <div class="card-body text-center">
-                    <h5 class="card-title">${funcion.texto}</h5>
-                    ${funcion.vencida ? 
-                        '<span class="badge bg-danger">Vencida</span>' :
-                        '<span class="badge bg-success">Disponible</span>'
-                    }
-                </div>
-            </div>
-        </div>
-    `).join('');
+
+    grid.innerHTML = funciones
+        .map((f) => {
+            const fecha = new Date(f.fecha_hora);
+            const opciones = { weekday: 'long', day: 'numeric', month: 'long' };
+            const fechaStr = fecha.toLocaleDateString('es-MX', opciones);
+            const hora = fecha.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+            const vencida = f.vencida == 1 || f.estado == 1;
+
+            return `
+            <button class="funcion-card${vencida ? ' disabled' : ''}"
+                ${vencida ? 'disabled' : `onclick="seleccionarFuncion(${f.id_funcion}, '${fechaStr} · ${hora}', this)"`}
+                style="${vencida ? 'opacity:0.4;cursor:not-allowed;' : ''}">
+                <div class="funcion-fecha">${capitalizar(fechaStr)}</div>
+                <div class="funcion-hora">🕐 ${hora}</div>
+                <span class="funcion-status ${vencida ? 'vencida' : 'disponible'}">
+                    <i class="bi bi-${vencida ? 'x-circle-fill' : 'check-circle-fill'}"></i>
+                    ${vencida ? 'No disponible' : 'Disponible'}
+                </span>
+            </button>
+            `;
+        })
+        .join('');
 }
 
-// Seleccionar función
-async function seleccionarFuncion(idFuncion, elemento) {
-    if (elemento.classList.contains('selected')) return;
-    
-    // Remover selección anterior
-    document.querySelectorAll('.funcion-card').forEach(el => {
-        el.classList.remove('selected');
-        el.style.borderColor = 'var(--border-color)';
-        el.style.background = 'var(--bg-card)';
-    });
-    elemento.classList.add('selected');
-    elemento.style.borderColor = 'var(--accent-blue)';
-    elemento.style.background = 'var(--bg-tertiary)';
-    
+// ============================================
+// PASO 3: SELECCIONAR FUNCIÓN Y MAPA
+// ============================================
+async function seleccionarFuncion(idFuncion, texto, elemento) {
     estado.funcionSeleccionada = idFuncion;
+    estado.funcionTexto = texto;
+    estado.asientosSeleccionados = [];
+
+    document.querySelectorAll('.funcion-card').forEach((c) => c.classList.remove('selected'));
+    if (elemento) elemento.classList.add('selected');
+
     mostrarCarga('Cargando mapa de asientos...');
-    
     try {
-        // Cargar asientos vendidos
-        const response = await fetch(`api/asientos_vendidos.php?id_evento=${estado.eventoSeleccionado}&id_funcion=${idFuncion}`);
-        const data = await response.json();
-        
-        elementos.modalCarga.hide();
-        
+        const res = await fetch(
+            `api/asientos_vendidos.php?id_evento=${estado.eventoSeleccionado}&id_funcion=${idFuncion}`
+        );
+        const data = await res.json();
+        ocultarCarga();
         if (data.success) {
-            estado.asientosVendidos = data.asientos;
-            generarMapaAsientos();
-            cambiarPaso('paso-asientos');
+            estado.asientosVendidos = data.asientos || [];
+            generarMapa();
+            actualizarCarrito();
+            irAPaso(3);
             iniciarSincronizacion();
         } else {
             mostrarError('Error al cargar asientos');
         }
-    } catch (error) {
-        elementos.modalCarga.hide();
+    } catch (err) {
+        ocultarCarga();
         mostrarError('Error de conexión');
     }
 }
 
-// Generar mapa de asientos
-function generarMapaAsientos() {
-    const grid = elementos.asientosGrid;
+// ============================================
+// MAPA DE ASIENTOS
+// ============================================
+function generarMapa() {
+    const grid = document.getElementById('asientos-grid');
     grid.innerHTML = '';
-    
-    // Generar mapa Teatro 420: filas A-O
-    const letras = range('A', 'O');
-    
-    letras.forEach(fila => {
-        const rowDiv = document.createElement('div');
-        rowDiv.className = 'seat-row-wrapper';
-        
-        // Etiqueta de fila
-        const labelDiv = document.createElement('div');
-        labelDiv.className = 'row-label';
-        labelDiv.textContent = fila;
-        rowDiv.appendChild(labelDiv);
-        
-        // Bloque de asientos
-        const blockDiv = document.createElement('div');
-        blockDiv.className = 'seats-block';
-        
-        // 6 asientos izquierda
-        for (let i = 0; i < 6; i++) {
-            const numero = i + 1;
-            const codigo = `${fila}${numero}`;
-            blockDiv.appendChild(crearAsiento(codigo));
-        }
-        
-        // Pasillo
-        const pasilloDiv = document.createElement('div');
-        pasilloDiv.className = 'pasillo';
-        blockDiv.appendChild(pasilloDiv);
-        
-        // 14 asientos centro
-        for (let i = 0; i < 14; i++) {
-            const numero = i + 7;
-            const codigo = `${fila}${numero}`;
-            blockDiv.appendChild(crearAsiento(codigo));
-        }
-        
-        // Pasillo
-        const pasilloDiv2 = document.createElement('div');
-        pasilloDiv2.className = 'pasillo';
-        blockDiv.appendChild(pasilloDiv2);
-        
-        // 6 asientos derecha
-        for (let i = 0; i < 6; i++) {
-            const numero = i + 21;
-            const codigo = `${fila}${numero}`;
-            blockDiv.appendChild(crearAsiento(codigo));
-        }
-        
-        rowDiv.appendChild(blockDiv);
-        
-        // Etiqueta de fila derecha
-        const labelDiv2 = document.createElement('div');
-        labelDiv2.className = 'row-label';
-        labelDiv2.textContent = fila;
-        rowDiv.appendChild(labelDiv2);
-        
-        grid.appendChild(rowDiv);
-    });
-    
+    document.getElementById('escenario-label').textContent =
+        estado.eventoTipo == 2 ? 'PASARELA / ESCENARIO' : 'ESCENARIO';
+
+    // Filas A-O del teatro principal
+    const filas = 'ABCDEFGHIJKLMNO'.split('');
+    filas.forEach((letra) => grid.appendChild(crearFila(letra, 26, true)));
+
     // Fila P (palco)
-    const rowP = document.createElement('div');
-    rowP.className = 'seat-row-wrapper';
-    
-    const labelP = document.createElement('div');
-    labelP.className = 'row-label';
-    labelP.textContent = 'P';
-    rowP.appendChild(labelP);
-    
+    const filaP = document.createElement('div');
+    filaP.className = 'fila';
+    const lblP = document.createElement('div');
+    lblP.className = 'fila-label';
+    lblP.textContent = 'P';
+    filaP.appendChild(lblP);
     const blockP = document.createElement('div');
-    blockP.className = 'seats-block';
-    
+    blockP.className = 'asientos-block';
     for (let i = 1; i <= 30; i++) {
-        const codigo = `P${i}`;
-        blockP.appendChild(crearAsiento(codigo));
+        blockP.appendChild(crearAsiento(`P${i}`, i));
     }
-    
-    rowP.appendChild(blockP);
-    grid.appendChild(rowP);
+    filaP.appendChild(blockP);
+    const lblP2 = document.createElement('div');
+    lblP2.className = 'fila-label';
+    lblP2.textContent = 'P';
+    filaP.appendChild(lblP2);
+    grid.appendChild(filaP);
+
+    // Pasarela (PB1-PB10)
+    if (estado.eventoTipo == 2) {
+        const sep = document.createElement('div');
+        sep.style.cssText = 'height:24px;';
+        grid.appendChild(sep);
+        for (let f = 1; f <= 10; f++) {
+            grid.appendChild(crearFilaPasarela(f));
+        }
+    }
 }
 
-// Crear elemento de asiento
-function crearAsiento(codigo) {
-    const div = document.createElement('div');
-    div.className = 'seat';
-    div.dataset.asiento = codigo;
-    div.textContent = codigo;
-    
-    // Verificar si está vendido
-    if (estado.asientosVendidos.includes(codigo)) {
-        div.classList.add('vendido');
+function crearFila(letra, numAsientos, conPasillos) {
+    const fila = document.createElement('div');
+    fila.className = 'fila';
+
+    const lblIzq = document.createElement('div');
+    lblIzq.className = 'fila-label';
+    lblIzq.textContent = letra;
+    fila.appendChild(lblIzq);
+
+    const block = document.createElement('div');
+    block.className = 'asientos-block';
+
+    if (conPasillos) {
+        // 6 + pasillo + 14 + pasillo + 6 = 26
+        for (let i = 1; i <= 6; i++) block.appendChild(crearAsiento(`${letra}${i}`, i));
+        const p1 = document.createElement('div');
+        p1.className = 'pasillo';
+        block.appendChild(p1);
+        for (let i = 7; i <= 20; i++) block.appendChild(crearAsiento(`${letra}${i}`, i));
+        const p2 = document.createElement('div');
+        p2.className = 'pasillo';
+        block.appendChild(p2);
+        for (let i = 21; i <= 26; i++) block.appendChild(crearAsiento(`${letra}${i}`, i));
     } else {
-        div.onclick = () => toggleAsiento(codigo, div);
+        for (let i = 1; i <= numAsientos; i++) block.appendChild(crearAsiento(`${letra}${i}`, i));
     }
-    
-    return div;
+
+    fila.appendChild(block);
+
+    const lblDer = document.createElement('div');
+    lblDer.className = 'fila-label';
+    lblDer.textContent = letra;
+    fila.appendChild(lblDer);
+
+    return fila;
 }
 
-// Toggle selección de asiento
+function crearFilaPasarela(numFila) {
+    const fila = document.createElement('div');
+    fila.className = 'fila';
+
+    const lblIzq = document.createElement('div');
+    lblIzq.className = 'fila-label';
+    lblIzq.textContent = 'PB' + numFila;
+    fila.appendChild(lblIzq);
+
+    const block = document.createElement('div');
+    block.className = 'asientos-block';
+    for (let i = 1; i <= 12; i++) {
+        block.appendChild(crearAsiento(`PB${numFila}-${i}`, i));
+    }
+    fila.appendChild(block);
+
+    const lblDer = document.createElement('div');
+    lblDer.className = 'fila-label';
+    lblDer.textContent = 'PB' + numFila;
+    fila.appendChild(lblDer);
+
+    return fila;
+}
+
+function crearAsiento(codigo, numero) {
+    const btn = document.createElement('button');
+    btn.className = 'asiento';
+    btn.dataset.asiento = codigo;
+    btn.textContent = numero;
+    btn.title = `Asiento ${codigo}`;
+
+    if (estado.asientosVendidos.includes(codigo)) {
+        btn.classList.add('vendido');
+        btn.disabled = true;
+    } else {
+        btn.onclick = () => toggleAsiento(codigo, btn);
+    }
+    return btn;
+}
+
 function toggleAsiento(codigo, elemento) {
-    const index = estado.asientosSeleccionados.findIndex(a => a.asiento === codigo);
-    
-    if (index > -1) {
-        // Deseleccionar
-        estado.asientosSeleccionados.splice(index, 1);
+    const idx = estado.asientosSeleccionados.findIndex((a) => a.asiento === codigo);
+    if (idx > -1) {
+        estado.asientosSeleccionados.splice(idx, 1);
         elemento.classList.remove('selected');
     } else {
-        // Seleccionar
-        const categoria = estado.categorias[0] || { id_categoria: 0, nombre: 'General', precio: 0 };
+        const cat = estado.categorias[0] || { id_categoria: 0, nombre_categoria: 'General', precio: 80 };
         estado.asientosSeleccionados.push({
             asiento: codigo,
-            categoriaId: categoria.id_categoria,
-            precio: categoria.precio,
-            precio_final: categoria.precio,
-            tipo_boleto: 'adulto'
+            categoriaId: cat.id_categoria,
+            categoriaNombre: cat.nombre_categoria,
+            precio: parseFloat(cat.precio),
+            precio_final: parseFloat(cat.precio),
+            tipo_boleto: 'adulto',
         });
         elemento.classList.add('selected');
     }
-    
     actualizarCarrito();
 }
 
-// Actualizar carrito
+// ============================================
+// ZOOM DEL MAPA
+// ============================================
+function zoomMapa(delta) {
+    if (delta === 0) estado.zoom = 1.0;
+    else estado.zoom = Math.max(0.5, Math.min(1.8, estado.zoom + delta));
+    document.getElementById('mapa-content').style.transform = `scale(${estado.zoom})`;
+    document.getElementById('zoomLevel').textContent = Math.round(estado.zoom * 100) + '%';
+}
+
+// ============================================
+// CARRITO
+// ============================================
 function actualizarCarrito() {
+    const body = document.getElementById('carrito-body');
+    const total = document.getElementById('carrito-total');
+    const count = document.getElementById('carrito-count');
+    const btn = document.getElementById('btn-continuar');
+
     if (estado.asientosSeleccionados.length === 0) {
-        elementos.carritoItems.innerHTML = '<div class="carrito-vacio">No hay asientos seleccionados</div>';
-        elementos.totalPrecio.textContent = '$0.00';
-        elementos.btnContinuarDatos.disabled = true;
+        body.innerHTML = `
+            <div class="carrito-vacio-msg">
+                <i class="bi bi-cart"></i>
+                <p>Selecciona asientos para verlos aquí</p>
+            </div>`;
+        total.textContent = '$0.00';
+        count.textContent = '0 boletos';
+        btn.disabled = true;
         return;
     }
-    
-    elementos.carritoItems.innerHTML = estado.asientosSeleccionados.map((item, index) => `
-        <div class="carrito-item">
-            <div class="asiento-info">
-                <strong>${item.asiento}</strong>
-                <small>$${item.precio_final.toFixed(2)}</small>
+
+    body.innerHTML = estado.asientosSeleccionados
+        .map(
+            (item, i) => `
+        <div class="carrito-item-online">
+            <div class="carrito-item-info">
+                <strong>Asiento ${item.asiento}</strong>
+                <small>$${item.precio_final.toFixed(2)} · ${item.categoriaNombre || 'General'}</small>
             </div>
-            <button class="btn-remove" onclick="removerAsiento(${index})">
-                <i class="bi bi-x"></i>
+            <button class="carrito-item-remove" onclick="quitarAsiento(${i})" title="Quitar">
+                <i class="bi bi-trash-fill"></i>
             </button>
         </div>
-    `).join('');
-    
-    const total = estado.asientosSeleccionados.reduce((sum, item) => sum + item.precio_final, 0);
-    elementos.totalPrecio.textContent = `$${total.toFixed(2)}`;
-    elementos.btnContinuarDatos.disabled = false;
+        `
+        )
+        .join('');
+
+    const sum = estado.asientosSeleccionados.reduce((s, x) => s + x.precio_final, 0);
+    total.textContent = '$' + sum.toFixed(2);
+    count.textContent = `${estado.asientosSeleccionados.length} ${estado.asientosSeleccionados.length === 1 ? 'boleto' : 'boletos'}`;
+    btn.disabled = false;
 }
 
-// Remover asiento del carrito
-function removerAsiento(index) {
+function quitarAsiento(index) {
     const item = estado.asientosSeleccionados[index];
     estado.asientosSeleccionados.splice(index, 1);
-    
-    // Actualizar visualmente
-    const elemento = document.querySelector(`[data-asiento="${item.asiento}"]`);
-    if (elemento) {
-        elemento.classList.remove('selected');
-    }
-    
+    const el = document.querySelector(`[data-asiento="${item.asiento}"]`);
+    if (el) el.classList.remove('selected');
     actualizarCarrito();
 }
 
-// Configurar formulario de datos
-function configurarFormularioDatos() {
-    const form = document.getElementById('form-datos-cliente');
-    form.addEventListener('submit', procesarCompra);
+// ============================================
+// PASO 4: DATOS Y RESUMEN
+// ============================================
+function continuarADatos() {
+    if (estado.asientosSeleccionados.length === 0) return;
+
+    const detalle = document.getElementById('resumen-detalle');
+    detalle.innerHTML = `
+        <div class="resumen-item">
+            <span><i class="bi bi-mask"></i> Evento</span>
+            <strong>${escapeHtml(estado.eventoTitulo)}</strong>
+        </div>
+        <div class="resumen-item">
+            <span><i class="bi bi-calendar-event"></i> Función</span>
+            <strong>${escapeHtml(estado.funcionTexto)}</strong>
+        </div>
+        <div class="resumen-item">
+            <span><i class="bi bi-grid-3x3-gap-fill"></i> Asientos</span>
+            <strong>${estado.asientosSeleccionados.map((a) => a.asiento).join(', ')}</strong>
+        </div>
+        <div class="resumen-item">
+            <span><i class="bi bi-ticket-perforated-fill"></i> Cantidad</span>
+            <strong>${estado.asientosSeleccionados.length} boletos</strong>
+        </div>
+    `;
+    const total = estado.asientosSeleccionados.reduce((s, x) => s + x.precio_final, 0);
+    document.getElementById('resumen-total').textContent = '$' + total.toFixed(2);
+
+    irAPaso(4);
 }
 
-// Procesar compra
+// ============================================
+// PROCESAR COMPRA
+// ============================================
 async function procesarCompra(e) {
     e.preventDefault();
-    
-    const nombre = document.getElementById('nombre_cliente').value;
-    const email = document.getElementById('email_cliente').value;
-    const telefono = document.getElementById('telefono_cliente').value;
-    
+    const nombre = document.getElementById('nombre_cliente').value.trim();
+    const email = document.getElementById('email_cliente').value.trim();
+    const telefono = document.getElementById('telefono_cliente').value.trim();
+
     if (!nombre || !email) {
-        alert('Por favor completa los campos obligatorios');
+        mostrarError('Por favor completa los campos obligatorios');
         return;
     }
-    
-    mostrarCarga('Procesando compra...');
-    
-    const datos = {
-        id_evento: estado.eventoSeleccionado,
-        id_funcion: estado.funcionSeleccionada,
-        asientos: estado.asientosSeleccionados,
-        nombre_cliente: nombre,
-        email_cliente: email
-    };
-    
+
+    mostrarCarga('Procesando tu compra...');
     try {
-        const response = await fetch('api/comprar.php', {
+        const res = await fetch('api/comprar.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(datos)
+            body: JSON.stringify({
+                id_evento: estado.eventoSeleccionado,
+                id_funcion: estado.funcionSeleccionada,
+                asientos: estado.asientosSeleccionados,
+                nombre_cliente: nombre,
+                email_cliente: email,
+                telefono_cliente: telefono,
+            }),
         });
-        
-        const data = await response.json();
-        
-        elementos.modalCarga.hide();
-        
+        const data = await res.json();
+        ocultarCarga();
+
         if (data.success) {
             mostrarConfirmacion(data.boletos, nombre);
         } else {
-            alert('Error: ' + data.message);
+            mostrarError(data.message || 'Error al procesar la compra');
         }
-    } catch (error) {
-        elementos.modalCarga.hide();
-        alert('Error de conexión');
+    } catch (err) {
+        ocultarCarga();
+        mostrarError('Error de conexión. Inténtalo de nuevo.');
     }
 }
 
-// Mostrar confirmación
 function mostrarConfirmacion(boletos, nombre) {
-    cambiarPaso('paso-confirmacion');
-    
-    document.getElementById('confirmacion-mensaje').textContent = 
-        `Gracias ${nombre}, tus boletos han sido generados exitosamente.`;
-    
-    document.getElementById('boletos-generados').innerHTML = `
-        <div class="teatro-card">
-            <div class="card-body">
-                <h6 class="mb-3">Tus Boletos:</h6>
-                ${boletos.map(b => `
-                    <div class="d-flex justify-content-between py-2 border-bottom border-subtle">
-                        <span><strong>Asiento:</strong> ${b.asiento}</span>
-                        <span><strong>Código:</strong> ${b.codigo_unico}</span>
-                        <span><strong>Precio:</strong> $${b.precio.toFixed(2)}</span>
-                    </div>
-                `).join('')}
+    irAPaso(5);
+    document.getElementById('confirmacion-mensaje').textContent =
+        `¡Gracias ${nombre}! Hemos enviado tus boletos a tu correo electrónico.`;
+    const lista = document.getElementById('boletos-lista');
+    lista.innerHTML = boletos
+        .map(
+            (b) => `
+        <div class="boleto-item">
+            <div class="boleto-row">
+                <span><i class="bi bi-grid-3x3-gap-fill"></i> Asiento</span>
+                <strong>${b.asiento}</strong>
             </div>
-        </div>
-    `;
-    
-    // Detener sincronización
+            <div class="boleto-row">
+                <span><i class="bi bi-qr-code"></i> Código</span>
+                <strong>${b.codigo_unico}</strong>
+            </div>
+            <div class="boleto-row">
+                <span><i class="bi bi-cash-coin"></i> Precio</span>
+                <strong>$${parseFloat(b.precio).toFixed(2)}</strong>
+            </div>
+        </div>`
+        )
+        .join('');
+
     if (estado.eventSource) {
         estado.eventSource.close();
+        estado.eventSource = null;
     }
 }
 
-// Iniciar sincronización en tiempo real
+// ============================================
+// SINCRONIZACIÓN EN TIEMPO REAL (SSE)
+// ============================================
 function iniciarSincronizacion() {
-    if (estado.eventSource) {
-        estado.eventSource.close();
-    }
-    
+    if (estado.eventSource) estado.eventSource.close();
     const url = `api/cambios.php?last_id=${estado.lastChangeId}&id_evento=${estado.eventoSeleccionado}&id_funcion=${estado.funcionSeleccionada}`;
-    
-    estado.eventSource = new EventSource(url);
-    
-    estado.eventSource.addEventListener('connected', (e) => {
-        console.log('SSE conectado');
-    });
-    
-    estado.eventSource.addEventListener('cambio', (e) => {
-        const cambio = JSON.parse(e.data);
+    try {
+        estado.eventSource = new EventSource(url);
+    } catch (e) {
+        return;
+    }
+
+    estado.eventSource.addEventListener('cambio', (ev) => {
+        const cambio = JSON.parse(ev.data);
         estado.lastChangeId = cambio.id;
-        
         if (cambio.tipo === 'venta' && cambio.datos && cambio.datos.asientos) {
-            // Actualizar asientos vendidos
-            cambio.datos.asientos.forEach(asiento => {
-                if (!estado.asientosVendidos.includes(asiento)) {
-                    estado.asientosVendidos.push(asiento);
-                    
-                    // Actualizar visualmente
-                    const elemento = document.querySelector(`[data-asiento="${asiento}"]`);
-                    if (elemento) {
-                        elemento.classList.remove('selected');
-                        elemento.classList.add('vendido');
-                        elemento.onclick = null;
-                        
-                        // Remover del carrito si estaba seleccionado
-                        const index = estado.asientosSeleccionados.findIndex(a => a.asiento === asiento);
-                        if (index > -1) {
-                            estado.asientosSeleccionados.splice(index, 1);
-                            actualizarCarrito();
-                        }
+            cambio.datos.asientos.forEach((codigo) => {
+                if (!estado.asientosVendidos.includes(codigo)) {
+                    estado.asientosVendidos.push(codigo);
+                    const el = document.querySelector(`[data-asiento="${codigo}"]`);
+                    if (el) {
+                        el.classList.remove('selected');
+                        el.classList.add('vendido');
+                        el.disabled = true;
+                        el.onclick = null;
+                    }
+                    const idx = estado.asientosSeleccionados.findIndex((a) => a.asiento === codigo);
+                    if (idx > -1) {
+                        estado.asientosSeleccionados.splice(idx, 1);
+                        actualizarCarrito();
+                        notificacion(`El asiento ${codigo} acaba de venderse y fue retirado de tu carrito.`);
                     }
                 }
             });
         }
     });
-    
-    estado.eventSource.addEventListener('reconnect', (e) => {
-        const data = JSON.parse(e.data);
-        estado.lastChangeId = data.last_id;
-        estado.eventSource.close();
-        iniciarSincronizacion();
-    });
-    
+
     estado.eventSource.onerror = () => {
-        estado.eventSource.close();
-        // Reintentar después de 5 segundos
-        setTimeout(iniciarSincronizacion, 5000);
+        if (estado.eventSource) estado.eventSource.close();
+        setTimeout(() => {
+            if (estado.pasoActual === 3) iniciarSincronizacion();
+        }, 5000);
     };
 }
 
-// Utilidades
-function cambiarPaso(pasoId) {
-    document.querySelectorAll('[id^="paso-"]').forEach(el => {
-        el.classList.remove('paso-activo');
-        el.classList.add('paso-inactivo');
-    });
-    
-    document.getElementById(pasoId).classList.remove('paso-inactivo');
-    document.getElementById(pasoId).classList.add('paso-activo');
+// ============================================
+// UTILIDADES
+// ============================================
+function mostrarCarga(msg) {
+    document.getElementById('mensaje-carga').textContent = msg || 'Procesando...';
+    document.getElementById('modal-carga').classList.add('active');
 }
 
-function mostrarCarga(mensaje) {
-    elementos.mensajeCarga.textContent = mensaje;
-    elementos.modalCarga.show();
+function ocultarCarga() {
+    document.getElementById('modal-carga').classList.remove('active');
 }
 
-function mostrarError(mensaje) {
-    alert(mensaje);
+function mostrarError(msg) {
+    notificacion(msg, true);
 }
 
-function volverEventos() {
-    cambiarPaso('paso-evento');
-    estado.eventoSeleccionado = null;
-    estado.funcionSeleccionada = null;
+function notificacion(mensaje, esError = false) {
+    const div = document.createElement('div');
+    div.style.cssText = `
+        position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
+        background: ${esError ? 'linear-gradient(135deg, #ff453a, #c92a1f)' : 'linear-gradient(135deg, #1561f0, #0d4fc4)'};
+        color: #fff; padding: 14px 24px; border-radius: 12px; z-index: 9999;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4); font-weight: 600;
+        animation: slideInRight 0.3s ease;
+    `;
+    div.innerHTML = `<i class="bi bi-${esError ? 'exclamation-triangle-fill' : 'info-circle-fill'}"></i> ${mensaje}`;
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 4000);
 }
 
-function volverFunciones() {
-    cambiarPaso('paso-funcion');
-    estado.funcionSeleccionada = null;
-    if (estado.eventSource) {
-        estado.eventSource.close();
-    }
+function escapeHtml(text) {
+    if (!text) return '';
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
-function volverAsientos() {
-    cambiarPaso('paso-asientos');
+function capitalizar(s) {
+    return s.charAt(0).toUpperCase() + s.slice(1);
 }
-
-function range(start, end) {
-    const result = [];
-    for (let i = start.charCodeAt(0); i <= end.charCodeAt(0); i++) {
-        result.push(String.fromCharCode(i));
-    }
-    return result;
-}
-
-// Actualizar resumen cuando se va a paso de datos
-elementos.btnContinuarDatos.addEventListener('click', () => {
-    const resumen = estado.asientosSeleccionados.map(item => `
-        <div class="d-flex justify-content-between py-1">
-            <span>${item.asiento}</span>
-            <span>$${item.precio_final.toFixed(2)}</span>
-        </div>
-    `).join('');
-    
-    elementos.resumenCompra.innerHTML = resumen;
-    const total = estado.asientosSeleccionados.reduce((sum, item) => sum + item.precio_final, 0);
-    elementos.totalPagar.textContent = `$${total.toFixed(2)}`;
-    
-    cambiarPaso('paso-datos');
-});

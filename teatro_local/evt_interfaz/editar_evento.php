@@ -190,6 +190,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 registrar_cambio('evento', $evt_id, null, ['accion' => $modo_reactivacion ? 'reactivar' : 'editar']);
                 registrar_cambio('funcion', $evt_id, null, ['accion' => 'modificar', 'cantidad' => count($_POST['funciones'])]);
 
+                // ===== REPLICAR A BASE DE DATOS ONLINE (no bloqueante) =====
+                if (file_exists(__DIR__ . '/../sync/online_sync_helper.php')) {
+                    require_once __DIR__ . '/../sync/online_sync_helper.php';
+                    @replicarEventoAOnline($conn, $evt_id);
+                }
+
                 ?>
                 <!DOCTYPE html>
                 <html lang="es">

@@ -29,6 +29,7 @@ try {
             e.tipo,
             e.descripcion,
             e.imagen,
+            e.imagen_mime,
             e.mapa_json,
             (SELECT COUNT(*) FROM funciones f 
              WHERE f.id_evento = e.id_evento 

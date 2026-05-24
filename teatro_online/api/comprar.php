@@ -6,6 +6,12 @@
  * Comparte lógica con vnt_interfaz/procesar_compra.php
  */
 
+if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+}
+use Endroid\QrCode\QrCode;
+use Endroid\QrCode\Writer\PngWriter;
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 
@@ -157,15 +163,18 @@ try {
         // Generar código único
         $codigo_unico = strtoupper(bin2hex(random_bytes(8)));
         
-        // Generar código QR (usando la misma librería que vnt_interfaz)
-        require_once __DIR__ . '/../vendor/autoload.php';
-        use Endroid\QrCode\QrCode;
-        use Endroid\QrCode\Writer\PngWriter;
-        
-        $qrCode = new QrCode($codigo_unico);
-        $writer = new PngWriter();
-        $result = $writer->write($qrCode);
-        $qr_blob = $result->getString();
+        // Generar código QR (si la librería está disponible)
+        $qr_blob = null;
+        if (class_exists('Endroid\\QrCode\\QrCode')) {
+            try {
+                $qrCode = new QrCode($codigo_unico);
+                $writer = new PngWriter();
+                $resultQr = $writer->write($qrCode);
+                $qr_blob = $resultQr->getString();
+            } catch (Throwable $eqr) {
+                $qr_blob = null;
+            }
+        }
         
         // Insertar o actualizar boleto
         if ($boleto_existente) {

@@ -2,8 +2,8 @@
 /**
  * Teatro Online - Compra de Boletos en Línea
  * ==========================================
- * Interfaz para clientes que compran boletos desde internet
- * Mismo diseño que vnt_interfaz
+ * Interfaz intuitiva, contraste alto, botones grandes.
+ * Replicada desde la base de datos local (trt_25_online).
  */
 ?>
 <!DOCTYPE html>
@@ -11,208 +11,253 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teatro Online - Compra de Boletos</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="assets/css/teatro-style.css">
-    <link rel="stylesheet" href="assets/css/seat-map.css">
-    <link rel="stylesheet" href="assets/css/animations.css">
-    <link rel="stylesheet" href="assets/css/carrito.css">
+    <title>🎭 Teatro Online - Compra tus Boletos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/online-style.css">
 </head>
 <body>
-    <div class="teatro-container">
-        <!-- Header -->
-        <div class="teatro-header">
-            <h1><i class="bi bi-ticket-perforated"></i> Teatro Online</h1>
-            <p>Compra tus boletos desde cualquier lugar</p>
-        </div>
 
-        <!-- Paso 1: Selección de Evento -->
-        <div id="paso-evento" class="paso-activo">
-            <div class="teatro-card">
-                <div class="teatro-card-header">
-                    <div class="teatro-card-icon"><i class="bi bi-calendar-event"></i></div>
-                    <h3 class="teatro-card-title">1. Selecciona un Evento</h3>
+    <!-- HEADER -->
+    <header class="online-header">
+        <div class="online-header-content">
+            <div class="online-logo">
+                <div class="online-logo-icon">
+                    <i class="bi bi-mask"></i>
                 </div>
-                <div class="card-body">
-                    <div id="eventos-container" class="row g-3">
-                        <div class="col-12 text-center py-5">
-                            <div class="spinner-border text-primary" role="status"></div>
-                            <p class="mt-2 text-muted">Cargando eventos...</p>
-                        </div>
-                    </div>
+                <div class="online-logo-text">
+                    <h1>Teatro Online</h1>
+                    <p>Compra fácil y segura desde donde estés</p>
                 </div>
             </div>
-        </div>
-
-        <!-- Paso 2: Selección de Función -->
-        <div id="paso-funcion" class="paso-inactivo">
-            <div class="teatro-card">
-                <div class="teatro-card-header">
-                    <div class="teatro-card-icon"><i class="bi bi-clock"></i></div>
-                    <h3 class="teatro-card-title">2. Selecciona una Función</h3>
-                </div>
-                <div class="card-body">
-                    <button onclick="volverEventos()" class="teatro-btn teatro-btn-secondary mb-3">
-                        <i class="bi bi-arrow-left"></i> Volver a eventos
-                    </button>
-                    <div id="funciones-container" class="row g-3">
-                        <div class="col-12 text-center py-5">
-                            <div class="spinner-border text-primary" role="status"></div>
-                            <p class="mt-2 text-muted">Cargando funciones...</p>
-                        </div>
-                    </div>
-                </div>
+            <div class="online-badge">
+                En vivo · Tiempo real
             </div>
         </div>
+    </header>
 
-        <!-- Paso 3: Selección de Asientos -->
-        <div id="paso-asientos" class="paso-inactivo">
-            <div class="row">
-                <!-- Mapa de Asientos -->
-                <div class="col-lg-8">
-                    <div class="teatro-card">
-                        <div class="teatro-card-header">
-                            <div class="teatro-card-icon"><i class="bi bi-grid-3x3"></i></div>
-                            <h3 class="teatro-card-title">3. Selecciona tus Asientos</h3>
-                        </div>
-                        <div class="card-body">
-                            <button onclick="volverFunciones()" class="teatro-btn teatro-btn-secondary mb-3">
-                                <i class="bi bi-arrow-left"></i> Volver a funciones
-                            </button>
-                            
-                            <div class="seat-map-wrapper">
-                                <div class="seat-map-content">
-                                    <div class="screen">ESCENARIO</div>
-                                    <div id="asientos-grid" class="asientos-grid">
-                                        <!-- Asientos se generan dinámicamente -->
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Leyenda -->
-                            <div class="mt-3 d-flex gap-3 flex-wrap">
-                                <div class="d-flex align-items-center">
-                                    <div class="seat-legend" style="background: #0066ff; width: 30px; height: 30px; border-radius: 8px;"></div>
-                                    <span class="ms-2 text-muted">Disponible</span>
-                                </div>
-                                <div class="d-flex align-items-center">
-                                    <div class="seat-legend" style="background: #32d74b; width: 30px; height: 30px; border-radius: 8px;"></div>
-                                    <span class="ms-2 text-muted">Seleccionado</span>
-                                </div>
-                                <div class="d-flex align-items-center">
-                                    <div class="seat-legend" style="background: #2b2b2b; width: 30px; height: 30px; border-radius: 8px;"></div>
-                                    <span class="ms-2 text-muted">Vendido</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Carrito -->
-                <div class="col-lg-4">
-                    <div class="teatro-card controls-panel">
-                        <div class="teatro-card-header">
-                            <div class="teatro-card-icon"><i class="bi bi-cart"></i></div>
-                            <h3 class="teatro-card-title">Carrito</h3>
-                        </div>
-                        <div class="card-body">
-                            <div id="carrito-items">
-                                <div class="carrito-vacio">
-                                    No hay asientos seleccionados
-                                </div>
-                            </div>
-                            <div class="total-section">
-                                <h4>Total: <span id="total-precio">$0.00</span></h4>
-                            </div>
-                            <button id="btn-continuar-datos" class="teatro-btn teatro-btn-success w-100" disabled>
-                                <i class="bi bi-arrow-right"></i> Continuar a Datos
-                            </button>
-                        </div>
-                    </div>
-                </div>
+    <!-- PROGRESS STEPS -->
+    <div class="progress-container">
+        <div class="progress-steps" id="progressSteps">
+            <div class="progress-line-active" id="progressLine"></div>
+            <div class="progress-step active" data-step="1">
+                <div class="progress-step-circle">1</div>
+                <div class="progress-step-label">Evento</div>
             </div>
-        </div>
-
-        <!-- Paso 4: Datos del Cliente -->
-        <div id="paso-datos" class="paso-inactivo">
-            <div class="teatro-card">
-                <div class="teatro-card-header">
-                    <div class="teatro-card-icon"><i class="bi bi-person"></i></div>
-                    <h3 class="teatro-card-title">4. Tus Datos</h3>
-                </div>
-                <div class="card-body">
-                    <button onclick="volverAsientos()" class="teatro-btn teatro-btn-secondary mb-3">
-                        <i class="bi bi-arrow-left"></i> Volver a asientos
-                    </button>
-                    
-                    <form id="form-datos-cliente">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="teatro-label">Nombre Completo *</label>
-                                <input type="text" class="teatro-input" id="nombre_cliente" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="teatro-label">Email *</label>
-                                <input type="email" class="teatro-input" id="email_cliente" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="teatro-label">Teléfono</label>
-                                <input type="tel" class="teatro-input" id="telefono_cliente">
-                            </div>
-                        </div>
-                        
-                        <div class="teatro-card mt-3">
-                            <div class="card-body">
-                                <h6 class="mb-3">Resumen de Compra</h6>
-                                <div id="resumen-compra"></div>
-                                <hr class="border-subtle">
-                                <div class="d-flex justify-content-between">
-                                    <strong>Total a Pagar:</strong>
-                                    <strong id="total-pagar" class="text-success">$0.00</strong>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <button type="submit" class="teatro-btn teatro-btn-primary w-100 mt-3">
-                            <i class="bi bi-credit-card"></i> Completar Compra
-                        </button>
-                    </form>
-                </div>
+            <div class="progress-step" data-step="2">
+                <div class="progress-step-circle">2</div>
+                <div class="progress-step-label">Función</div>
             </div>
-        </div>
-
-        <!-- Paso 5: Confirmación -->
-        <div id="paso-confirmacion" class="paso-inactivo">
-            <div class="teatro-card">
-                <div class="card-body text-center py-5">
-                    <div class="teatro-card-icon mx-auto mb-3" style="width: 80px; height: 80px; font-size: 2.5rem;">
-                        <i class="bi bi-check-circle"></i>
-                    </div>
-                    <h3 class="teatro-card-title text-center">¡Compra Exitosa!</h3>
-                    <p id="confirmacion-mensaje" class="text-muted mt-3"></p>
-                    <div id="boletos-generados" class="mt-4"></div>
-                    <button onclick="location.reload()" class="teatro-btn teatro-btn-primary mt-4">
-                        <i class="bi bi-plus-circle"></i> Nueva Compra
-                    </button>
-                </div>
+            <div class="progress-step" data-step="3">
+                <div class="progress-step-circle">3</div>
+                <div class="progress-step-label">Asientos</div>
+            </div>
+            <div class="progress-step" data-step="4">
+                <div class="progress-step-circle">4</div>
+                <div class="progress-step-label">Datos</div>
+            </div>
+            <div class="progress-step" data-step="5">
+                <div class="progress-step-circle"><i class="bi bi-check-lg"></i></div>
+                <div class="progress-step-label">¡Listo!</div>
             </div>
         </div>
     </div>
 
-    <!-- Modal de Carga -->
-    <div id="modal-carga" class="modal fade" data-bs-backdrop="static" data-bs-keyboard="false">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content" style="background: var(--bg-secondary); border: 1px solid var(--border-color);">
-                <div class="modal-body text-center py-4">
-                    <div class="spinner-border text-primary" role="status"></div>
-                    <p class="mt-3 mb-0 text-muted" id="mensaje-carga">Procesando...</p>
+    <!-- MAIN CONTAINER -->
+    <main class="main-container">
+
+        <!-- PASO 1: SELECCIÓN DE EVENTO -->
+        <section id="paso-evento" class="paso activo">
+            <div class="paso-title">
+                <h2>🎬 ¿Qué quieres ver?</h2>
+                <p>Selecciona un evento para continuar</p>
+            </div>
+            <div id="eventos-grid" class="eventos-grid">
+                <div class="loading-container" style="grid-column: 1/-1;">
+                    <div class="loading-spinner"></div>
+                    <p>Cargando eventos...</p>
                 </div>
             </div>
+        </section>
+
+        <!-- PASO 2: SELECCIÓN DE FUNCIÓN -->
+        <section id="paso-funcion" class="paso">
+            <button class="btn-volver" onclick="irAPaso(1)">
+                <i class="bi bi-arrow-left"></i> Cambiar evento
+            </button>
+            <div class="paso-title">
+                <h2>📅 Elige el día y horario</h2>
+                <p id="evento-titulo-funcion">—</p>
+            </div>
+            <div id="funciones-grid" class="funciones-grid">
+                <div class="loading-container" style="grid-column: 1/-1;">
+                    <div class="loading-spinner"></div>
+                    <p>Cargando funciones...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- PASO 3: SELECCIÓN DE ASIENTOS -->
+        <section id="paso-asientos" class="paso">
+            <button class="btn-volver" onclick="irAPaso(2)">
+                <i class="bi bi-arrow-left"></i> Cambiar función
+            </button>
+            <div class="paso-title">
+                <h2>💺 Elige tus asientos</h2>
+                <p>Toca los asientos disponibles para seleccionarlos</p>
+            </div>
+
+            <div class="mapa-layout">
+                <!-- Mapa -->
+                <div class="mapa-container">
+                    <div class="mapa-toolbar">
+                        <div class="leyenda">
+                            <div class="leyenda-item">
+                                <div class="leyenda-color" style="background:#1561f0;"></div>
+                                <span>Disponible</span>
+                            </div>
+                            <div class="leyenda-item">
+                                <div class="leyenda-color" style="background:#32d74b;"></div>
+                                <span>Tu selección</span>
+                            </div>
+                            <div class="leyenda-item">
+                                <div class="leyenda-color" style="background:#2b2b2b;border:1px solid #ff453a;"></div>
+                                <span>Vendido</span>
+                            </div>
+                        </div>
+                        <div class="zoom-controls">
+                            <button class="zoom-btn" onclick="zoomMapa(-0.1)" title="Alejar">
+                                <i class="bi bi-zoom-out"></i>
+                            </button>
+                            <div class="zoom-level" id="zoomLevel">100%</div>
+                            <button class="zoom-btn" onclick="zoomMapa(0.1)" title="Acercar">
+                                <i class="bi bi-zoom-in"></i>
+                            </button>
+                            <button class="zoom-btn" onclick="zoomMapa(0)" title="Restablecer">
+                                <i class="bi bi-arrow-counterclockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mapa-scroll">
+                        <div class="mapa-content" id="mapa-content">
+                            <div class="escenario" id="escenario-label">ESCENARIO</div>
+                            <div id="asientos-grid"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Carrito Lateral -->
+                <aside class="carrito-sidebar">
+                    <div class="carrito-header">
+                        <div class="carrito-icon">
+                            <i class="bi bi-bag-check-fill"></i>
+                        </div>
+                        <div>
+                            <h3>Tu Carrito</h3>
+                            <span id="carrito-count">0 boletos</span>
+                        </div>
+                    </div>
+                    <div class="carrito-body" id="carrito-body">
+                        <div class="carrito-vacio-msg">
+                            <i class="bi bi-cart"></i>
+                            <p>Selecciona asientos para verlos aquí</p>
+                        </div>
+                    </div>
+                    <div class="carrito-total">
+                        <span>Total</span>
+                        <strong id="carrito-total">$0.00</strong>
+                    </div>
+                    <button class="btn-continuar" id="btn-continuar" onclick="continuarADatos()" disabled>
+                        Continuar <i class="bi bi-arrow-right"></i>
+                    </button>
+                </aside>
+            </div>
+        </section>
+
+        <!-- PASO 4: DATOS DEL CLIENTE -->
+        <section id="paso-datos" class="paso">
+            <button class="btn-volver" onclick="irAPaso(3)">
+                <i class="bi bi-arrow-left"></i> Volver a asientos
+            </button>
+            <div class="paso-title">
+                <h2>📝 Tus datos</h2>
+                <p>Necesitamos tu información para enviarte los boletos</p>
+            </div>
+
+            <div class="datos-container">
+                <form id="form-datos" autocomplete="on">
+                    <div class="form-group-online">
+                        <label for="nombre_cliente">
+                            <i class="bi bi-person-fill"></i> Nombre completo <span class="required">*</span>
+                        </label>
+                        <input type="text" id="nombre_cliente" name="nombre" required autocomplete="name" placeholder="Juan Pérez">
+                    </div>
+
+                    <div class="form-group-online">
+                        <label for="email_cliente">
+                            <i class="bi bi-envelope-fill"></i> Correo electrónico <span class="required">*</span>
+                        </label>
+                        <input type="email" id="email_cliente" name="email" required autocomplete="email" placeholder="tu@correo.com">
+                    </div>
+
+                    <div class="form-group-online">
+                        <label for="telefono_cliente">
+                            <i class="bi bi-phone-fill"></i> Teléfono (opcional)
+                        </label>
+                        <input type="tel" id="telefono_cliente" name="telefono" autocomplete="tel" placeholder="555 123 4567">
+                    </div>
+
+                    <div class="resumen-compra">
+                        <h6>📋 Resumen de tu compra</h6>
+                        <div id="resumen-detalle"></div>
+                        <div class="resumen-total">
+                            <span>Total a pagar</span>
+                            <span class="total-amount" id="resumen-total">$0.00</span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-pagar">
+                        <i class="bi bi-credit-card-fill"></i> Confirmar Compra
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- PASO 5: CONFIRMACIÓN -->
+        <section id="paso-confirmacion" class="paso">
+            <div class="confirmacion-container">
+                <div class="confirmacion-icon">
+                    <i class="bi bi-check-lg"></i>
+                </div>
+                <h2 class="confirmacion-titulo">¡Compra exitosa!</h2>
+                <p class="confirmacion-mensaje" id="confirmacion-mensaje">
+                    Tus boletos han sido generados.
+                </p>
+                <div class="boletos-lista" id="boletos-lista"></div>
+                <button class="btn-pagar" onclick="location.reload()">
+                    <i class="bi bi-plus-circle-fill"></i> Comprar otros boletos
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- AYUDA FLOTANTE -->
+    <div class="help-bubble" onclick="alert('Si necesitas ayuda escribe a soporte@teatro.com o llama al 555-1234')">
+        <i class="bi bi-question-circle-fill"></i> ¿Necesitas ayuda?
+    </div>
+
+    <!-- MODAL DE CARGA -->
+    <div class="modal-overlay" id="modal-carga">
+        <div class="modal-content">
+            <div class="loading-spinner" style="margin: 0 auto 16px;"></div>
+            <p id="mensaje-carga" style="color:#a1a1a6;">Procesando...</p>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
