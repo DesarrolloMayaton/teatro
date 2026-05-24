@@ -157,6 +157,16 @@ try {
         // Generar código único
         $codigo_unico = strtoupper(bin2hex(random_bytes(8)));
         
+        // Generar código QR (usando la misma librería que vnt_interfaz)
+        require_once __DIR__ . '/../vendor/autoload.php';
+        use Endroid\QrCode\QrCode;
+        use Endroid\QrCode\Writer\PngWriter;
+        
+        $qrCode = new QrCode($codigo_unico);
+        $writer = new PngWriter();
+        $result = $writer->write($qrCode);
+        $qr_blob = $result->getString();
+        
         // Insertar o actualizar boleto
         if ($boleto_existente) {
             $stmt = $conn_online->prepare("
@@ -164,6 +174,7 @@ try {
                     id_funcion = ?,
                     id_categoria = ?,
                     codigo_unico = ?,
+                    qr_code = ?,
                     precio_base = ?,
                     precio_final = ?,
                     tipo_boleto = ?,
@@ -171,16 +182,16 @@ try {
                     estatus = 1
                 WHERE id_boleto = ?
             ");
-            $stmt->bind_param("iisddsi", $id_funcion, $categoria_id, $codigo_unico, $precio, $precio_final, $tipo_boleto, $boleto_existente['id_boleto']);
+            $stmt->bind_param("iisbddsii", $id_funcion, $categoria_id, $codigo_unico, $qr_blob, $precio, $precio_final, $tipo_boleto, $boleto_existente['id_boleto']);
         } else {
             $stmt = $conn_online->prepare("
                 INSERT INTO boletos (
                     id_evento, id_funcion, id_asiento, id_categoria,
-                    codigo_unico, precio_base, precio_final, tipo_boleto,
+                    codigo_unico, qr_code, precio_base, precio_final, tipo_boleto,
                     fecha_compra, estatus
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), 1)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 1)
             ");
-            $stmt->bind_param("iiiisdds", $id_evento, $id_funcion, $id_asiento, $categoria_id, $codigo_unico, $precio, $precio_final, $tipo_boleto);
+            $stmt->bind_param("iiiisbdds", $id_evento, $id_funcion, $id_asiento, $categoria_id, $codigo_unico, $qr_blob, $precio, $precio_final, $tipo_boleto);
         }
         
         if (!$stmt->execute()) {

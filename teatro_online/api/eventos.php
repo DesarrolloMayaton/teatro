@@ -47,13 +47,19 @@ try {
     
     $eventos = [];
     while ($row = $result->fetch_assoc()) {
+        // Convertir imagen BLOB a base64 si existe
+        $imagen_base64 = null;
+        if ($row['imagen']) {
+            $imagen_base64 = 'data:' . ($row['imagen_mime'] ?? 'image/jpeg') . ';base64,' . base64_encode($row['imagen']);
+        }
+        
         $eventos[] = [
             'id_evento' => (int)$row['id_evento'],
             'titulo' => $row['titulo'],
             'tipo' => (int)$row['tipo'],
             'tipo_texto' => $row['tipo'] == 1 ? 'Teatro 420' : 'Pasarela 540',
             'descripcion' => $row['descripcion'],
-            'imagen' => $row['imagen'],
+            'imagen' => $imagen_base64,
             'funciones_disponibles' => (int)$row['funciones_disponibles']
         ];
     }

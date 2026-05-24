@@ -2,7 +2,8 @@
 /**
  * Configuración de Base de Datos - Teatro Online
  * =============================================
- * Comparte la misma base de datos que vnt_interfaz para sincronización
+ * Usa base de datos online separada (trt_25_online)
+ * Los datos se replican desde la base de datos local (trt_25)
  */
 
 if (defined('ONLINE_DB_INCLUDED')) {
@@ -10,11 +11,11 @@ if (defined('ONLINE_DB_INCLUDED')) {
 }
 define('ONLINE_DB_INCLUDED', true);
 
-// Usar la misma base de datos que vnt_interfaz
+// Usar la base de datos online separada
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
 define('DB_PASS', '');
-define('DB_NAME', 'trt_25');
+define('DB_NAME', 'trt_25_online');
 
 /**
  * Obtener conexión a la base de datos
